@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 
-export const runtime = 'edge';
 export const maxDuration = 120;
 
 function extractYouTubeId(url: string): string | null {
@@ -70,6 +69,23 @@ export async function POST(req: NextRequest) {
       error: 'URL de YouTube no válida. Pega el link completo del video.'
     }, { status: 400 });
 
+    // 1️⃣ Supadata — funciona desde servidores en la nube sin bloqueos
+    const supadata = process.env.SUPADATA_API_KEY;
+    if (supadata) {
+      try {
+        const res = await fetch(
+          `https://api.supadata.ai/v1/youtube/transcript?videoId=${videoId}&text=true`,
+          { headers: { 'x-api-key': supadata } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const texto = (data.content as string || '').replace(/\s+/g, ' ').trim();
+          if (texto) return Response.json({ texto });
+        }
+      } catch { /* fallback */ }
+    }
+
+    // 2️⃣ Fallback: youtube-transcript (funciona en local, puede fallar en producción)
     try {
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'es' }).catch(
         () => YoutubeTranscript.fetchTranscript(videoId)
@@ -86,16 +102,11 @@ export async function POST(req: NextRequest) {
       }
       if (msg.toLowerCase().includes('disabled') || msg.toLowerCase().includes('not available') || msg.toLowerCase().includes('no transcripts')) {
         return Response.json({
-          error: 'Este video no tiene subtítulos activados. Probá con un video que tenga CC habilitados.'
-        }, { status: 422 });
-      }
-      if (msg.toLowerCase().includes('unavailable') || msg.toLowerCase().includes('no longer')) {
-        return Response.json({
-          error: 'Este video no está disponible o fue eliminado.'
+          error: 'Este video no tiene subtítulos. Probá con un video que tenga CC habilitados.'
         }, { status: 422 });
       }
       return Response.json({
-        error: `YouTube: ${msg || 'No se pudieron obtener los subtítulos. Intentá con otro video.'}`
+        error: `No se pudieron obtener los subtítulos. Intentá con otro video.`
       }, { status: 422 });
     }
   }
