@@ -208,53 +208,100 @@ export async function POST(req: NextRequest) {
 
   // ── Instagram ──────────────────────────────────────────────────────────────
   if (platform === 'instagram') {
-    if (!rapidApiKey) return Response.json({ error: 'Falta configurar RAPIDAPI_KEY.' }, { status: 422 });
-
     const code = extractInstagramCode(url);
     if (!code) return Response.json({
       error: 'URL de Instagram no válida. Formato: https://www.instagram.com/reel/ABC123/'
     }, { status: 400 });
 
+    // 1️⃣ Cobalt API — gratis, sin cuota, open-source
     try {
-      const res = await fetch(
-        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/post?shortcode=${code}`,
-        {
-          headers: {
-            'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com',
-            'x-rapidapi-key':  rapidApiKey,
-          },
+      const cobaltRes = await fetch('https://api.cobalt.tools/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept':       'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+      if (cobaltRes.ok) {
+        const cobaltData = await cobaltRes.json();
+        // status puede ser "redirect", "stream" o "tunnel" — todos dan URL directa
+        const videoUrl = cobaltData?.url;
+        if (videoUrl && cobaltData?.status !== 'error') {
+          const texto = await transcribeWithGroq(videoUrl);
+          if (texto) return Response.json({ texto });
         }
-      );
-      const data = await res.json();
-
-      if (data?.message?.includes('exceeded') || data?.message?.includes('quota')) {
-        throw new Error('⚠️ Cupo mensual de la API de Instagram agotado.');
       }
-      if (!res.ok || data?.status === 'error') {
-        throw new Error(data?.error || 'No se pudo obtener el reel de Instagram');
-      }
+    } catch { /* fallback */ }
 
-      const videoUrl = data?.video_versions?.[0]?.url;
-      const caption  = data?.caption?.text || '';
-      const username = data?.user?.username || '';
-
-      // Groq Whisper si hay video
-      if (videoUrl) {
-        const texto = await transcribeWithGroq(videoUrl);
-        return Response.json({ texto });
-      }
-
-      // Fallback: caption
-      if (caption) {
-        return Response.json({
-          texto: `[Caption del reel]\n\n${caption}\nCreador: @${username}`
-        });
-      }
-
-      throw new Error('No se pudo obtener el contenido del reel');
-    } catch (e) {
-      return Response.json({ error: `Instagram: ${(e as Error).message}` }, { status: 502 });
+    // 2️⃣ Apify Instagram Reel Scraper — gratis hasta $5/mes
+    const apifyToken = process.env.APIFY_TOKEN;
+    if (apifyToken) {
+      try {
+        // Lanzar el actor y esperar resultado
+        const runRes = await fetch(
+          `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              directUrls: [url],
+              resultsLimit: 1,
+            }),
+          }
+        );
+        if (runRes.ok) {
+          const items = await runRes.json();
+          const item  = Array.isArray(items) ? items[0] : items?.items?.[0];
+          const videoUrl = item?.videoUrl || item?.video_url || item?.displayUrl;
+          if (videoUrl && videoUrl.includes('mp4')) {
+            const texto = await transcribeWithGroq(videoUrl);
+            if (texto) return Response.json({ texto });
+          }
+        }
+      } catch { /* fallback */ }
     }
+
+    // 3️⃣ RapidAPI — último recurso (tiene cuota mensual)
+    if (rapidApiKey) {
+      try {
+        const res = await fetch(
+          `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/post?shortcode=${code}`,
+          {
+            headers: {
+              'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com',
+              'x-rapidapi-key':  rapidApiKey,
+            },
+          }
+        );
+        const data = await res.json();
+
+        if (data?.message?.includes('exceeded') || data?.message?.includes('quota')) {
+          throw new Error('Cupo mensual de RapidAPI agotado');
+        }
+        if (!res.ok || data?.status === 'error') {
+          throw new Error(data?.error || 'Error en la API');
+        }
+
+        const videoUrl = data?.video_versions?.[0]?.url;
+        const caption  = data?.caption?.text || '';
+        const username = data?.user?.username || '';
+
+        if (videoUrl) {
+          const texto = await transcribeWithGroq(videoUrl);
+          return Response.json({ texto });
+        }
+        if (caption) {
+          return Response.json({
+            texto: `[Caption del reel]\n\n${caption}\nCreador: @${username}`
+          });
+        }
+      } catch { /* todos fallaron */ }
+    }
+
+    return Response.json({
+      error: 'No se pudo obtener el reel de Instagram. Verifica que sea público.'
+    }, { status: 502 });
   }
 
   return Response.json({ error: 'Plataforma no soportada' }, { status: 400 });
