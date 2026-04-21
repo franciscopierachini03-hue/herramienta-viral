@@ -728,10 +728,19 @@ function parseViewsFromSnippet(snippet: string): number {
 }
 
 // Construye queries optimizadas para Serper por plataforma
-function buildSerperQueries(tema: string, platform: 'tiktok'|'instagram', entry: Record<string,string[]>|null): { q: string; gl: string; hl: string }[] {
+function buildSerperQueries(tema: string, platform: 'tiktok'|'instagram'|'youtube', entry: Record<string,string[]>|null): { q: string; gl: string; hl: string }[] {
   const esTerm = entry?.es?.[0] || tema;
   const enTerm = entry?.en?.[0] || tema;
   const ptTerm = entry?.pt?.[0] || tema;
+
+  if (platform === 'youtube') {
+    return [
+      { q: `site:youtube.com/shorts ${esTerm}`,  gl:'us', hl:'es' },
+      { q: `site:youtube.com/shorts ${enTerm}`,  gl:'us', hl:'en' },
+      { q: `youtube shorts ${esTerm} viral`,     gl:'mx', hl:'es' },
+      { q: `site:youtube.com/shorts ${ptTerm}`,  gl:'br', hl:'pt' },
+    ];
+  }
 
   if (platform === 'tiktok') {
     // TikTok: Google indexa URLs como tiktok.com/@user/video/ID — buscar sin el /video/ en la query
@@ -752,11 +761,11 @@ function buildSerperQueries(tema: string, platform: 'tiktok'|'instagram', entry:
   }
 }
 
-async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram', serperKey: string) {
+async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram'|'youtube', serperKey: string) {
   const entry = findMapEntry(tema);
   const allTerms = getAllTerms(tema);
-  const flag  = platform === 'tiktok' ? '🎵' : '📸';
-  const label = platform === 'tiktok' ? 'TikTok' : 'Instagram';
+  const flag  = platform === 'tiktok' ? '🎵' : platform === 'youtube' ? '▶' : '📸';
+  const label = platform === 'tiktok' ? 'TikTok' : platform === 'youtube' ? 'YouTube' : 'Instagram';
 
   const esTerm = entry?.es?.[0] || tema;
   const enTerm = entry?.en?.[0] || tema;
@@ -764,12 +773,20 @@ async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram', ser
 
   // Para TikTok: usar /videos de Serper (Google Video Search indexa TikTok mucho mejor)
   // Para Instagram: usar /search con site:instagram.com/reel
+  // Para YouTube: buscar Shorts via Google
   const serperCalls: { endpoint: string; body: object }[] = platform === 'tiktok'
     ? [
         { endpoint: 'videos', body: { q: `${esTerm} tiktok`,     gl:'us', hl:'es', num:10 } },
         { endpoint: 'videos', body: { q: `${enTerm} tiktok`,     gl:'us', hl:'en', num:10 } },
         { endpoint: 'videos', body: { q: `${ptTerm} tiktok`,     gl:'br', hl:'pt', num:10 } },
         { endpoint: 'search', body: { q: `site:tiktok.com ${esTerm}`, gl:'mx', hl:'es', num:20 } },
+      ]
+    : platform === 'youtube'
+    ? [
+        { endpoint: 'videos', body: { q: `${esTerm} youtube shorts`, gl:'us', hl:'es', num:10 } },
+        { endpoint: 'videos', body: { q: `${enTerm} youtube shorts`, gl:'us', hl:'en', num:10 } },
+        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${esTerm}`, gl:'mx', hl:'es', num:20 } },
+        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${enTerm}`, gl:'us', hl:'en', num:20 } },
       ]
     : [
         { endpoint: 'search', body: { q: `site:instagram.com/reel ${esTerm}`, gl:'es', hl:'es', num:20 } },
@@ -804,10 +821,11 @@ async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram', ser
       const title = item.title || '';
       if (!url || seen.has(url)) continue;
 
-      // Solo URLs de TikTok video o Instagram reel
+      // Solo URLs válidas por plataforma
       if (platform==='tiktok' && !url.includes('tiktok.com')) continue;
       if (platform==='tiktok' && !url.includes('/video/') && !url.match(/tiktok\.com\/@[^/]+\/video/)) continue;
       if (platform==='instagram' && !url.includes('/reel/')) continue;
+      if (platform==='youtube' && !url.includes('youtube.com/shorts/') && !url.includes('youtu.be/')) continue;
 
       seen.add(url);
       const viewsRaw = parseViewsFromSnippet(item.snippet || '');
@@ -848,10 +866,26 @@ export async function POST(req: NextRequest) {
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
   if (platform==='youtube') {
-    const k = process.env.YOUTUBE_API_KEY;
-    if (!k) return Response.json({error:'Falta YOUTUBE_API_KEY.'},{status:422});
-    try { return Response.json({videos: await searchYouTube(tema,k)}); }
-    catch(e){ return Response.json({error:`YouTube: ${(e as Error).message}`},{status:502}); }
+    const serperKey = process.env.SERPER_API_KEY;
+    const ytKey     = process.env.YOUTUBE_API_KEY;
+
+    // 1. Serper — Google Search (sin límite de cuota diaria, principal)
+    if (serperKey) {
+      try {
+        const videos = await searchViaSerper(tema, 'youtube' as never, serperKey);
+        if (videos.length > 0) return Response.json({ videos });
+      } catch(e) {
+        console.warn('Serper YouTube falló:', (e as Error).message);
+      }
+    }
+
+    // 2. YouTube Data API — fallback (10K unidades/día)
+    if (ytKey) {
+      try { return Response.json({ videos: await searchYouTube(tema, ytKey) }); }
+      catch(e) { console.warn('YouTube API falló:', (e as Error).message); }
+    }
+
+    return Response.json({ error: 'No se encontraron videos de YouTube. Intenta con otro tema.' }, { status: 422 });
   }
 
   if (platform==='tiktok'||platform==='instagram') {
