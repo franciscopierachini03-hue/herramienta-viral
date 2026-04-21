@@ -99,6 +99,12 @@ const PLAT_COLOR: Record<string, string> = { youtube: '#FF0000', tiktok: '#69C9D
 const PLAT_LABEL: Record<string, string> = { youtube: 'YouTube Shorts', tiktok: 'TikTok', instagram: 'Instagram' };
 const PLAT_ICON: Record<string, string> = { youtube: '▶', tiktok: '♪', instagram: '◎' };
 
+function proxyThumb(url: string | undefined, platform: string): string | undefined {
+  if (!url) return undefined;
+  if (platform === 'instagram') return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  return url;
+}
+
 function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTranscribir: () => void }) {
   const plat = v.platform || 'youtube';
   const color = PLAT_COLOR[plat];
@@ -115,7 +121,7 @@ function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTrans
       {/* Thumbnail */}
       <div className="relative w-full bg-gray-900 shrink-0" style={{ aspectRatio: '16/9' }}>
         {v.thumbnail
-          ? <img src={v.thumbnail} alt="" className="w-full h-full object-cover" />
+          ? <img src={proxyThumb(v.thumbnail, v.platform || 'youtube')} alt="" className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center text-gray-700 text-4xl">{icon}</div>
         }
         {/* Gradient overlays */}
@@ -201,7 +207,7 @@ function VideoCardVertical({ v, rank, onTranscribir }: { v: Video; rank: number;
 
       {/* Thumbnail */}
       {v.thumbnail
-        ? <img src={v.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ pointerEvents: 'none' }} />
+        ? <img src={proxyThumb(v.thumbnail, v.platform || 'youtube')} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ pointerEvents: 'none' }} />
         : <div className="absolute inset-0 flex items-center justify-center text-gray-700 text-3xl" style={{ pointerEvents: 'none' }}>▶</div>
       }
 
@@ -781,7 +787,17 @@ export default function Home() {
           {!loadingV && viralView === 'platforms' && VIRAL_PLATFORMS.map(p => {
             const videos = virales[p.id as keyof PlatformResults];
             const error = errors[p.id as keyof PlatformErrors];
-            if (videos.length === 0 && !error) return null;
+            if (videos.length === 0 && !error) return (
+              <div key={p.id} className="mb-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-3 h-3 rounded-full" style={{ background: p.color }}></span>
+                  <h2 className="text-sm font-semibold" style={{ color: '#444' }}>{p.label} — Sin resultados</h2>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl p-3 text-xs" style={{ background: '#111', border: '1px solid #1a1a1a', color: '#555' }}>
+                  <span>⚠️</span> No se encontraron videos para este tema en {p.label}.
+                </div>
+              </div>
+            );
             return (
               <div key={p.id} className="mb-8">
                 <div className="flex items-center gap-2 mb-3">
