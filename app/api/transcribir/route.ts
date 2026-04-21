@@ -115,13 +115,44 @@ export async function POST(req: NextRequest) {
 
   // ── TikTok ─────────────────────────────────────────────────────────────────
   if (platform === 'tiktok') {
-    if (!rapidApiKey) return Response.json({ error: 'Falta configurar RAPIDAPI_KEY.' }, { status: 422 });
-
     const videoId = extractTikTokId(url);
     if (!videoId) return Response.json({
       error: 'URL de TikTok no válida. Formato: https://www.tiktok.com/@usuario/video/123456'
     }, { status: 400 });
 
+    // 1️⃣ TikWM — gratis, sin cuota, confiable
+    try {
+      const tikwmRes = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      const tikwmData = await tikwmRes.json();
+      const videoUrl = tikwmData?.data?.play || tikwmData?.data?.wmplay;
+
+      if (videoUrl) {
+        // Intentar subtítulos primero
+        const subtitles = tikwmData?.data?.subtitles || [];
+        if (subtitles.length > 0) {
+          const sub = subtitles.find((s: { LanguageCodeName?: string }) =>
+            s.LanguageCodeName?.includes('es') || s.LanguageCodeName?.includes('spa')
+          ) || subtitles[0];
+          if (sub?.Url) {
+            const subRes  = await fetch(sub.Url);
+            const subText = await subRes.text();
+            const texto   = subText
+              .split('\n')
+              .filter(l => l && !l.includes('-->') && !l.match(/^\d+$/) && !l.startsWith('WEBVTT'))
+              .join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+            if (texto) return Response.json({ texto });
+          }
+        }
+        // Sin subtítulos → Groq Whisper
+        const texto = await transcribeWithGroq(videoUrl);
+        if (texto) return Response.json({ texto });
+      }
+    } catch { /* fallback a ScrapTik */ }
+
+    // 2️⃣ ScrapTik (RapidAPI) — fallback
+    if (rapidApiKey) {
     try {
       const res  = await fetch(`https://scraptik.p.rapidapi.com/get-post?aweme_id=${videoId}`, {
         headers: {
@@ -131,7 +162,6 @@ export async function POST(req: NextRequest) {
       });
       const data = await res.json();
 
-      // Detectar errores específicos de la API
       if (data?.message?.includes('exceeded') || data?.message?.includes('quota') || data?.message?.includes('plan')) {
         throw new Error('⚠️ Cupo mensual de la API de TikTok agotado.');
       }
@@ -170,9 +200,10 @@ export async function POST(req: NextRequest) {
       const texto = await transcribeWithGroq(videoUrl);
       return Response.json({ texto });
 
-    } catch (e) {
-      return Response.json({ error: `TikTok: ${(e as Error).message}` }, { status: 502 });
-    }
+    } catch { /* ScrapTik también falló */ }
+    } // fin if(rapidApiKey)
+
+    return Response.json({ error: 'No se pudo obtener el video de TikTok. Verifica que sea público.' }, { status: 502 });
   }
 
   // ── Instagram ──────────────────────────────────────────────────────────────
