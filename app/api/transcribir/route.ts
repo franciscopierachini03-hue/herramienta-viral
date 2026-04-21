@@ -74,10 +74,27 @@ export async function POST(req: NextRequest) {
         () => YoutubeTranscript.fetchTranscript(videoId)
       );
       const texto = transcript.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
+      if (!texto) throw new Error('El video no tiene subtítulos disponibles.');
       return Response.json({ texto });
-    } catch {
+    } catch (e) {
+      const msg = (e as Error).message || '';
+      if (msg.toLowerCase().includes('captcha') || msg.toLowerCase().includes('too many')) {
+        return Response.json({
+          error: 'YouTube está bloqueando el servidor. Intenta en unos minutos o usa otro video.'
+        }, { status: 429 });
+      }
+      if (msg.toLowerCase().includes('disabled') || msg.toLowerCase().includes('not available') || msg.toLowerCase().includes('no transcripts')) {
+        return Response.json({
+          error: 'Este video no tiene subtítulos activados. Probá con un video que tenga CC habilitados.'
+        }, { status: 422 });
+      }
+      if (msg.toLowerCase().includes('unavailable') || msg.toLowerCase().includes('no longer')) {
+        return Response.json({
+          error: 'Este video no está disponible o fue eliminado.'
+        }, { status: 422 });
+      }
       return Response.json({
-        error: 'No se encontraron subtítulos en este video de YouTube. Intentá con otro video.'
+        error: `YouTube: ${msg || 'No se pudieron obtener los subtítulos. Intentá con otro video.'}`
       }, { status: 422 });
     }
   }
