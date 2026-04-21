@@ -828,7 +828,7 @@ export default function Home() {
               <p className="text-5xl mb-4">📚</p>
               <p className="text-sm text-gray-500">Aún no tienes guiones guardados</p>
               <p className="text-xs text-gray-600 mt-2 max-w-xs mx-auto leading-relaxed">
-                Transcribe un video y haz clic en <strong className="text-gray-500">"Guardar en biblioteca"</strong> para verlo aquí
+                Transcribe un video y haz clic en <strong className="text-gray-500">&ldquo;Guardar en biblioteca&rdquo;</strong> para verlo aquí
               </p>
               <button onClick={() => setTab('transcribir')} className="mt-5 px-4 py-2 border border-gray-700 rounded-lg text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-all">
                 Ir a Transcribir →

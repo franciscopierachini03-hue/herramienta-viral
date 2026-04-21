@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
   const openingText  = openingWords || segments.slice(0, 2).map(s => s.text).join(' ').trim();
 
   // ── GPT: hook + broll + music (parallel with mistake detection above) ─────────
-  let hookNatural  = openingText;
+  const hookNatural  = openingText;
   let hookEnhanced = '';
   let brollQueries: string[] = [];
   let musicMood    = 'upbeat';
