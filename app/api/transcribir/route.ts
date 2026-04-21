@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 
+export const runtime = 'edge';
 export const maxDuration = 120;
 
 function extractYouTubeId(url: string): string | null {
