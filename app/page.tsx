@@ -65,19 +65,26 @@ const PLATFORM_INFO = {
 
 function friendlyError(raw: string): string {
   const e = raw.toLowerCase();
-  if (e.includes('cupo') || e.includes('agotado') || e.includes('quota') || e.includes('exceeded') || e.includes('plan')) {
-    return 'Este video no está disponible en este momento. Prueba con otro link.';
+  if (e.includes('cupo') || e.includes('agotado') || e.includes('quota') || e.includes('exceeded')) {
+    return 'Cupo mensual de la API agotado. Intenta mañana o contacta al soporte.';
   }
-  if (e.includes('no reconoció') || e.includes('no válido') || e.includes('not found') || e.includes('no se encontró')) {
+  if (e.includes('privado') || e.includes('private') || e.includes('not found') || e.includes('no encontrado') || e.includes('eliminado')) {
+    return 'Este video es privado o fue eliminado. Prueba con un video público.';
+  }
+  if (e.includes('no reconoció') || e.includes('no válido') || e.includes('no se encontró')) {
     return 'No encontramos contenido en este link. Verifica que sea un video público.';
   }
   if (e.includes('conexión') || e.includes('connection') || e.includes('network') || e.includes('fetch')) {
     return 'Problema de conexión. Verifica tu internet e intenta de nuevo.';
   }
+  if (e.includes('falta') && e.includes('key')) {
+    return 'Error de configuración del servidor. Contacta al administrador.';
+  }
   if (e.includes('youtube')) return 'No pudimos obtener este video de YouTube. Intenta con otro.';
   if (e.includes('tiktok')) return 'No pudimos obtener este video de TikTok. Intenta con otro.';
   if (e.includes('instagram')) return 'No pudimos obtener este reel de Instagram. Intenta con otro.';
-  return 'No pudimos procesar este video. Intenta con otro link.';
+  // Mostrar el error real para facilitar el diagnóstico
+  return raw.replace(/^(tiktok|instagram|youtube):\s*/i, '');
 }
 
 function detectPlatform(url: string | undefined): 'youtube' | 'tiktok' | 'instagram' | null {

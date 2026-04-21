@@ -102,11 +102,19 @@ export async function POST(req: NextRequest) {
       });
       const data = await res.json();
 
-      if (!res.ok || data?.message?.includes('exceeded') || data?.message?.includes('quota')) {
+      // Detectar errores específicos de la API
+      if (data?.message?.includes('exceeded') || data?.message?.includes('quota') || data?.message?.includes('plan')) {
         throw new Error('⚠️ Cupo mensual de la API de TikTok agotado.');
+      }
+      if (!res.ok) {
+        throw new Error(`Error de la API (${res.status}): ${data?.message || 'respuesta inesperada'}`);
       }
 
       const item = data?.aweme_detail || {};
+
+      if (!item || Object.keys(item).length === 0) {
+        throw new Error('Video no encontrado. Puede ser privado o haber sido eliminado.');
+      }
 
       // Intentar subtítulos primero (gratis, instantáneo)
       const subtitles = item?.subtitle_infos || item?.subtitleInfos || [];
@@ -128,7 +136,7 @@ export async function POST(req: NextRequest) {
         || item?.video?.download_addr?.url_list?.[0]
         || item?.video?.play_addr_lowbr?.url_list?.[0];
 
-      if (!videoUrl) throw new Error('No se pudo obtener la URL del video');
+      if (!videoUrl) throw new Error('No se pudo obtener la URL del video. Puede ser un video privado.');
 
       const texto = await transcribeWithGroq(videoUrl);
       return Response.json({ texto });
