@@ -331,6 +331,10 @@ export default function Home() {
   const [translating, setTranslating] = useState(false);
   const [translateCopied, setTranslateCopied] = useState(false);
 
+  // Guardar con idioma
+  const [saveModal, setSaveModal] = useState<{ idx: number } | null>(null);
+  const [savingEs, setSavingEs] = useState(false);
+
   // Biblioteca
   const [guiones, setGuiones] = useState<Guion[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -409,6 +413,36 @@ export default function Home() {
     setGuiones(updated);
     localStorage.setItem('guiones', JSON.stringify(updated));
     setSavedIdx(prev => new Set([...prev, idx]));
+  }
+
+  async function guardarEnEspanol(idx: number) {
+    const r = results[idx];
+    if (!r?.transcript) return;
+    setSavingEs(true);
+    try {
+      const res = await fetch('/api/traducir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: r.transcript, idioma: 'espanol' }),
+      });
+      const data = await res.json();
+      const textoEs = data.traduccion || r.transcript;
+      const guion: Guion = {
+        id: Date.now().toString(),
+        name: autoName(r.url, textoEs),
+        url: r.url,
+        platform: r.platform ?? 'unknown',
+        transcript: textoEs,
+        savedAt: new Date().toISOString(),
+      };
+      const updated = [guion, ...guiones];
+      setGuiones(updated);
+      localStorage.setItem('guiones', JSON.stringify(updated));
+      setSavedIdx(prev => new Set([...prev, idx]));
+    } finally {
+      setSavingEs(false);
+      setSaveModal(null);
+    }
   }
 
   function eliminarGuion(id: string) {
@@ -661,7 +695,7 @@ export default function Home() {
                         🌍 Traducir
                       </button>
                       <button
-                        onClick={() => guardarGuion(idx)}
+                        onClick={() => isSaved ? null : setSaveModal({ idx })}
                         disabled={isSaved}
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                           isSaved
@@ -1146,6 +1180,56 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL GUARDAR ═══════════════════════════════════ */}
+      {saveModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSaveModal(null); }}>
+          <div className="w-full max-w-sm rounded-3xl p-5 flex flex-col gap-4"
+            style={{ background: '#0d0d0d', border: '1px solid #222' }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold">📚 Guardar guión</h2>
+                <p className="text-xs mt-0.5" style={{ color: '#555' }}>¿En qué idioma lo guardamos?</p>
+              </div>
+              <button onClick={() => setSaveModal(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors hover:bg-white/10"
+                style={{ color: '#555' }}>×</button>
+            </div>
+
+            {/* Options */}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { guardarGuion(saveModal.idx); setSaveModal(null); }}
+                className="w-full py-3 px-4 rounded-2xl text-sm font-medium text-left flex items-center gap-3 transition-all"
+                style={{ background: '#111', border: '1px solid #222', color: '#ccc' }}>
+                <span className="text-xl">📄</span>
+                <div>
+                  <div className="font-semibold text-white text-xs">Idioma original</div>
+                  <div className="text-xs" style={{ color: '#555' }}>Guardar tal como está</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => guardarEnEspanol(saveModal.idx)}
+                disabled={savingEs}
+                className="w-full py-3 px-4 rounded-2xl text-sm font-medium text-left flex items-center gap-3 transition-all disabled:opacity-50"
+                style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                <span className="text-xl">🇲🇽</span>
+                <div>
+                  <div className="font-semibold text-xs" style={{ color: '#c4b5fd' }}>
+                    {savingEs ? 'Traduciendo...' : 'Guardar en español'}
+                  </div>
+                  <div className="text-xs" style={{ color: '#7c3aed99' }}>Traduce y guarda en español</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
