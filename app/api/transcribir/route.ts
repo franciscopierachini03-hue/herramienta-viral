@@ -213,48 +213,24 @@ export async function POST(req: NextRequest) {
       error: 'URL de Instagram no válida. Formato: https://www.instagram.com/reel/ABC123/'
     }, { status: 400 });
 
-    // 1️⃣ Cobalt API — gratis, sin cuota, open-source
-    try {
-      const cobaltRes = await fetch('https://api.cobalt.tools/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept':       'application/json',
-        },
-        body: JSON.stringify({ url }),
-      });
-      if (cobaltRes.ok) {
-        const cobaltData = await cobaltRes.json();
-        // status puede ser "redirect", "stream" o "tunnel" — todos dan URL directa
-        const videoUrl = cobaltData?.url;
-        if (videoUrl && cobaltData?.status !== 'error') {
-          const texto = await transcribeWithGroq(videoUrl);
-          if (texto) return Response.json({ texto });
-        }
-      }
-    } catch { /* fallback */ }
-
-    // 2️⃣ Apify Instagram Reel Scraper — gratis hasta $5/mes
-    const apifyToken = process.env.APIFY_TOKEN;
-    if (apifyToken) {
+    // 1️⃣ instagram-looter2 (RapidAPI) — 500 req/mes gratis, muy confiable
+    if (rapidApiKey) {
       try {
-        // Lanzar el actor y esperar resultado
-        const runRes = await fetch(
-          `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
+        const res = await fetch(
+          `https://instagram-looter2.p.rapidapi.com/post?link=${encodeURIComponent(url)}`,
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              directUrls: [url],
-              resultsLimit: 1,
-            }),
+            headers: {
+              'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com',
+              'x-rapidapi-key':  rapidApiKey,
+            },
           }
         );
-        if (runRes.ok) {
-          const items = await runRes.json();
-          const item  = Array.isArray(items) ? items[0] : items?.items?.[0];
-          const videoUrl = item?.videoUrl || item?.video_url || item?.displayUrl;
-          if (videoUrl && videoUrl.includes('mp4')) {
+        if (res.ok) {
+          const data = await res.json();
+          // Puede ser un array (carrusel) o un objeto directo
+          const item = Array.isArray(data) ? data[0] : data;
+          const videoUrl = item?.url || item?.video_url || item?.media?.[0]?.url;
+          if (videoUrl) {
             const texto = await transcribeWithGroq(videoUrl);
             if (texto) return Response.json({ texto });
           }
@@ -262,7 +238,7 @@ export async function POST(req: NextRequest) {
       } catch { /* fallback */ }
     }
 
-    // 3️⃣ RapidAPI — último recurso (tiene cuota mensual)
+    // 2️⃣ instagram-api-fast-reliable-data-scraper (RapidAPI) — fallback
     if (rapidApiKey) {
       try {
         const res = await fetch(
@@ -275,32 +251,28 @@ export async function POST(req: NextRequest) {
           }
         );
         const data = await res.json();
-
         if (data?.message?.includes('exceeded') || data?.message?.includes('quota')) {
-          throw new Error('Cupo mensual de RapidAPI agotado');
+          throw new Error('quota');
         }
-        if (!res.ok || data?.status === 'error') {
-          throw new Error(data?.error || 'Error en la API');
-        }
-
-        const videoUrl = data?.video_versions?.[0]?.url;
-        const caption  = data?.caption?.text || '';
-        const username = data?.user?.username || '';
-
-        if (videoUrl) {
-          const texto = await transcribeWithGroq(videoUrl);
-          return Response.json({ texto });
-        }
-        if (caption) {
-          return Response.json({
-            texto: `[Caption del reel]\n\n${caption}\nCreador: @${username}`
-          });
+        if (res.ok && data?.status !== 'error') {
+          const videoUrl = data?.video_versions?.[0]?.url;
+          if (videoUrl) {
+            const texto = await transcribeWithGroq(videoUrl);
+            if (texto) return Response.json({ texto });
+          }
+          const caption  = data?.caption?.text || '';
+          const username = data?.user?.username || '';
+          if (caption) {
+            return Response.json({
+              texto: `[Caption del reel]\n\n${caption}\nCreador: @${username}`
+            });
+          }
         }
       } catch { /* todos fallaron */ }
     }
 
     return Response.json({
-      error: 'No se pudo obtener el reel de Instagram. Verifica que sea público.'
+      error: 'No se pudo obtener el reel de Instagram. Verifica que sea público o suscríbete a instagram-looter2 en RapidAPI.'
     }, { status: 502 });
   }
 
