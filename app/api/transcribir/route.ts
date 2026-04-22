@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
+import ytdl from '@distube/ytdl-core';
 
 export const maxDuration = 120;
 
@@ -85,30 +86,31 @@ export async function POST(req: NextRequest) {
       } catch { /* fallback */ }
     }
 
-    // 2️⃣ Fallback: youtube-transcript (funciona en local, puede fallar en producción)
+    // 2️⃣ Fallback: youtube-transcript
     try {
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'es' }).catch(
         () => YoutubeTranscript.fetchTranscript(videoId)
       );
       const texto = transcript.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
-      if (!texto) throw new Error('El video no tiene subtítulos disponibles.');
-      return Response.json({ texto });
-    } catch (e) {
-      const msg = (e as Error).message || '';
-      if (msg.toLowerCase().includes('captcha') || msg.toLowerCase().includes('too many')) {
-        return Response.json({
-          error: 'YouTube está bloqueando el servidor. Intenta en unos minutos o usa otro video.'
-        }, { status: 429 });
+      if (texto) return Response.json({ texto });
+    } catch { /* fallback a Whisper */ }
+
+    // 3️⃣ Sin subtítulos → descargar audio con ytdl-core + Groq Whisper
+    try {
+      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+      const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+      if (audioFormats.length > 0) {
+        const best = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+        if (best.url) {
+          const texto = await transcribeWithGroq(best.url);
+          if (texto) return Response.json({ texto });
+        }
       }
-      if (msg.toLowerCase().includes('disabled') || msg.toLowerCase().includes('not available') || msg.toLowerCase().includes('no transcripts')) {
-        return Response.json({
-          error: 'Este video no tiene subtítulos. Probá con un video que tenga CC habilitados.'
-        }, { status: 422 });
-      }
-      return Response.json({
-        error: `No se pudieron obtener los subtítulos. Intentá con otro video.`
-      }, { status: 422 });
-    }
+    } catch { /* ytdl también bloqueado */ }
+
+    return Response.json({
+      error: 'Este video no tiene subtítulos y YouTube bloquea la descarga de audio desde servidores. Probá con un Short que tenga CC habilitados (la mayoría los tiene).'
+    }, { status: 422 });
   }
 
   const rapidApiKey = process.env.RAPIDAPI_KEY;
