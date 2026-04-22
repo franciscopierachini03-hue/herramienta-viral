@@ -1092,7 +1092,7 @@ export default function Home() {
                 {[
                   { id: 'ingles',    flag: '🇺🇸', label: 'Inglés' },
                   { id: 'portugues', flag: '🇧🇷', label: 'Portugués' },
-                  { id: 'espanol',   flag: '🇨🇷', label: 'Español' },
+                  { id: 'espanol',   flag: '🇲🇽', label: 'Español' },
                   { id: 'frances',   flag: '🇫🇷', label: 'Francés' },
                 ].map(lang => (
                   <button key={lang.id}
