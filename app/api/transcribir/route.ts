@@ -37,12 +37,12 @@ async function transcribeWithGroq(audioUrl: string): Promise<string> {
   const audioBuffer = await audioRes.arrayBuffer();
   const audioBlob   = new Blob([audioBuffer], { type: 'audio/mp4' });
 
-  // Enviar a Groq Whisper Large V3
+  // Enviar a Groq Whisper Large V3 (sin forzar idioma → auto-detecta)
   const form = new FormData();
   form.append('file', new File([audioBlob], 'audio.mp4', { type: 'audio/mp4' }));
   form.append('model', 'whisper-large-v3');
-  form.append('language', 'es');
   form.append('response_format', 'json');
+  // No forzamos idioma para que Whisper auto-detecte inglés, español, etc.
 
   const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
