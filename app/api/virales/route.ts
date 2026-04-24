@@ -488,29 +488,53 @@ async function searchYouTube(tema: string, apiKey: string) {
   return final;
 }
 
-// ── TikTok ────────────────────────────────────────────────────────────────────
-async function fetchTikTokKw(kw: string, key: string): Promise<unknown[]> {
-  const res = await fetch(
-    `https://scraptik.p.rapidapi.com/search-posts?keyword=${encodeURIComponent(kw)}&count=50&cursor=0&type=1`,
-    { headers: { 'x-rapidapi-host':'scraptik.p.rapidapi.com','x-rapidapi-key':key } }
-  );
-  if (!res.ok) throw new Error('Error TikTok');
-  return (await res.json())?.search_item_list || [];
+// ── TikTok — TikWM (gratis, sin cuota) ───────────────────────────────────────
+interface TikWMVideo {
+  video_id?: string; title?: string;
+  play_count?: number; digg_count?: number; comment_count?: number;
+  author?: { id?: string; unique_id?: string; nickname?: string };
+  cover?: string;
 }
 
-async function searchTikTok(tema: string, key: string) {
+async function fetchTikWMSearch(kw: string): Promise<TikWMVideo[]> {
+  const res = await fetch(
+    `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(kw)}&count=20&cursor=0&web=1&hd=1`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  if (!res.ok) throw new Error('TikWM error');
+  const data = await res.json();
+  return data?.data?.videos || [];
+}
+
+function tikwmToCandidate(v: TikWMVideo, lang: { flag: string; label: string }): VideoCandidate | null {
+  const id = v.video_id || '';
+  const uid = v.author?.unique_id || '';
+  if (!id || !uid) return null;
+  return {
+    id, title: v.title?.slice(0, 120) || 'Video de TikTok',
+    channel: v.author?.nickname || uid || 'Usuario',
+    views: fmt(v.play_count), likes: fmt(v.digg_count),
+    viewsRaw: v.play_count || 0, commentsRaw: v.comment_count || 0,
+    commentScore: 0.5, duration: 30,
+    thumbnail: v.cover || '',
+    url: `https://www.tiktok.com/@${uid}/video/${id}`,
+    platform: 'tiktok', flag: lang.flag, langLabel: lang.label, audioLang: '',
+  };
+}
+
+async function searchTikTok(tema: string, _key: string) {
   const entry = findMapEntry(tema);
   const allTerms = getAllTerms(tema);
 
-  // Buscar en ES + EN + PT
   const searchConfigs = [
     { lang: LANGS[0], term: entry?.es?.[0] || tema },
     { lang: LANGS[1], term: entry?.en?.[0] || tema },
     { lang: LANGS[2], term: entry?.pt?.[0] || tema },
   ];
 
+  // 1️⃣ TikWM — gratis, sin cuota
   const searches = await Promise.allSettled(
-    searchConfigs.map(c => fetchTikTokKw(c.term, key).then(items => ({ ...c, items })))
+    searchConfigs.map(c => fetchTikWMSearch(c.term).then(items => ({ ...c, items })))
   );
 
   const seen = new Set<string>();
@@ -519,25 +543,12 @@ async function searchTikTok(tema: string, key: string) {
   for (const r of searches) {
     if (r.status !== 'fulfilled') continue;
     const { lang, items } = r.value;
-    for (const raw of items) {
-      const v = (raw as {aweme_info?:{
-        aweme_id?:string; desc?:string;
-        statistics?:{play_count?:number;digg_count?:number};
-        author?:{nickname?:string;unique_id?:string};
-        video?:{cover?:{url_list?:string[]}};
-      }}).aweme_info || {};
-      const id = v.aweme_id || '';
+    for (const v of items) {
+      const id = v.video_id || '';
       if (!id || seen.has(id)) continue;
       seen.add(id);
-      candidates.push({
-        id, title: v.desc?.slice(0,120) || 'Video de TikTok',
-        channel: v.author?.nickname || v.author?.unique_id || 'Usuario',
-        views: fmt(v.statistics?.play_count), likes: fmt(v.statistics?.digg_count),
-        viewsRaw: v.statistics?.play_count || 0, commentsRaw: 0, commentScore: 0.5, duration: 30,
-        thumbnail: v.video?.cover?.url_list?.[0] || '',
-        url: `https://www.tiktok.com/@${v.author?.unique_id}/video/${id}`,
-        platform:'tiktok', flag:lang.flag, langLabel:lang.label, audioLang:'',
-      });
+      const c = tikwmToCandidate(v, lang);
+      if (c) candidates.push(c);
     }
   }
 

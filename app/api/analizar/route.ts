@@ -100,93 +100,104 @@ async function getVideoStats(ids: string[], apiKey: string) {
   return results;
 }
 
-// ── TikTok: obtener videos del perfil ──────────────────────
-async function analyzeTikTok(username: string, rapidApiKey: string) {
-  const res = await fetch(
-    `https://scraptik.p.rapidapi.com/user-posts?username=${encodeURIComponent(username)}&count=50`,
-    { headers: { 'x-rapidapi-host': 'scraptik.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } }
-  );
-  const data = await res.json();
-  if (data?.message?.toLowerCase().includes('exceeded') || data?.message?.toLowerCase().includes('quota')) {
-    throw new Error('⚠️ Cupo mensual de TikTok API agotado.');
-  }
-  const items = data?.aweme_list || data?.data?.aweme_list || [];
-  if (!items.length) throw new Error('No se encontraron videos para este perfil de TikTok.');
+// ── TikTok: obtener videos del perfil — TikWM (gratis, sin cuota) ─────────────
+async function analyzeTikTok(username: string, _rapidApiKey: string) {
+  // Quitar @ si viene incluido
+  const uid = username.replace(/^@/, '');
 
-  return items.map((v: {
-    aweme_id?: string;
-    desc?: string;
-    statistics?: { play_count?: number; digg_count?: number; comment_count?: number; share_count?: number; collect_count?: number };
+  // 1️⃣ TikWM — gratis, sin cuota
+  const res = await fetch(
+    `https://www.tikwm.com/api/user/posts?unique_id=@${uid}&count=50&cursor=0`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' } }
+  );
+  if (!res.ok) throw new Error('No se pudo conectar con TikTok.');
+  const data = await res.json();
+
+  const items: Array<{
+    video_id?: string; title?: string;
+    play_count?: number; digg_count?: number; comment_count?: number;
+    share_count?: number; collect_count?: number;
     author?: { nickname?: string; unique_id?: string };
-    video?: { cover?: { url_list?: string[] } };
-  }) => ({
-    title: v.desc?.slice(0, 100) || 'Video de TikTok',
-    channel: v.author?.nickname || v.author?.unique_id || username,
-    views:    fmt(v.statistics?.play_count),
-    likes:    fmt(v.statistics?.digg_count),
-    comments: fmt(v.statistics?.comment_count),
-    shares:   fmt(v.statistics?.share_count),
-    saves:    fmt(v.statistics?.collect_count),
-    viewsRaw:    v.statistics?.play_count    || 0,
-    likesRaw:    v.statistics?.digg_count    || 0,
-    commentsRaw: v.statistics?.comment_count || 0,
-    sharesRaw:   v.statistics?.share_count   || 0,
-    savesRaw:    v.statistics?.collect_count || 0,
-    thumbnail: v.video?.cover?.url_list?.[0] || '',
-    url: `https://www.tiktok.com/@${v.author?.unique_id}/video/${v.aweme_id}`,
+    cover?: string;
+  }> = data?.data?.videos || [];
+
+  if (!items.length) throw new Error('No se encontraron videos para este perfil de TikTok. Verifica que sea público.');
+
+  return items.map(v => ({
+    title:    v.title?.slice(0, 100) || 'Video de TikTok',
+    channel:  v.author?.nickname || v.author?.unique_id || uid,
+    views:    fmt(v.play_count),
+    likes:    fmt(v.digg_count),
+    comments: fmt(v.comment_count),
+    shares:   fmt(v.share_count),
+    saves:    fmt(v.collect_count),
+    viewsRaw:    v.play_count    || 0,
+    likesRaw:    v.digg_count    || 0,
+    commentsRaw: v.comment_count || 0,
+    sharesRaw:   v.share_count   || 0,
+    savesRaw:    v.collect_count || 0,
+    thumbnail: v.cover || '',
+    url: `https://www.tiktok.com/@${v.author?.unique_id || uid}/video/${v.video_id}`,
     platform: 'tiktok',
-  }))
-    .sort((a: { viewsRaw: number }, b: { viewsRaw: number }) => b.viewsRaw - a.viewsRaw);
+  })).sort((a, b) => b.viewsRaw - a.viewsRaw);
 }
 
-// ── Instagram: obtener reels del perfil ───────────────────
+// ── Instagram: obtener reels del perfil — instagram-looter2 ──────────────────
 async function analyzeInstagram(username: string, rapidApiKey: string) {
+  const uid = username.replace(/^@/, '');
   const headers = {
-    'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com',
+    'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com',
     'x-rapidapi-key': rapidApiKey,
   };
 
-  const userRes = await fetch(
-    `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/user_id_by_username?username=${encodeURIComponent(username)}`,
-    { headers }
-  );
-  const userData = await userRes.json();
-  if (userData?.message?.toLowerCase().includes('exceeded') || userData?.message?.toLowerCase().includes('quota')) {
-    throw new Error('⚠️ Cupo mensual de Instagram API agotado.');
-  }
-  const userId = userData?.UserID;
-  if (!userId) throw new Error(`No se encontró la cuenta @${username} en Instagram.`);
-
+  // Obtener reels directamente por username/URL del perfil
   const reelsRes = await fetch(
-    `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/reels?user_id=${userId}&count=50`,
+    `https://instagram-looter2.p.rapidapi.com/reels?link=https://www.instagram.com/${uid}/&count=50`,
     { headers }
   );
   const reelsData = await reelsRes.json();
-  const items = reelsData?.data?.items || [];
-  if (!items.length) throw new Error('No se encontraron reels para esta cuenta.');
 
-  return items.map((item: {
-    media?: {
-      code?: string; caption?: { text?: string }; like_count?: number;
-      play_count?: number; user?: { username?: string };
-      image_versions2?: { candidates?: { url?: string }[] };
-    };
-  }) => {
-    const m = item.media || {};
+  if (reelsData?.message?.toLowerCase().includes('exceeded') || reelsData?.message?.toLowerCase().includes('quota')) {
+    throw new Error('⚠️ Cupo mensual de Instagram API agotado.');
+  }
+
+  // instagram-looter2 devuelve items en distintos formatos
+  const items: Array<{
+    shortcode?: string; code?: string;
+    edge_media_to_caption?: { edges?: Array<{ node?: { text?: string } }> };
+    caption?: string;
+    edge_liked_by?: { count?: number }; like_count?: number;
+    video_view_count?: number; play_count?: number;
+    edge_media_to_comment?: { count?: number }; comment_count?: number;
+    thumbnail_src?: string; display_url?: string;
+    owner?: { username?: string };
+  }> = reelsData?.data?.items
+    || reelsData?.items
+    || reelsData?.data
+    || [];
+
+  if (!items.length) throw new Error('No se encontraron reels para esta cuenta. Verifica que el perfil sea público.');
+
+  return items.map(item => {
+    const code = item.shortcode || item.code || '';
+    const caption = item.edge_media_to_caption?.edges?.[0]?.node?.text || item.caption || '';
+    const views    = item.video_view_count || item.play_count    || 0;
+    const likes    = item.edge_liked_by?.count || item.like_count || 0;
+    const comments = item.edge_media_to_comment?.count || item.comment_count || 0;
     return {
-      title:    m.caption?.text?.slice(0, 100) || `Reel de @${username}`,
-      channel:  m.user?.username || username,
-      views:    fmt(m.play_count),
-      likes:    fmt(m.like_count),
-      comments: fmt((m as {comment_count?: number}).comment_count),
-      viewsRaw:    m.play_count  || 0,
-      likesRaw:    m.like_count  || 0,
-      commentsRaw: (m as {comment_count?: number}).comment_count || 0,
-      thumbnail: m.image_versions2?.candidates?.[0]?.url || '',
-      url: m.code ? `https://www.instagram.com/reel/${m.code}/` : `https://www.instagram.com/${username}/`,
+      title:    caption.slice(0, 100) || `Reel de @${uid}`,
+      channel:  item.owner?.username || uid,
+      views:    fmt(views),
+      likes:    fmt(likes),
+      comments: fmt(comments),
+      viewsRaw:    views,
+      likesRaw:    likes,
+      commentsRaw: comments,
+      thumbnail: item.thumbnail_src || item.display_url || '',
+      url: code ? `https://www.instagram.com/reel/${code}/` : `https://www.instagram.com/${uid}/`,
       platform: 'instagram',
     };
-  }).sort((a: { viewsRaw: number }, b: { viewsRaw: number }) => b.viewsRaw - a.viewsRaw);
+  }).sort((a, b) => b.viewsRaw - a.viewsRaw);
 }
 
 // ── Handler principal ─────────────────────────────────────
@@ -235,8 +246,7 @@ export async function POST(req: NextRequest) {
 
   // ── TikTok / Instagram ───────────────────────────────────
   if (isTikTok || isInstagram) {
-    const rapidApiKey = process.env.RAPIDAPI_KEY;
-    if (!rapidApiKey) return Response.json({ error: 'Falta RAPIDAPI_KEY.' }, { status: 422 });
+    const rapidApiKey = process.env.RAPIDAPI_KEY || '';
 
     try {
       // Extraer username del URL
@@ -251,8 +261,8 @@ export async function POST(req: NextRequest) {
       if (!username) return Response.json({ error: 'No se pudo extraer el usuario del link.' }, { status: 400 });
 
       const videos = isTikTok
-        ? await analyzeTikTok(username, rapidApiKey)
-        : await analyzeInstagram(username, rapidApiKey);
+        ? await analyzeTikTok(username, rapidApiKey)   // usa TikWM (gratis)
+        : await analyzeInstagram(username, rapidApiKey); // usa instagram-looter2
 
       return Response.json({
         channel: { name: `@${username}`, platform: isTikTok ? 'tiktok' : 'instagram' },
