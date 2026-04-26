@@ -80,6 +80,13 @@ const ALLOWED_AUDIO = new Set([
 
 // ── Mapa de temas conocidos ───────────────────────────────────────────────────
 const TEMA_MAP: Record<string, Record<string, string[]>> = {
+  // ── Relaciones / amor ────────────────────────────────────────────────────────
+  'amor consciente':   { es:['amor consciente','relaciones conscientes','amor real'],         en:['conscious love','conscious relationship','mindful love'],     pt:['amor consciente','relacionamento consciente'] },
+  'relaciones toxicas':{ es:['relaciones tóxicas','pareja tóxica','amor tóxico'],             en:['toxic relationship','toxic love','abusive relationship'],     pt:['relacionamento tóxico','amor tóxico'] },
+  'apego emocional':   { es:['apego emocional','apego ansioso','apego evitativo'],            en:['emotional attachment','anxious attachment','avoidant'],      pt:['apego emocional','apego ansioso'] },
+  'autoestima':        { es:['autoestima','amor propio','confianza en uno mismo'],            en:['self esteem','self love','self confidence'],                  pt:['autoestima','amor próprio'] },
+  'duelo amoroso':     { es:['duelo amoroso','superar ruptura','corazón roto'],               en:['heartbreak','breakup recovery','moving on'],                  pt:['luto amoroso','superar separação'] },
+  // ── Negocios / finanzas ──────────────────────────────────────────────────────
   negocios:       { es:['negocios','emprendimiento','empresario'], en:['business','entrepreneur','startup'],        pt:['negócios','empreendedorismo'],        de:['business','unternehmen'],   fr:['business','entreprise'] },
   dinero:         { es:['dinero','finanzas','riqueza'],            en:['money','wealth','finance'],                  pt:['dinheiro','finanças'],                 de:['geld','finanzen'],          fr:['argent','finances'] },
   finanzas:       { es:['finanzas','dinero','inversión'],          en:['finance','money','investing'],               pt:['finanças','dinheiro'],                 de:['finanzen','geld'],          fr:['finances','argent'] },
@@ -98,11 +105,11 @@ const TEMA_MAP: Record<string, Record<string, string[]>> = {
   crypto:         { es:['crypto','bitcoin','blockchain'],          en:['crypto','bitcoin','blockchain'],             pt:['crypto','bitcoin'],                    de:['krypto','bitcoin'],         fr:['crypto','bitcoin'] },
   redes:          { es:['redes sociales','instagram','contenido'], en:['social media','content','creator'],          pt:['redes sociais','conteúdo'],            de:['social media','content'],   fr:['réseaux sociaux','contenu'] },
   mindset:        { es:['mindset','mentalidad','crecimiento'],     en:['mindset','growth','mentality'],              pt:['mindset','mentalidade'],               de:['mindset','mentalität'],     fr:['mindset','mentalité'] },
-  amor:           { es:['amor','relación','pareja'],               en:['love','relationship','couple'],              pt:['amor','relacionamento'],               de:['liebe','beziehung'],        fr:['amour','relation'] },
-  autoayuda:      { es:['autoayuda','superación','crecimiento'],   en:['self help','self improvement','growth'],     pt:['autoajuda','crescimento'],             de:['selbsthilfe','wachstum'],   fr:['développement personnel'] },
+  amor:           { es:['amor','relación de pareja','enamorados'], en:['love','relationship','couple'],              pt:['amor','relacionamento'],               de:['liebe','beziehung'],        fr:['amour','relation'] },
+  autoayuda:      { es:['autoayuda','superación personal','crecimiento personal'], en:['self help','self improvement','growth'], pt:['autoajuda','crescimento'],  de:['selbsthilfe','wachstum'],   fr:['développement personnel'] },
   psicologia:     { es:['psicología','mente','emociones'],         en:['psychology','mind','emotions'],              pt:['psicologia','mente'],                  de:['psychologie','gedanken'],   fr:['psychologie','émotions'] },
-  meditacion:     { es:['meditación','mindfulness','paz'],         en:['meditation','mindfulness','calm'],           pt:['meditação','mindfulness'],             de:['meditation','achtsamkeit'], fr:['méditation','pleine conscience'] },
-  dieta:          { es:['dieta','adelgazar','peso'],               en:['diet','weight loss','fat loss'],             pt:['dieta','emagrecimento'],               de:['diät','abnehmen'],          fr:['régime','minceur'] },
+  meditacion:     { es:['meditación','mindfulness','paz interior'],en:['meditation','mindfulness','calm'],           pt:['meditação','mindfulness'],             de:['meditation','achtsamkeit'], fr:['méditation','pleine conscience'] },
+  dieta:          { es:['dieta','adelgazar','bajar de peso'],      en:['diet','weight loss','fat loss'],             pt:['dieta','emagrecimento'],               de:['diät','abnehmen'],          fr:['régime','minceur'] },
   viajes:         { es:['viajes','viaje','turismo'],               en:['travel','trip','tourism'],                   pt:['viagens','viagem'],                    de:['reisen','urlaub'],          fr:['voyage','tourisme'] },
   moda:           { es:['moda','estilo','ropa'],                   en:['fashion','style','outfit'],                  pt:['moda','estilo'],                       de:['mode','stil'],              fr:['mode','style'] },
 };
@@ -116,13 +123,34 @@ const LANGS = [
   { code:'fr', region:'FR', flag:'🇫🇷', label:'Français' },
 ] as const;
 
-// Detecta si el tema está en el mapa
+// Detecta si el tema está en el mapa — prefiere coincidencias más largas (más específicas)
 function findMapEntry(tema: string): Record<string,string[]> | null {
-  const slug = norm(tema).replace(/[^a-z0-9]/g,'');
+  const temaLower = norm(tema);
+  const temaSlug  = temaLower.replace(/[^a-z0-9]/g,'');
+
+  let bestKey = '';
+  let bestEntry: Record<string,string[]> | null = null;
+
   for (const [key, langs] of Object.entries(TEMA_MAP)) {
-    if (slug.includes(key) || key.includes(slug.slice(0,6))) return langs;
+    const keyLower = norm(key);
+    const keySlug  = keyLower.replace(/[^a-z0-9]/g,'');
+    // Coincidencia exacta o parcial — preferir la clave más larga
+    const matches = temaLower.includes(keyLower) || temaSlug.includes(keySlug)
+      || keyLower.includes(temaLower) || keySlug.includes(temaSlug.slice(0,6));
+    if (matches && key.length > bestKey.length) {
+      bestKey   = key;
+      bestEntry = langs;
+    }
   }
-  return null;
+  return bestEntry;
+}
+
+// Devuelve el término de búsqueda preferido: usa el tema del usuario si es específico (>1 palabra)
+function preferredTerm(tema: string, mappedTerm: string | undefined): string {
+  const words = tema.trim().split(/\s+/);
+  // Si el usuario escribió más de una palabra, usar su query exacta (es más específico)
+  if (words.length > 1) return tema;
+  return mappedTerm || tema;
 }
 
 // Todas las palabras aceptables en el título (cualquier idioma)
@@ -527,9 +555,9 @@ async function searchTikTok(tema: string, _key: string) {
   const allTerms = getAllTerms(tema);
 
   const searchConfigs = [
-    { lang: LANGS[0], term: entry?.es?.[0] || tema },
-    { lang: LANGS[1], term: entry?.en?.[0] || tema },
-    { lang: LANGS[2], term: entry?.pt?.[0] || tema },
+    { lang: LANGS[0], term: preferredTerm(tema, entry?.es?.[0]) },
+    { lang: LANGS[1], term: preferredTerm(tema, entry?.en?.[0]) },
+    { lang: LANGS[2], term: preferredTerm(tema, entry?.pt?.[0]) },
   ];
 
   // 1️⃣ TikWM — gratis, sin cuota
@@ -778,32 +806,34 @@ async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram'|'you
   const flag  = platform === 'tiktok' ? '🎵' : platform === 'youtube' ? '▶' : '📸';
   const label = platform === 'tiktok' ? 'TikTok' : platform === 'youtube' ? 'YouTube' : 'Instagram';
 
-  const esTerm = entry?.es?.[0] || tema;
-  const enTerm = entry?.en?.[0] || tema;
-  const ptTerm = entry?.pt?.[0] || tema;
+  // preferredTerm garantiza que "amor consciente" no se reduce a solo "amor"
+  const esTerm = preferredTerm(tema, entry?.es?.[0]);
+  const enTerm = preferredTerm(tema, entry?.en?.[0]);
+  const ptTerm = preferredTerm(tema, entry?.pt?.[0]);
+  // Frase exacta entre comillas para Google (más precisión)
+  const esExact = `"${esTerm}"`;
+  const enExact = `"${enTerm}"`;
 
-  // Para TikTok: usar /videos de Serper (Google Video Search indexa TikTok mucho mejor)
-  // Para Instagram: usar /search con site:instagram.com/reel
-  // Para YouTube: buscar Shorts via Google
   const serperCalls: { endpoint: string; body: object }[] = platform === 'tiktok'
     ? [
-        { endpoint: 'videos', body: { q: `${esTerm} tiktok`,     gl:'us', hl:'es', num:10 } },
-        { endpoint: 'videos', body: { q: `${enTerm} tiktok`,     gl:'us', hl:'en', num:10 } },
-        { endpoint: 'videos', body: { q: `${ptTerm} tiktok`,     gl:'br', hl:'pt', num:10 } },
-        { endpoint: 'search', body: { q: `site:tiktok.com ${esTerm}`, gl:'mx', hl:'es', num:20 } },
+        { endpoint: 'videos', body: { q: `${esTerm} tiktok`,      gl:'us', hl:'es', num:10 } },
+        { endpoint: 'videos', body: { q: `${enTerm} tiktok`,      gl:'us', hl:'en', num:10 } },
+        { endpoint: 'videos', body: { q: `${ptTerm} tiktok`,      gl:'br', hl:'pt', num:10 } },
+        { endpoint: 'search', body: { q: `site:tiktok.com ${esExact}`, gl:'mx', hl:'es', num:20 } },
       ]
     : platform === 'youtube'
     ? [
         { endpoint: 'videos', body: { q: `${esTerm} youtube shorts`, gl:'us', hl:'es', num:10 } },
         { endpoint: 'videos', body: { q: `${enTerm} youtube shorts`, gl:'us', hl:'en', num:10 } },
-        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${esTerm}`, gl:'mx', hl:'es', num:20 } },
-        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${enTerm}`, gl:'us', hl:'en', num:20 } },
+        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${esExact}`, gl:'mx', hl:'es', num:20 } },
+        { endpoint: 'search', body: { q: `site:youtube.com/shorts ${enExact}`, gl:'us', hl:'en', num:20 } },
       ]
     : [
-        { endpoint: 'search', body: { q: `site:instagram.com/reel ${esTerm}`, gl:'es', hl:'es', num:20 } },
-        { endpoint: 'search', body: { q: `site:instagram.com/reel #${esTerm.replace(/\s+/g,'')}`, gl:'mx', hl:'es', num:20 } },
-        { endpoint: 'search', body: { q: `site:instagram.com/reel ${enTerm}`, gl:'us', hl:'en', num:20 } },
-        { endpoint: 'search', body: { q: `site:instagram.com/reel ${ptTerm}`, gl:'br', hl:'pt', num:20 } },
+        // Instagram: query exacta primero, luego variantes con hashtag
+        { endpoint: 'search', body: { q: `site:instagram.com/reel ${esExact}`,                          gl:'mx', hl:'es', num:20 } },
+        { endpoint: 'search', body: { q: `site:instagram.com/reel #${esTerm.replace(/\s+/g,'')}`,       gl:'mx', hl:'es', num:20 } },
+        { endpoint: 'search', body: { q: `site:instagram.com/reel ${enExact}`,                          gl:'us', hl:'en', num:20 } },
+        { endpoint: 'search', body: { q: `site:instagram.com/reel ${esTerm}`,                           gl:'es', hl:'es', num:20 } },
       ];
 
   const searches = await Promise.allSettled(
