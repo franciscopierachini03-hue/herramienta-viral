@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 
+export const maxDuration = 300; // 5 minutos — Vercel Pro
+
 // ── Cache ─────────────────────────────────────────────────────────────────────
 type CacheEntry = { videos: unknown[]; ts: number };
 const cache = new Map<string, CacheEntry>();
@@ -151,6 +153,43 @@ function preferredTerm(tema: string, mappedTerm: string | undefined): string {
   // Si el usuario escribió más de una palabra, usar su query exacta (es más específico)
   if (words.length > 1) return tema;
   return mappedTerm || tema;
+}
+
+// ── IA: expandir cualquier tema con GPT-4o-mini ──────────────────────────────
+interface AIKeywords { es: string[]; en: string[]; pt: string[] }
+
+async function expandWithAI(tema: string): Promise<AIKeywords | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        max_tokens: 200,
+        messages: [{
+          role: 'system',
+          content: `Eres un experto en SEO para redes sociales. Dado un tema, devuelves EXACTAMENTE un JSON con keywords de búsqueda en 3 idiomas para encontrar videos virales en TikTok, Instagram y YouTube.
+Formato ESTRICTO (sin markdown, solo JSON):
+{"es":["keyword1","keyword2","keyword3"],"en":["keyword1","keyword2","keyword3"],"pt":["keyword1","keyword2"]}
+- Las keywords deben ser términos de búsqueda reales que la gente usa en cada plataforma
+- Máximo 3 keywords por idioma, sin artículos ni palabras vacías
+- En inglés siempre, incluso si el tema está en español`,
+        }, {
+          role: 'user',
+          content: `Tema: "${tema}"`,
+        }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
+    const parsed = JSON.parse(text);
+    if (parsed.es && parsed.en) return parsed as AIKeywords;
+  } catch { /* fallback */ }
+  return null;
 }
 
 // Todas las palabras aceptables en el título (cualquier idioma)
@@ -906,68 +945,178 @@ export async function POST(req: NextRequest) {
   const { tema, platform } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
+  // ── Expansión de keywords con IA (si el tema no está en el mapa) ─────────────
+  // Se hace UNA VEZ y se inyecta en la lógica de búsqueda de cada plataforma
+  const enMapa = findMapEntry(tema) !== null;
+  const aiKeys: AIKeywords | null = enMapa ? null : await expandWithAI(tema);
+
+  // Helper: tema enriquecido por IA o el original
+  function temaES(): string { return aiKeys?.es?.[0] || tema; }
+  function temaEN(): string { return aiKeys?.en?.[0] || tema; }
+  function temaPT(): string { return aiKeys?.pt?.[0] || tema; }
+
+  // Inyectar keywords de IA en el mapa temporal para que todas las funciones las usen
+  if (aiKeys && !enMapa) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (TEMA_MAP as any)[norm(tema).replace(/[^a-z0-9]/g,'')] = {
+      es: aiKeys.es, en: aiKeys.en, pt: aiKeys.pt,
+    };
+  }
+
+  console.log(`[virales] tema="${tema}" enMapa=${enMapa} aiKeys=${JSON.stringify(aiKeys)}`);
+
   if (platform==='youtube') {
     const serperKey = process.env.SERPER_API_KEY;
     const ytKey     = process.env.YOUTUBE_API_KEY;
 
-    // 1. Serper — Google Search (sin límite de cuota diaria, principal)
+    // 1. Serper — búsqueda profunda en ES + EN + PT en paralelo
     if (serperKey) {
       try {
-        const videos = await searchViaSerper(tema, 'youtube' as never, serperKey);
-        if (videos.length > 0) return Response.json({ videos });
+        // Si tenemos keywords de IA, buscamos en múltiples variantes a la vez
+        const searches = aiKeys
+          ? await Promise.allSettled([
+              searchViaSerper(tema, 'youtube' as never, serperKey),
+              searchViaSerper(temaEN(), 'youtube' as never, serperKey),
+            ])
+          : [{ status: 'fulfilled' as const, value: await searchViaSerper(tema, 'youtube' as never, serperKey) }];
+
+        const allVideos: unknown[] = [];
+        for (const r of searches) {
+          if (r.status === 'fulfilled') allVideos.push(...(r.value as unknown[]));
+        }
+        // Deduplicar por URL
+        const seen = new Set<string>();
+        const unique = allVideos.filter((v: unknown) => {
+          const url = (v as { url: string }).url;
+          if (seen.has(url)) return false;
+          seen.add(url); return true;
+        });
+        if (unique.length > 0) return Response.json({ videos: unique.slice(0, 20) });
       } catch(e) {
         console.warn('Serper YouTube falló:', (e as Error).message);
       }
     }
 
-    // 2. YouTube Data API — fallback (10K unidades/día)
+    // 2. YouTube Data API — fallback
     if (ytKey) {
-      try { return Response.json({ videos: await searchYouTube(tema, ytKey) }); }
+      const termToSearch = aiKeys ? temaES() : tema;
+      try { return Response.json({ videos: await searchYouTube(termToSearch, ytKey) }); }
       catch(e) { console.warn('YouTube API falló:', (e as Error).message); }
     }
 
     return Response.json({ error: 'No se encontraron videos de YouTube. Intenta con otro tema.' }, { status: 422 });
   }
 
-  if (platform==='tiktok'||platform==='instagram') {
-    const apifyToken = process.env.APIFY_TOKEN;
-    const serperKey  = process.env.SERPER_API_KEY;
-    const rapidKey   = process.env.RAPIDAPI_KEY;
+  if (platform==='tiktok') {
+    const serperKey = process.env.SERPER_API_KEY;
+    const rapidKey  = process.env.RAPIDAPI_KEY;
 
-    // 1. Apify — scrapers nativos (mejor calidad)
-    if (apifyToken) {
-      try {
-        const videos = await searchViaApify(tema, platform, apifyToken);
-        return Response.json({videos});
-      } catch(e) {
-        console.warn('Apify falló, intentando Serper:', (e as Error).message);
+    // 1. TikWM — búsqueda en ES + EN + PT (y variantes IA) en paralelo
+    try {
+      const terms = aiKeys
+        ? [temaES(), temaEN(), temaPT(), ...aiKeys.es.slice(1), ...aiKeys.en.slice(1)]
+        : [tema];
+      const unique = terms.filter((v, i, a) => a.indexOf(v) === i).slice(0, 6);
+
+      const searches = await Promise.allSettled(
+        unique.map(t => fetchTikWMSearch(t))
+      );
+
+      const seen = new Set<string>();
+      const candidates: VideoCandidate[] = [];
+      const allTerms = getAllTerms(tema);
+
+      for (let i = 0; i < searches.length; i++) {
+        const r = searches[i];
+        if (r.status !== 'fulfilled') continue;
+        const lang = i === 1 ? LANGS[1] : i === 2 ? LANGS[2] : LANGS[0];
+        for (const v of r.value) {
+          const id = v.video_id || '';
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          const c = tikwmToCandidate(v, lang);
+          if (c) candidates.push(c);
+        }
       }
+
+      if (candidates.length > 0) {
+        return Response.json({ videos: guaranteeResults(candidates, allTerms, 15) });
+      }
+    } catch(e) {
+      console.warn('TikWM falló:', (e as Error).message);
     }
 
-    // 2. Serper — Google Search (fallback)
+    // 2. Serper — fallback
     if (serperKey) {
       try {
-        const videos = await searchViaSerper(tema, platform, serperKey);
-        return Response.json({videos});
+        const videos = await searchViaSerper(tema, 'tiktok', serperKey);
+        if (videos.length > 0) return Response.json({ videos });
       } catch(e) {
-        if (!rapidKey) return Response.json({error:`${platform}: ${(e as Error).message}`},{status:502});
+        console.warn('Serper TikTok falló:', (e as Error).message);
       }
     }
 
     // 3. RapidAPI — último recurso
     if (rapidKey) {
       try {
-        const videos = platform==='tiktok'
-          ? await searchTikTok(tema, rapidKey)
-          : await searchInstagram(tema, rapidKey);
-        return Response.json({videos});
-      } catch(e){ return Response.json({error:`${platform}: ${(e as Error).message}`},{status:502}); }
+        const videos = await searchTikTok(tema, rapidKey);
+        return Response.json({ videos });
+      } catch(e) { return Response.json({ error: `TikTok: ${(e as Error).message}` }, { status: 502 }); }
     }
 
-    return Response.json({
-      error:`Para buscar en ${platform==='tiktok'?'TikTok':'Instagram'} necesitás configurar SERPER_API_KEY (gratis en serper.dev) o RAPIDAPI_KEY en tu .env.local`
-    },{status:422});
+    return Response.json({ error: 'No se encontraron videos en TikTok.' }, { status: 422 });
   }
 
-  return Response.json({error:'Plataforma no soportada'},{status:400});
+  if (platform==='instagram') {
+    const apifyToken = process.env.APIFY_TOKEN;
+    const serperKey  = process.env.SERPER_API_KEY;
+    const rapidKey   = process.env.RAPIDAPI_KEY;
+
+    // 1. Serper — búsqueda en ES + EN en paralelo (primary para Instagram)
+    if (serperKey) {
+      try {
+        const searches = aiKeys
+          ? await Promise.allSettled([
+              searchViaSerper(tema, 'instagram', serperKey),
+              searchViaSerper(temaEN(), 'instagram', serperKey),
+            ])
+          : [{ status: 'fulfilled' as const, value: await searchViaSerper(tema, 'instagram', serperKey) }];
+
+        const allVideos: unknown[] = [];
+        for (const r of searches) {
+          if (r.status === 'fulfilled') allVideos.push(...(r.value as unknown[]));
+        }
+        const seen = new Set<string>();
+        const unique = allVideos.filter((v: unknown) => {
+          const url = (v as { url: string }).url;
+          if (seen.has(url)) return false;
+          seen.add(url); return true;
+        });
+        if (unique.length > 0) return Response.json({ videos: unique.slice(0, 20) });
+      } catch(e) {
+        console.warn('Serper Instagram falló:', (e as Error).message);
+      }
+    }
+
+    // 2. Apify
+    if (apifyToken) {
+      try {
+        const videos = await searchViaApify(tema, platform, apifyToken);
+        return Response.json({ videos });
+      } catch(e) {
+        console.warn('Apify falló:', (e as Error).message);
+      }
+    }
+
+    // 3. RapidAPI
+    if (rapidKey) {
+      try {
+        return Response.json({ videos: await searchInstagram(tema, rapidKey) });
+      } catch(e) { return Response.json({ error: `Instagram: ${(e as Error).message}` }, { status: 502 }); }
+    }
+
+    return Response.json({ error: 'No se encontraron reels en Instagram.' }, { status: 422 });
+  }
+
+  return Response.json({ error:'Plataforma no soportada' }, { status: 400 });
 }

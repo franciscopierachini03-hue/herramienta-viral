@@ -484,22 +484,43 @@ export default function Home() {
   }
 
   // ── Virales ─────────────────────────────────────────────
+  const [loadingMsg, setLoadingMsg] = useState('');
+
   async function buscarVirales() {
     if (!tema) return;
     setLoadingV(true);
+    setLoadingMsg('Analizando el tema con IA...');
     setVirales({ youtube: [], tiktok: [], instagram: [] });
     setErrors({ youtube: '', tiktok: '', instagram: '' });
 
     const plataformas = ['youtube', 'tiktok', 'instagram'] as const;
+
+    // Mensajes progresivos mientras espera
+    const msgs = [
+      'Generando keywords con IA...',
+      'Buscando en YouTube Shorts...',
+      'Buscando en TikTok...',
+      'Buscando en Instagram Reels...',
+      'Filtrando los más virales...',
+      'Casi listo...',
+    ];
+    let msgIdx = 0;
+    const msgInterval = setInterval(() => {
+      msgIdx = Math.min(msgIdx + 1, msgs.length - 1);
+      setLoadingMsg(msgs[msgIdx]);
+    }, 4000);
+
     const resultados = await Promise.all(
       plataformas.map(p =>
         fetch('/api/virales', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tema, platform: p }),
-        }).then(r => r.json())
+        }).then(r => r.json()).catch(() => ({ error: 'Error de conexión' }))
       )
     );
+
+    clearInterval(msgInterval);
 
     const newVirales = { youtube: [] as Video[], tiktok: [] as Video[], instagram: [] as Video[] };
     const newErrors = { youtube: '', tiktok: '', instagram: '' };
@@ -511,6 +532,7 @@ export default function Home() {
     setVirales(newVirales);
     setErrors(newErrors);
     setLoadingV(false);
+    setLoadingMsg('');
   }
 
   // ── Helpers UI ───────────────────────────────────────────
@@ -745,9 +767,12 @@ export default function Home() {
 
           {loadingV && (
             <div className="text-center py-12">
-              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#111', border: '1px solid #1f1f1f', color: '#666' }}>
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#7c3aed' }}></span>
-                Buscando en YouTube, TikTok e Instagram...
+              <div className="inline-flex flex-col items-center gap-3">
+                <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#111', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#7c3aed' }}></span>
+                  {loadingMsg || 'Analizando el tema con IA...'}
+                </div>
+                <p className="text-xs" style={{ color: '#444' }}>La búsqueda profunda puede tomar hasta 30 segundos</p>
               </div>
             </div>
           )}
