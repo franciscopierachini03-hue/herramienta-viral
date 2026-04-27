@@ -382,35 +382,30 @@ function applyFilter(candidates: VideoCandidate[], allTerms: string[], level: Fi
   });
 }
 
-// Garantiza mínimo N resultados usando los 3 niveles
-// Ordena por score compuesto: vistas × calidad de comentarios
+// Score compuesto: vistas × calidad de comentarios
 function scoreComposite(v: VideoCandidate): number {
-  return v.viewsRaw * (0.5 + v.commentScore); // rango: 0.5x–1.5x vistas
+  return v.viewsRaw * (0.5 + v.commentScore);
 }
 
-function guaranteeResults(candidates: VideoCandidate[], allTerms: string[], minResults: number): VideoCandidate[] {
-  // Deduplicar candidatos por URL antes de filtrar (un mismo video puede venir de varios queries)
+// Deduplicar + filtrar (loose) + ordenar por vistas → devolver top N
+function topByViews(candidates: VideoCandidate[], topN = 20): VideoCandidate[] {
   const urlSeen = new Set<string>();
-  const dedupedCandidates = candidates.filter(v => {
+  const deduped = candidates.filter(v => {
     if (urlSeen.has(v.url)) return false;
     urlSeen.add(v.url);
     return true;
   });
+  // Aplicar filtro básico (loose): descarta duración inválida y blacklist
+  const filtered = applyFilter(deduped, [], 'loose');
+  // Ordenar por vistas (mayor a menor) y devolver top N
+  return filtered
+    .sort((a, b) => scoreComposite(b) - scoreComposite(a))
+    .slice(0, topN);
+}
 
-  const seen = new Set<string>();
-  const result: VideoCandidate[] = [];
-
-  for (const level of ['strict','medium','loose'] as FilterLevel[]) {
-    if (result.length >= minResults) break;
-    const filtered = applyFilter(dedupedCandidates, allTerms, level)
-      .filter(v => !seen.has(v.id))
-      .sort((a, b) => scoreComposite(b) - scoreComposite(a));
-
-    const needed = minResults - result.length;
-    filtered.slice(0, needed).forEach(v => { seen.add(v.id); result.push(v); });
-  }
-
-  return result.sort((a, b) => scoreComposite(b) - scoreComposite(a));
+// Compatibilidad con código existente
+function guaranteeResults(candidates: VideoCandidate[], _allTerms: string[], minResults: number): VideoCandidate[] {
+  return topByViews(candidates, minResults);
 }
 
 // ── YouTube ───────────────────────────────────────────────────────────────────
@@ -563,14 +558,26 @@ interface TikWMVideo {
   cover?: string;
 }
 
-async function fetchTikWMSearch(kw: string): Promise<TikWMVideo[]> {
-  const res = await fetch(
-    `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(kw)}&count=20&cursor=0&web=1&hd=1`,
-    { headers: { 'User-Agent': 'Mozilla/5.0' } }
-  );
-  if (!res.ok) throw new Error('TikWM error');
-  const data = await res.json();
-  return data?.data?.videos || [];
+// Busca múltiples páginas en TikWM para obtener ~100 videos por keyword
+async function fetchTikWMSearch(kw: string, pages = 5): Promise<TikWMVideo[]> {
+  const results: TikWMVideo[] = [];
+  let cursor = 0;
+  for (let i = 0; i < pages; i++) {
+    try {
+      const res = await fetch(
+        `https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(kw)}&count=20&cursor=${cursor}&web=1&hd=1`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      if (!res.ok) break;
+      const data = await res.json();
+      const videos: TikWMVideo[] = data?.data?.videos || [];
+      if (!videos.length) break;
+      results.push(...videos);
+      cursor = data?.data?.cursor || (cursor + 20);
+      if (!data?.data?.has_more) break;
+    } catch { break; }
+  }
+  return results;
 }
 
 function tikwmToCandidate(v: TikWMVideo, lang: { flag: string; label: string }): VideoCandidate | null {
@@ -1011,26 +1018,33 @@ export async function POST(req: NextRequest) {
     const serperKey = process.env.SERPER_API_KEY;
     const rapidKey  = process.env.RAPIDAPI_KEY;
 
-    // 1. TikWM — búsqueda en ES + EN + PT (y variantes IA) en paralelo
+    // 1. TikWM — ~100 videos por idioma, top 20 por vistas
     try {
-      const terms = aiKeys
-        ? [temaES(), temaEN(), temaPT(), ...aiKeys.es.slice(1), ...aiKeys.en.slice(1)]
-        : [tema];
-      const unique = terms.filter((v, i, a) => a.indexOf(v) === i).slice(0, 6);
+      // Construir términos por idioma: principal de IA o del mapa
+      const entry = findMapEntry(tema);
+      const esTerms = aiKeys ? aiKeys.es : (entry?.es?.slice(0,3) || [tema]);
+      const enTerms = aiKeys ? aiKeys.en : (entry?.en?.slice(0,3) || [tema]);
+      const ptTerms = aiKeys ? aiKeys.pt : (entry?.pt?.slice(0,2) || [tema]);
 
-      const searches = await Promise.allSettled(
-        unique.map(t => fetchTikWMSearch(t))
-      );
+      // Buscar cada keyword con 5 páginas (~100 videos) — en paralelo por idioma
+      const [esResults, enResults, ptResults] = await Promise.allSettled([
+        Promise.all(esTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
+        Promise.all(enTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
+        Promise.all(ptTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
+      ]);
 
       const seen = new Set<string>();
       const candidates: VideoCandidate[] = [];
-      const allTerms = getAllTerms(tema);
 
-      for (let i = 0; i < searches.length; i++) {
-        const r = searches[i];
-        if (r.status !== 'fulfilled') continue;
-        const lang = i === 1 ? LANGS[1] : i === 2 ? LANGS[2] : LANGS[0];
-        for (const v of r.value) {
+      const buckets = [
+        { result: esResults, lang: LANGS[0] },
+        { result: enResults, lang: LANGS[1] },
+        { result: ptResults, lang: LANGS[2] },
+      ];
+
+      for (const { result, lang } of buckets) {
+        if (result.status !== 'fulfilled') continue;
+        for (const v of result.value) {
           const id = v.video_id || '';
           if (!id || seen.has(id)) continue;
           seen.add(id);
@@ -1039,8 +1053,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      console.log(`[TikTok] ${candidates.length} candidatos recolectados, devolviendo top 20`);
+
       if (candidates.length > 0) {
-        return Response.json({ videos: guaranteeResults(candidates, allTerms, 15) });
+        return Response.json({ videos: topByViews(candidates, 20) });
       }
     } catch(e) {
       console.warn('TikWM falló:', (e as Error).message);
