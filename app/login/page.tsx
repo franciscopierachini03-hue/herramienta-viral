@@ -16,19 +16,42 @@ function Login() {
   const params = useSearchParams();
   const next = params.get('next') || '';
 
-  const [mode, setMode] = useState<'login' | 'signup'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
     setError('');
 
+    // ── FORGOT PASSWORD ──────────────────────────────────
+    if (mode === 'forgot') {
+      if (!email.includes('@')) {
+        setError('Correo inválido.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        setForgotSent(true);
+      } catch {
+        setError('Error de conexión. Probá de nuevo.');
+      }
+      setLoading(false);
+      return;
+    }
+
+    // ── SIGNUP / LOGIN ───────────────────────────────────
     if (password.length < 8) {
       setError('La contraseña tiene que tener al menos 8 caracteres.');
       return;
@@ -55,6 +78,12 @@ function Login() {
     }
   }
 
+  function switchMode(newMode: 'login' | 'signup' | 'forgot') {
+    setMode(newMode);
+    setError('');
+    setForgotSent(false);
+  }
+
   return (
     <main className="min-h-screen text-white flex flex-col" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
       {/* NAV */}
@@ -77,37 +106,59 @@ function Login() {
           <div className="rounded-3xl p-8"
             style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
 
-            {/* Toggle login / signup */}
-            <div className="flex gap-1 p-1 rounded-2xl mb-6" style={{ background: '#0a0a0a' }}>
-              <button
-                type="button"
-                onClick={() => { setMode('signup'); setError(''); }}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={mode === 'signup'
-                  ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-                  : { color: '#666' }}>
-                Crear cuenta
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('login'); setError(''); }}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={mode === 'login'
-                  ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-                  : { color: '#666' }}>
-                Iniciar sesión
-              </button>
-            </div>
+            {/* Toggle login / signup (oculto en modo forgot) */}
+            {mode !== 'forgot' && (
+              <div className="flex gap-1 p-1 rounded-2xl mb-6" style={{ background: '#0a0a0a' }}>
+                <button
+                  type="button"
+                  onClick={() => switchMode('signup')}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={mode === 'signup'
+                    ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
+                    : { color: '#666' }}>
+                  Crear cuenta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={mode === 'login'
+                    ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
+                    : { color: '#666' }}>
+                  Iniciar sesión
+                </button>
+              </div>
+            )}
 
             <h2 className="text-2xl font-bold mb-2">
-              {mode === 'signup' ? 'Empezá tu prueba' : 'Bienvenido de vuelta'}
+              {mode === 'signup' ? 'Empezá tu prueba'
+                : mode === 'login' ? 'Bienvenido de vuelta'
+                : 'Recuperar contraseña'}
             </h2>
             <p className="text-sm mb-6" style={{ color: '#888' }}>
               {mode === 'signup'
                 ? 'Completá tus datos y elegí una contraseña. Te llevamos a pagar.'
-                : 'Ingresá con tu correo y contraseña.'}
+                : mode === 'login'
+                ? 'Ingresá con tu correo y contraseña.'
+                : 'Te mandamos un correo con un link para crear una contraseña nueva.'}
             </p>
 
+            {mode === 'forgot' && forgotSent ? (
+              <div className="text-center py-4">
+                <div className="text-5xl mb-3">📬</div>
+                <p className="text-sm mb-4" style={{ color: '#aaa' }}>
+                  Si <span style={{ color: '#fff' }}>{email}</span> está registrado,
+                  te llegó un correo con el link para cambiar tu contraseña.
+                  Revisá también tu carpeta de spam.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="text-xs underline" style={{ color: '#888' }}>
+                  ← Volver a iniciar sesión
+                </button>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               {mode === 'signup' && (
                 <>
@@ -151,22 +202,33 @@ function Login() {
                 />
               </div>
 
-              <div>
-                <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
-                  Contraseña {mode === 'signup' && <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>}
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="••••••••"
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                  style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
-                />
-              </div>
+              {mode !== 'forgot' && (
+                <div>
+                  <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
+                    Contraseña {mode === 'signup' && <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    placeholder="••••••••"
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                    style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
+                  />
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-xs mt-2 underline"
+                      style={{ color: '#888' }}>
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <div className="rounded-xl p-3 text-xs" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
@@ -181,9 +243,22 @@ function Login() {
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
                 {loading
                   ? 'Procesando...'
-                  : mode === 'signup' ? 'Crear cuenta y pagar →' : 'Entrar →'}
+                  : mode === 'signup' ? 'Crear cuenta y pagar →'
+                  : mode === 'login' ? 'Entrar →'
+                  : 'Mandame el link →'}
               </button>
+
+              {mode === 'forgot' && (
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="text-xs underline mt-2 self-center"
+                  style={{ color: '#888' }}>
+                  ← Volver
+                </button>
+              )}
             </form>
+            )}
 
             <p className="text-xs text-center mt-6" style={{ color: '#555' }}>
               {mode === 'signup'
