@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-// Middleware: protege /app, /editor, /guiones — requiere sesión activa
-// con suscripción válida. Si no hay sesión, redirige a /login con `next` para
-// volver al destino original tras autenticarse.
+// Middleware: protege /app, /editor, /guiones — requiere:
+//   1. sesión activa (usuario logueado)
+//   2. subscription_status === 'active' en `profiles`
 //
-// La cookie de sesión la setea Supabase en /auth/callback.
+// Si no hay sesión → /login?next=...
+// Si hay sesión pero no pagó → /precios?need=pago
 //
 // Activación:
-// - Para activar el gate, poner REQUIRE_AUTH=1 en .env.local
-// - Para desarrollo sin gate, dejar REQUIRE_AUTH=0 o sin definir.
-//
-// Próxima mejora (no urgente): además de chequear que haya sesión, leer
-// `profiles.subscription_status` y bloquear si no está 'active'. Por ahora,
-// con que esté logueado y haya pagado alguna vez alcanza para test.
+// - REQUIRE_AUTH=1 en .env → protege rutas
+// - REQUIRE_AUTH=0 o ausente → modo dev, deja pasar todo
 
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === '1';
+
+// Estados que cuentan como "pagó y puede entrar".
+// `trialing` por si después agregamos free trial. `past_due` lo dejamos afuera
+// a propósito — si la tarjeta rebotó, no entra hasta regularizar.
+const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 
 export async function middleware(req: NextRequest) {
   if (!REQUIRE_AUTH) return NextResponse.next();
@@ -27,8 +29,6 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/guiones');
   if (!isProtected) return NextResponse.next();
 
-  // Crear cliente de Supabase que lee/escribe cookies en la respuesta.
-  // Necesitamos `response` para que el cliente pueda refrescar la sesión.
   let response = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
@@ -50,12 +50,34 @@ export async function middleware(req: NextRequest) {
     },
   );
 
+  // 1. ¿Está logueado?
   const { data: { user } } = await supabase.auth.getUser();
-
   if (!user) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // 2. ¿Pagó? Buscamos el status en profiles por email.
+  const email = user.email;
+  if (!email) {
+    // Edge case: usuario sin email (no debería pasar). Lo mandamos a /login.
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('subscription_status')
+    .eq('email', email)
+    .maybeSingle();
+
+  const status = profile?.subscription_status ?? 'pending';
+
+  if (!ACTIVE_STATUSES.has(status)) {
+    // Está logueado pero no pagó (o canceló) → a /precios.
+    const url = new URL('/precios', req.url);
+    url.searchParams.set('need', 'pago');
+    return NextResponse.redirect(url);
   }
 
   return response;
