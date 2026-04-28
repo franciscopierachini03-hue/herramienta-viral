@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code local settings
+.claude/
+
+# Large media (host elsewhere, e.g. Vercel Blob / S3)
+public/*.mp4

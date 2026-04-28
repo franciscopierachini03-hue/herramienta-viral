@@ -3,11 +3,19 @@ import OpenAI from 'openai';
 
 export const maxDuration = 120;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 5 * 60 * 1000,
-  maxRetries: 0,
-});
+// Lazy init: sólo creamos el cliente cuando se llama al endpoint, no al importar el módulo.
+// Esto evita que Next.js falle al hacer build si OPENAI_API_KEY no está disponible en ese momento.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      timeout: 5 * 60 * 1000,
+      maxRetries: 0,
+    });
+  }
+  return _openai;
+}
 
 // ── Muletillas / fillers ───────────────────────────────────────────────────────
 const FILLERS = [
@@ -156,7 +164,7 @@ Transcript completo: "${transcript.slice(0, 2000)}"
 Timeline de palabras (tiempo:palabra): ${wordList}`;
 
   try {
-    const res = await openai.chat.completions.create({
+    const res = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
@@ -290,7 +298,7 @@ export async function POST(req: NextRequest) {
   let trimEndSec   = 0;
 
   try {
-    const aiRes = await openai.chat.completions.create({
+    const aiRes = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{
         role: 'user',

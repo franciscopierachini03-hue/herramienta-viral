@@ -3,9 +3,14 @@ import OpenAI from 'openai';
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy init: sólo creamos el cliente cuando se llama al endpoint.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 const SYSTEM_PROMPT = `Eres un experto en guiones virales para redes sociales (TikTok, Instagram Reels, YouTube Shorts).
 Tu trabajo es escribir guiones que suenen exactamente como la persona que te lo pide — capturando su forma de hablar, sus muletillas, su energía y su tono.
@@ -67,7 +72,7 @@ ${estilo.trim()}
 Escribí el guión viral completo con HOOK, BODY y CTA que suene exactamente como esta persona hablando sobre este tema.
 `.trim();
 
-  const stream = await openai.chat.completions.create({
+  const stream = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     stream: true,
     temperature: 0.85,

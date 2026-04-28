@@ -167,16 +167,29 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        temperature: 0.2,
-        max_tokens: 200,
+        temperature: 0.3,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
         messages: [{
           role: 'system',
-          content: `Eres un experto en SEO para redes sociales. Dado un tema, devuelves EXACTAMENTE un JSON con keywords de búsqueda en 3 idiomas para encontrar videos virales en TikTok, Instagram y YouTube.
-Formato ESTRICTO (sin markdown, solo JSON):
-{"es":["keyword1","keyword2","keyword3"],"en":["keyword1","keyword2","keyword3"],"pt":["keyword1","keyword2"]}
-- Las keywords deben ser términos de búsqueda reales que la gente usa en cada plataforma
-- Máximo 3 keywords por idioma, sin artículos ni palabras vacías
-- En inglés siempre, incluso si el tema está en español`,
+          content: `Eres un experto en SEO de TikTok, Instagram y YouTube. Dado un tema, generas keywords de búsqueda potentes en 3 idiomas (español, inglés, portugués brasileño).
+
+Formato ESTRICTO JSON:
+{"es":["k1","k2","k3","k4","k5"],"en":["k1","k2","k3","k4","k5"],"pt":["k1","k2","k3","k4"]}
+
+REGLAS:
+- 5 keywords ES, 5 EN, 4 PT — todas DIFERENTES entre sí
+- Deben ser frases reales que la gente busca en TikTok/IG (cortas, 1-3 palabras cada una)
+- Mezcla: términos directos + sinónimos + variantes coloquiales + términos técnicos
+- En inglés y portugués siempre incluye keywords NATIVAS (no traducción literal)
+- Sin artículos, sin "video sobre", sin "como hacer" largos
+- Si el tema es muy nicho, usa términos relacionados que mantengan el espíritu
+
+EJEMPLO tema "negocios":
+{"es":["negocios","emprendimiento","ideas de negocio","empresario","mentor de negocios"],"en":["business","entrepreneur","startup","business tips","side hustle"],"pt":["negócios","empreendedorismo","empresário","negócio próprio"]}
+
+EJEMPLO tema "amor consciente":
+{"es":["amor consciente","relaciones conscientes","amor real","apego seguro","relaciones sanas"],"en":["conscious love","mindful relationship","secure attachment","healthy relationship","emotional intelligence dating"],"pt":["amor consciente","relacionamento consciente","apego seguro","relação saudável"]}`,
         }, {
           role: 'user',
           content: `Tema: "${tema}"`,
@@ -242,11 +255,12 @@ type FilterLevel = 'strict' | 'medium' | 'loose';
 
 interface VideoCandidate {
   id: string; title: string; channel: string;
-  views: string; likes: string; viewsRaw: number;
+  views: string; likes: string; viewsRaw: number; likesRaw: number;
   commentsRaw: number;
   commentScore: number; // 0 = todo ruido, 1 = todo valor, 0.5 = neutral/sin datos
   duration: number; thumbnail: string; url: string;
   platform: string; flag: string; langLabel: string; audioLang: string;
+  enriched?: boolean; // true si las stats fueron verificadas (Instagram via instagram-looter2)
 }
 
 // ── Análisis de calidad de comentarios ────────────────────────────────────────
@@ -330,6 +344,7 @@ const MIN_VIEWS_MEDIUM   =  20_000;  // 20K en medium
 const MIN_VIEWS_LOOSE    =   1_000;  // 1K en loose
 const MIN_COMMENTS_STRICT =    100;  // 100 comentarios mínimo en strict
 const MIN_COMMENTS_MEDIUM =     20;  // 20 en medium (puede ser 0 si no disponible)
+const MIN_LIKES           =    500;  // mínimo absoluto de likes (cuando es conocido)
 
 const BLOCKED_AUDIO = new Set(['hi','ta','te','mr','bn','gu','kn','ml','pa','ur','ar','zh','ja','ko','th','vi','id','ms','tl']);
 
@@ -353,6 +368,12 @@ function applyFilter(candidates: VideoCandidate[], allTerms: string[], level: Fi
 
     // Siempre: blacklist — revisar AMBOS: título con hashtags Y sin ellos
     if (BLACKLIST.some(w => rawTitleNorm.includes(norm(w)))) return false;
+
+    // Siempre: mínimo de likes — solo aplica si las stats están verificadas (enriquecidas)
+    // Si likesRaw === 0 puede ser desconocido (Serper no enriquecido), dejamos pasar y la IA decide
+    if (v.enriched && v.likesRaw > 0 && v.likesRaw < MIN_LIKES) return false;
+    // Si están enriquecidas y likes es 0 explícito (verificado bajo), también descartar
+    if (v.enriched && v.likesRaw === 0) return false;
 
     // Siempre: el tema DEBE aparecer en el título limpio (en cualquier idioma)
     if (!hasTopicInTitle(titleNorm, allTerms)) return false;
@@ -387,25 +408,63 @@ function scoreComposite(v: VideoCandidate): number {
   return v.viewsRaw * (0.5 + v.commentScore);
 }
 
-// Deduplicar + filtrar (loose) + ordenar por vistas → devolver top N
-function topByViews(candidates: VideoCandidate[], topN = 20): VideoCandidate[] {
+// Deduplicar + filtrar con cascada de relevancia + ordenar por score → top N
+// Cascada: medium (relevancia + vistas mín) → loose (relevancia + min loose) → sin tema (último recurso)
+function topByViews(candidates: VideoCandidate[], allTerms: string[], topN = 20): VideoCandidate[] {
   const urlSeen = new Set<string>();
   const deduped = candidates.filter(v => {
     if (urlSeen.has(v.url)) return false;
     urlSeen.add(v.url);
     return true;
   });
-  // Aplicar filtro básico (loose): descarta duración inválida y blacklist
-  const filtered = applyFilter(deduped, [], 'loose');
-  // Ordenar por vistas (mayor a menor) y devolver top N
-  return filtered
-    .sort((a, b) => scoreComposite(b) - scoreComposite(a))
-    .slice(0, topN);
+
+  const sortByScore = (arr: VideoCandidate[]) =>
+    arr.sort((a, b) => scoreComposite(b) - scoreComposite(a));
+
+  // 1. Filtro medium: tema en título + sin blacklist + duración + vistas mínimas
+  if (allTerms.length > 0) {
+    const medium = applyFilter(deduped, allTerms, 'medium');
+    if (medium.length >= Math.min(topN, 8)) {
+      return sortByScore(medium).slice(0, topN);
+    }
+
+    // 2. Filtro loose: tema en título + sin blacklist + duración (sin mín de vistas estrictos)
+    const loose = applyFilter(deduped, allTerms, 'loose');
+    if (loose.length >= Math.min(topN, 5)) {
+      return sortByScore(loose).slice(0, topN);
+    }
+
+    // Si filtros con tema dan muy pocos, devolver lo que haya pero priorizándolos
+    if (loose.length > 0) {
+      // Completar con candidatos sin filtro de tema (solo dedupe+blacklist+duración)
+      const sin = sinTemaFilter(deduped);
+      const ids = new Set(loose.map(v => v.url));
+      const extras = sin.filter(v => !ids.has(v.url));
+      return [...sortByScore(loose), ...sortByScore(extras)].slice(0, topN);
+    }
+  }
+
+  // 3. Último recurso: sin filtro de tema (solo dedupe + blacklist + duración)
+  return sortByScore(sinTemaFilter(deduped)).slice(0, topN);
+}
+
+// Filtro mínimo: dedupe + blacklist + duración (sin requerir tema en título)
+function sinTemaFilter(candidates: VideoCandidate[]): VideoCandidate[] {
+  return candidates.filter(v => {
+    if (v.duration <= 3 || v.duration > 180) return false;
+    const rawTitleNorm = norm(v.title);
+    const clean = stripTags(v.title);
+    if (!clean || clean.length < 3) return false;
+    if (v.channel.toLowerCase().includes('- topic')) return false;
+    if (BLACKLIST.some(w => rawTitleNorm.includes(norm(w)))) return false;
+    if (v.likesRaw > 0 && v.likesRaw < MIN_LIKES) return false;
+    return v.viewsRaw === 0 || v.viewsRaw >= MIN_VIEWS_LOOSE;
+  });
 }
 
 // Compatibilidad con código existente
-function guaranteeResults(candidates: VideoCandidate[], _allTerms: string[], minResults: number): VideoCandidate[] {
-  return topByViews(candidates, minResults);
+function guaranteeResults(candidates: VideoCandidate[], allTerms: string[], minResults: number): VideoCandidate[] {
+  return topByViews(candidates, allTerms, minResults);
 }
 
 // ── YouTube ───────────────────────────────────────────────────────────────────
@@ -518,6 +577,7 @@ async function searchYouTube(tema: string, apiKey: string) {
         views:        fmt(statsMap[id]?.viewCount),
         likes:        fmt(statsMap[id]?.likeCount),
         viewsRaw:     parseInt(statsMap[id]?.viewCount   || '0'),
+        likesRaw:     parseInt(statsMap[id]?.likeCount   || '0'),
         commentsRaw:  parseInt(statsMap[id]?.commentCount || '0'),
         commentScore: 0.5, // se actualiza abajo
         duration:     durMap[id] ?? 9999,
@@ -588,7 +648,7 @@ function tikwmToCandidate(v: TikWMVideo, lang: { flag: string; label: string }):
     id, title: v.title?.slice(0, 120) || 'Video de TikTok',
     channel: v.author?.nickname || uid || 'Usuario',
     views: fmt(v.play_count), likes: fmt(v.digg_count),
-    viewsRaw: v.play_count || 0, commentsRaw: v.comment_count || 0,
+    viewsRaw: v.play_count || 0, likesRaw: v.digg_count || 0, commentsRaw: v.comment_count || 0,
     commentScore: 0.5, duration: 30,
     thumbnail: v.cover || '',
     url: `https://www.tiktok.com/@${uid}/video/${id}`,
@@ -692,7 +752,7 @@ async function searchInstagram(tema:string, key:string) {
     return {
       id:m.code||u, title:m.caption?.text?.slice(0,120)||`Reel de @${u}`,
       channel:u, views:fmt(m.play_count), likes:fmt(m.like_count),
-      viewsRaw:m.play_count||0, commentsRaw:0, commentScore:0.5, duration:30, thumbnail:m.image_versions2?.candidates?.[0]?.url||'',
+      viewsRaw:m.play_count||0, likesRaw:m.like_count||0, commentsRaw:0, commentScore:0.5, duration:30, thumbnail:m.image_versions2?.candidates?.[0]?.url||'',
       url:m.code?`https://www.instagram.com/reel/${m.code}/`:`https://www.instagram.com/${u}/`,
       platform:'instagram', flag:'🌐', langLabel:'Mixed', audioLang:'',
     };
@@ -772,7 +832,7 @@ async function searchViaApify(tema: string, platform: 'tiktok'|'instagram', apif
         title:     (v.text as string)?.slice(0, 120) || 'Video de TikTok',
         channel:   `@${authorId}`,
         views:       fmt(plays), likes: fmt((v.diggCount as number) || 0),
-        viewsRaw:    plays, commentsRaw: (v.commentCount as number) || 0, commentScore: 0.5,
+        viewsRaw:    plays, likesRaw: (v.diggCount as number) || 0, commentsRaw: (v.commentCount as number) || 0, commentScore: 0.5,
         duration:    (v.videoMeta as Record<string,unknown>)?.duration as number || 30,
         thumbnail:   (v.covers as string[])?.[0] || (v.coverUrl as string) || '',
         url:         `https://www.tiktok.com/@${authorId}/video/${id}`,
@@ -787,7 +847,7 @@ async function searchViaApify(tema: string, platform: 'tiktok'|'instagram', apif
         title:       (v.caption as string)?.slice(0, 120) || `Reel de @${owner}`,
         channel:     `@${owner}`,
         views:       fmt(plays), likes: fmt((v.likesCount as number) || 0),
-        viewsRaw:    plays, commentsRaw: (v.commentsCount as number) || 0, commentScore: 0.5,
+        viewsRaw:    plays, likesRaw: (v.likesCount as number) || 0, commentsRaw: (v.commentsCount as number) || 0, commentScore: 0.5,
         duration:    (v.videoDuration as number) || 30,
         thumbnail:   (v.displayUrl as string) || '',
         url:         shortCode ? `https://www.instagram.com/reel/${shortCode}/` : `https://www.instagram.com/${owner}/`,
@@ -926,6 +986,7 @@ async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram'|'you
         views:       viewsRaw ? fmt(viewsRaw) : '—',
         likes:       '—',
         viewsRaw,
+        likesRaw:    0,
         commentsRaw: 0,
         commentScore: 0.5,
         duration:    30,
@@ -947,15 +1008,306 @@ async function searchViaSerper(tema: string, platform: 'tiktok'|'instagram'|'you
   return guaranteeResults(candidates, allTerms, 12);
 }
 
+// ── IA evaluadora: filtra por valor real al tema ────────────────────────────
+// GPT-4o-mini puntúa cada candidato 0-10 según relevancia + valor educativo replicable.
+// Ruido (memes, música, clickbait sin valor) → score ≤ 3 → descartado.
+async function aiScoreRelevance(
+  candidates: VideoCandidate[],
+  tema: string,
+  topInput = 60,
+  topOutput = 20,
+  minScore = 7
+): Promise<VideoCandidate[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || candidates.length === 0) return candidates.slice(0, topOutput);
+
+  // ── 1. Agrupar por idioma para cuotas balanceadas ─────────────────────────
+  const byLang = new Map<string, VideoCandidate[]>();
+  for (const c of candidates) {
+    const k = c.langLabel || 'Otros';
+    if (!byLang.has(k)) byLang.set(k, []);
+    byLang.get(k)!.push(c);
+  }
+  // Ordenar cada grupo por engagement
+  for (const arr of byLang.values()) {
+    arr.sort((a, b) => scoreComposite(b) - scoreComposite(a));
+  }
+
+  // ── 2. Tomar top N de cada idioma para enviar a la IA ─────────────────────
+  const perLangInput = Math.ceil(topInput / Math.max(byLang.size, 1));
+  const toScore: VideoCandidate[] = [];
+  for (const arr of byLang.values()) {
+    toScore.push(...arr.slice(0, perLangInput));
+  }
+
+  // Lote compacto con idioma para que la IA contextualice
+  const list = toScore.map((v, i) =>
+    `${i}|${v.langLabel}|${v.title.replace(/\s+/g,' ').slice(0,140)}|@${v.channel.slice(0,30)}`
+  ).join('\n');
+
+  // ── 3. Prompt entrenado: ejemplos, reglas multilingües, escala estricta ───
+  const systemPrompt = `Eres un CURADOR ÉLITE de contenido educativo en TikTok, Instagram y YouTube. Trabajas para emprendedores, creators y profesionales que buscan APRENDER algo concreto. Tu trabajo es separar contenido de ALTO VALOR del ruido viral.
+
+═══════════════════════════════════════
+INPUT
+═══════════════════════════════════════
+Recibes una lista en formato:
+"índice|idioma|título|@autor"
+
+═══════════════════════════════════════
+OUTPUT (estricto JSON, sin markdown)
+═══════════════════════════════════════
+{"scores":[{"i":0,"s":9},{"i":1,"s":2},...]}
+
+═══════════════════════════════════════
+ESCALA 0-10
+═══════════════════════════════════════
+🚫 0-2 RUIDO PURO (descartar)
+- Memes, comedia, sketches, parodias, reacciones
+- Patrones: "POV:", "When you...", "Nadie:", "Cuando…", "Me when"
+- Música, letras, lyrics, dance challenges, lip-sync
+- Drama, chisme, vida personal sin enseñanza
+- Lifestyle de lujo sin contenido (autos, mansiones, viajes)
+- Clickbait vacío: "No vas a creer", "Mira esto", "Esto cambió mi vida" sin sustancia
+- Idiomas no soportados (hindi, árabe, chino, japonés, coreano, tailandés, etc.) → SIEMPRE 0
+
+😐 3-4 IRRELEVANTE
+- Menciona el tema solo de paso
+- Motivación genérica, frases inspiradoras vacías
+- "Trabaja duro", "Cree en ti", sin método ni framework
+- Hablan del tema pero NO enseñan nada aplicable
+
+✅ 5-6 ACEPTABLE
+- Habla del tema con algo de sustancia pero superficial
+- Tip muy básico o demasiado conocido
+- Lista corta de obviedades
+
+⭐ 7-8 BUENO
+- Consejo claro, concreto y aplicable
+- Caso de éxito con lección extraíble
+- Framework, sistema o método específico
+- Mentor demuestra credibilidad (resultados, empresa, libro)
+
+🏆 9-10 ORO PURO
+- Mentor con autoridad real (empresario reconocido, autor, experto)
+- Caso de estudio detallado con números/datos
+- Secreto poco conocido o framework completo
+- Insight contraintuitivo respaldado con experiencia
+
+═══════════════════════════════════════
+EJEMPLOS DE CALIBRACIÓN
+═══════════════════════════════════════
+[ES] "3 negocios que puedes empezar con $500 — paso a paso" → 9 ✅
+[EN] "How I built a 7-figure agency in 18 months" → 9 ✅
+[PT] "5 erros que cometi no meu primeiro negócio (não repita)" → 8 ✅
+[ES] "El framework de Naval Ravikant para crear riqueza" → 9 ✅
+[EN] "POV: when your business partner ghosts you 😂" → 1 ❌
+[ES] "Cuando intentas emprender pero…" → 1 ❌
+[EN] "Entrepreneur grindset 💀🔥" → 1 ❌
+[ES] "Trabaja duro, cree en ti mismo, todo es posible" → 3 ❌
+[PT] "Acordar às 5am muda tudo" (sin método) → 4 ⚠️
+[EN] "5 books every entrepreneur must read" → 7 ✅
+[ES] "Mi día como CEO" (lifestyle sin enseñanza) → 3 ❌
+
+═══════════════════════════════════════
+REGLAS NO NEGOCIABLES
+═══════════════════════════════════════
+1. Sé ULTRA ESTRICTO. Ante la duda, baja el score 2 puntos.
+2. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
+3. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
+4. Hashtags y emojis no aportan score: evalúa el contenido del título.
+5. Autoridad del creador OBLIGATORIA para 7+: el @autor debe sonar a empresa real, mentor reconocido, marca consolidada o experto. Cuentas genéricas (nombres aleatorios, números al final, "official" sin contexto, "tips_xyz") → máximo 4.
+6. Clickbait vacío sin payload concreto → máximo 3. Ejemplos: "esto cambió mi vida", "no vas a creer", "el secreto que nadie dice", "mira hasta el final". Si no hay número, framework, caso o método específico en el título → bajá score.
+7. Contenido infantil, médico-clínico, lifestyle de marca, o promo de producto en el título → máximo 3 aunque mencione el tema.
+8. Títulos genéricos sin gancho específico ("hábitos", "negocios", "motivación" como única palabra) → máximo 4.
+9. Score 9-10 SOLO si el título promete un framework concreto, números específicos, o cita a una autoridad nombrada (Naval, Hormozi, Buffett, etc.).
+10. Devuelve SOLO el JSON, sin explicaciones.`;
+
+  let scoreMap = new Map<number, number>();
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.1,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: `Tema: "${tema}"\n\nLista a evaluar:\n${list}` },
+        ],
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content?.trim() || '{}';
+      const parsed = JSON.parse(text) as { scores?: { i: number; s: number }[] };
+      for (const item of parsed.scores || []) {
+        if (typeof item.i === 'number' && typeof item.s === 'number') scoreMap.set(item.i, item.s);
+      }
+    }
+  } catch (e) {
+    console.warn('[IA] Error:', (e as Error).message);
+  }
+
+  // ── 4. Filtro duro post-IA + agrupar por idioma ──────────────────────────
+  // Reglas no negociables:
+  //  • IA score >= minScore (ya viene)
+  //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
+  //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
+  type Scored = { v: VideoCandidate; ai: number; viralScore: number };
+  const HARD_MIN_VIEWS = 10_000;
+  const HARD_MIN_LIKES = 500;
+
+  const scoredByLang = new Map<string, Scored[]>();
+  let dropped = { lowAi: 0, lowViews: 0, lowLikes: 0, noStats: 0 };
+
+  for (let i = 0; i < toScore.length; i++) {
+    const v  = toScore[i];
+    const ai = scoreMap.get(i) ?? 0;
+    if (ai < minScore) { dropped.lowAi++; continue; }
+
+    const hasStats = v.viewsRaw > 0 || v.likesRaw > 0;
+
+    if (hasStats) {
+      if (v.viewsRaw > 0 && v.viewsRaw < HARD_MIN_VIEWS) { dropped.lowViews++; continue; }
+      if (v.likesRaw > 0 && v.likesRaw < HARD_MIN_LIKES) { dropped.lowLikes++; continue; }
+    } else {
+      // Sin stats → solo entra si la IA está MUY convencida (>= 8)
+      if (ai < 8) { dropped.noStats++; continue; }
+    }
+
+    // Score viral combinado: IA (0-10) × log de vistas × (1 + 5 * engagement)
+    const views      = Math.max(v.viewsRaw, 1);
+    const engagement = v.viewsRaw > 0 ? v.likesRaw / v.viewsRaw : 0;
+    const viralScore = ai * Math.log10(views + 1) * (1 + 5 * Math.min(engagement, 0.2));
+
+    const k = v.langLabel || 'Otros';
+    if (!scoredByLang.has(k)) scoredByLang.set(k, []);
+    scoredByLang.get(k)!.push({ v, ai, viralScore });
+  }
+
+  // Ordenar cada idioma por viralScore (combinación IA + virality real)
+  for (const arr of scoredByLang.values()) {
+    arr.sort((a, b) => b.viralScore - a.viralScore);
+  }
+
+  // ── 5. Round-robin con calidad: solo se rellena con videos cuyo viralScore
+  //      sea al menos 50% del mejor global. Esto evita meter resultados flojos
+  //      de un idioma con tal de "diversificar".
+  const allScored: Scored[] = [];
+  for (const arr of scoredByLang.values()) allScored.push(...arr);
+  const bestGlobal = allScored.reduce((m, s) => Math.max(m, s.viralScore), 0);
+  const qualityFloor = bestGlobal * 0.5;
+
+  const final: VideoCandidate[] = [];
+  const langs = Array.from(scoredByLang.keys());
+  let round = 0;
+  while (final.length < topOutput) {
+    let added = false;
+    for (const k of langs) {
+      const bucket = scoredByLang.get(k)!;
+      const next   = bucket[round];
+      if (!next) continue;
+      // Solo agregar si supera el piso de calidad (o es uno de los primeros 3 globales)
+      if (final.length < 3 || next.viralScore >= qualityFloor) {
+        final.push(next.v);
+        added = true;
+        if (final.length >= topOutput) break;
+      }
+    }
+    if (!added) break;
+    round++;
+  }
+
+  // Re-orden global final: dentro del top elegido, ordenar por viralScore puro
+  // (no por round-robin) para que el #1 sea siempre el más viral
+  const finalScored = final.map(v => {
+    const lang = v.langLabel || 'Otros';
+    const found = scoredByLang.get(lang)?.find(s => s.v.url === v.url);
+    return { v, score: found?.viralScore ?? 0 };
+  });
+  finalScored.sort((a, b) => b.score - a.score);
+  const finalOrdered = finalScored.map(s => s.v);
+
+  console.log(`[IA] ${toScore.length} evaluados | descartados: lowAi=${dropped.lowAi} lowViews=${dropped.lowViews} lowLikes=${dropped.lowLikes} noStats=${dropped.noStats} | aprobados: ${finalOrdered.length} | distribución: ${
+    Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
+  }`);
+
+  if (finalOrdered.length > 0) return finalOrdered;
+  // Fallback: si la IA descarta todo, devolver top por engagement (con stats verificadas)
+  return [...candidates]
+    .filter(v => v.viewsRaw >= HARD_MIN_VIEWS && v.likesRaw >= HARD_MIN_LIKES)
+    .sort((a, b) => scoreComposite(b) - scoreComposite(a))
+    .slice(0, topOutput);
+}
+
+// ── Enriquecer reels de Instagram con engagement real (instagram-looter2) ────
+async function enrichInstagramReels(
+  candidates: VideoCandidate[],
+  rapidKey: string,
+  maxEnrich = 25
+): Promise<VideoCandidate[]> {
+  // Limitar enriquecimiento a los primeros N (priorizando los que ya tienen views por snippet)
+  const sorted = [...candidates].sort((a, b) => b.viewsRaw - a.viewsRaw);
+  const toEnrich = sorted.slice(0, maxEnrich);
+  const rest = sorted.slice(maxEnrich);
+
+  type IgPost = {
+    like_count?: number; play_count?: number; video_view_count?: number;
+    edge_liked_by?: { count?: number };
+    edge_media_preview_like?: { count?: number };
+    edge_media_to_comment?: { count?: number };
+    comment_count?: number;
+    caption?: string;
+    edge_media_to_caption?: { edges?: Array<{ node?: { text?: string } }> };
+    owner?: { username?: string };
+    user?: { username?: string };
+  };
+
+  await Promise.all(toEnrich.map(async (c) => {
+    try {
+      const res = await fetch(
+        `https://instagram-looter2.p.rapidapi.com/post?link=${encodeURIComponent(c.url)}`,
+        {
+          headers: {
+            'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com',
+            'x-rapidapi-key':  rapidKey,
+          },
+        }
+      );
+      if (!res.ok) return;
+      const data: IgPost = await res.json();
+      const likes    = data.like_count ?? data.edge_liked_by?.count ?? data.edge_media_preview_like?.count ?? 0;
+      const views    = data.play_count ?? data.video_view_count ?? 0;
+      const comments = data.comment_count ?? data.edge_media_to_comment?.count ?? 0;
+      const caption  = data.caption || data.edge_media_to_caption?.edges?.[0]?.node?.text || '';
+      const owner    = data.owner?.username || data.user?.username || '';
+
+      if (likes > 0)    { c.likesRaw = likes; c.likes = fmt(likes); }
+      if (views > 0)    { c.viewsRaw = views; c.views = fmt(views); }
+      if (comments > 0) { c.commentsRaw = comments; }
+      if (caption && c.title.startsWith('Reel de @')) c.title = caption.slice(0, 120);
+      if (owner) c.channel = `@${owner}`;
+      c.enriched = true;
+    } catch { /* mantener stats originales */ }
+  }));
+
+  return [...toEnrich, ...rest];
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { tema, platform } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
-  // ── Expansión de keywords con IA (si el tema no está en el mapa) ─────────────
-  // Se hace UNA VEZ y se inyecta en la lógica de búsqueda de cada plataforma
+  // ── Expansión de keywords con IA (SIEMPRE, también para temas conocidos) ─────
+  // La IA enriquece con variantes nativas que el mapa no tiene
   const enMapa = findMapEntry(tema) !== null;
-  const aiKeys: AIKeywords | null = enMapa ? null : await expandWithAI(tema);
+  const aiKeys: AIKeywords | null = await expandWithAI(tema);
 
   // Helper: tema enriquecido por IA o el original
   function temaES(): string { return aiKeys?.es?.[0] || tema; }
@@ -987,18 +1339,22 @@ export async function POST(req: NextRequest) {
             ])
           : [{ status: 'fulfilled' as const, value: await searchViaSerper(tema, 'youtube' as never, serperKey) }];
 
-        const allVideos: unknown[] = [];
+        const allVideos: VideoCandidate[] = [];
         for (const r of searches) {
-          if (r.status === 'fulfilled') allVideos.push(...(r.value as unknown[]));
+          if (r.status === 'fulfilled') allVideos.push(...(r.value as VideoCandidate[]));
         }
         // Deduplicar por URL
         const seen = new Set<string>();
-        const unique = allVideos.filter((v: unknown) => {
-          const url = (v as { url: string }).url;
-          if (seen.has(url)) return false;
-          seen.add(url); return true;
+        const unique = allVideos.filter((v) => {
+          if (seen.has(v.url)) return false;
+          seen.add(v.url); return true;
         });
-        if (unique.length > 0) return Response.json({ videos: unique.slice(0, 20) });
+        if (unique.length > 0) {
+          const allTerms = getAllTerms(tema);
+          const preFiltered = topByViews(unique, allTerms, 250);
+          const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
+          return Response.json({ videos: final });
+        }
       } catch(e) {
         console.warn('Serper YouTube falló:', (e as Error).message);
       }
@@ -1018,19 +1374,31 @@ export async function POST(req: NextRequest) {
     const serperKey = process.env.SERPER_API_KEY;
     const rapidKey  = process.env.RAPIDAPI_KEY;
 
-    // 1. TikWM — ~100 videos por idioma, top 20 por vistas
+    // 1. TikWM — búsqueda exhaustiva: muchos keywords × muchas páginas, luego filtro IA
     try {
-      // Construir términos por idioma: principal de IA o del mapa
+      // Construir términos por idioma: IA + mapa + tema base
       const entry = findMapEntry(tema);
-      const esTerms = aiKeys ? aiKeys.es : (entry?.es?.slice(0,3) || [tema]);
-      const enTerms = aiKeys ? aiKeys.en : (entry?.en?.slice(0,3) || [tema]);
-      const ptTerms = aiKeys ? aiKeys.pt : (entry?.pt?.slice(0,2) || [tema]);
+      const esTerms = Array.from(new Set([
+        ...(aiKeys?.es || []),
+        ...(entry?.es || []),
+        tema,
+      ])).slice(0, 5);
+      const enTerms = Array.from(new Set([
+        ...(aiKeys?.en || []),
+        ...(entry?.en || []),
+      ])).slice(0, 5);
+      const ptTerms = Array.from(new Set([
+        ...(aiKeys?.pt || []),
+        ...(entry?.pt || []),
+      ])).slice(0, 5);
 
-      // Buscar cada keyword con 5 páginas (~100 videos) — en paralelo por idioma
+      console.log(`[TikTok] keywords ES=${esTerms.join('|')} EN=${enTerms.join('|')} PT=${ptTerms.join('|')}`);
+
+      // Buscar cada keyword con 8 páginas (~160 videos) — en paralelo
       const [esResults, enResults, ptResults] = await Promise.allSettled([
-        Promise.all(esTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
-        Promise.all(enTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
-        Promise.all(ptTerms.map(t => fetchTikWMSearch(t, 5))).then(r => r.flat()),
+        Promise.all(esTerms.map(t => fetchTikWMSearch(t, 8))).then(r => r.flat()),
+        Promise.all(enTerms.map(t => fetchTikWMSearch(t, 8))).then(r => r.flat()),
+        Promise.all(ptTerms.map(t => fetchTikWMSearch(t, 8))).then(r => r.flat()),
       ]);
 
       const seen = new Set<string>();
@@ -1053,10 +1421,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      console.log(`[TikTok] ${candidates.length} candidatos recolectados, devolviendo top 20`);
+      console.log(`[TikTok] ${candidates.length} candidatos recolectados`);
 
       if (candidates.length > 0) {
-        return Response.json({ videos: topByViews(candidates, 20) });
+        const allTerms = getAllTerms(tema);
+        // 1) Filtros tradicionales (tema, likes, blacklist) — top 250
+        const preFiltered = topByViews(candidates, allTerms, 250);
+        // 2) IA cura los 250 → top 100
+        const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
+        return Response.json({ videos: final });
       }
     } catch(e) {
       console.warn('TikWM falló:', (e as Error).message);
@@ -1088,27 +1461,45 @@ export async function POST(req: NextRequest) {
     const serperKey  = process.env.SERPER_API_KEY;
     const rapidKey   = process.env.RAPIDAPI_KEY;
 
-    // 1. Serper — búsqueda en ES + EN en paralelo (primary para Instagram)
+    // 1. Serper — búsqueda exhaustiva ES+EN+PT, enriquecimiento con engagement, filtro IA
     if (serperKey) {
       try {
-        const searches = aiKeys
-          ? await Promise.allSettled([
-              searchViaSerper(tema, 'instagram', serperKey),
-              searchViaSerper(temaEN(), 'instagram', serperKey),
-            ])
-          : [{ status: 'fulfilled' as const, value: await searchViaSerper(tema, 'instagram', serperKey) }];
+        // Más queries cuando hay keywords IA (3 idiomas)
+        const queries = aiKeys
+          ? [
+              searchViaSerper(tema,      'instagram', serperKey),
+              searchViaSerper(temaEN(),  'instagram', serperKey),
+              searchViaSerper(temaPT(),  'instagram', serperKey),
+            ]
+          : [searchViaSerper(tema, 'instagram', serperKey)];
 
-        const allVideos: unknown[] = [];
+        const searches = await Promise.allSettled(queries);
+
+        const allVideos: VideoCandidate[] = [];
         for (const r of searches) {
-          if (r.status === 'fulfilled') allVideos.push(...(r.value as unknown[]));
+          if (r.status === 'fulfilled') allVideos.push(...(r.value as VideoCandidate[]));
         }
         const seen = new Set<string>();
-        const unique = allVideos.filter((v: unknown) => {
-          const url = (v as { url: string }).url;
-          if (seen.has(url)) return false;
-          seen.add(url); return true;
+        let unique = allVideos.filter((v) => {
+          if (seen.has(v.url)) return false;
+          seen.add(v.url); return true;
         });
-        if (unique.length > 0) return Response.json({ videos: unique.slice(0, 20) });
+        console.log(`[Instagram] ${unique.length} URLs únicos de Serper`);
+
+        // Marcar todos como no enriquecidos por defecto
+        unique.forEach(v => { v.enriched = false; });
+
+        // Enriquecer top 50 con engagement real vía instagram-looter2 (los demás van con stats pendientes)
+        if (rapidKey && unique.length > 0) {
+          unique = await enrichInstagramReels(unique, rapidKey, 50);
+        }
+
+        const allTerms = getAllTerms(tema);
+        // 1) Filtros tradicionales (tema en caption, blacklist, likes solo si verified)
+        const preFiltered = topByViews(unique, allTerms, 200);
+        // 2) IA evalúa relevancia + valor → top 100
+        const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 7);
+        if (final.length > 0) return Response.json({ videos: final });
       } catch(e) {
         console.warn('Serper Instagram falló:', (e as Error).message);
       }

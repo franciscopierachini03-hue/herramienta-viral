@@ -215,29 +215,31 @@ export async function POST(req: NextRequest) {
       error: 'URL de Instagram no válida. Formato: https://www.instagram.com/reel/ABC123/'
     }, { status: 400 });
 
+    const debug: string[] = [];
+    let quotaCount = 0;
+
     // 1️⃣ instagram-looter2 (RapidAPI) — 500 req/mes gratis, muy confiable
     if (rapidApiKey) {
       try {
         const res = await fetch(
           `https://instagram-looter2.p.rapidapi.com/post?link=${encodeURIComponent(url)}`,
-          {
-            headers: {
-              'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com',
-              'x-rapidapi-key':  rapidApiKey,
-            },
-          }
+          { headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key':  rapidApiKey } }
         );
-        if (res.ok) {
-          const data = await res.json();
-          // Puede ser un array (carrusel) o un objeto directo
+        const data = await res.json().catch(() => ({}));
+        const msg = (data?.message || '').toLowerCase();
+        if (msg.match(/exceeded|quota|plan|limit/)) { quotaCount++; debug.push('looter2: cupo agotado'); }
+        else if (res.ok) {
           const item = Array.isArray(data) ? data[0] : data;
-          const videoUrl = item?.url || item?.video_url || item?.media?.[0]?.url;
+          const videoUrl = item?.url || item?.video_url || item?.media?.[0]?.url || item?.video_versions?.[0]?.url;
           if (videoUrl) {
-            const texto = await transcribeWithGroq(videoUrl);
-            if (texto) return Response.json({ texto });
-          }
-        }
-      } catch { /* fallback */ }
+            try {
+              const texto = await transcribeWithGroq(videoUrl);
+              if (texto) return Response.json({ texto });
+              debug.push('looter2: video sin audio transcribible');
+            } catch (e) { debug.push(`looter2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
+          } else debug.push('looter2: respuesta sin URL de video (¿es carrusel sin reel?)');
+        } else debug.push(`looter2: HTTP ${res.status}`);
+      } catch (e) { debug.push(`looter2: ${(e as Error).message.slice(0, 60)}`); }
     }
 
     // 2️⃣ instagram-api-fast-reliable-data-scraper (RapidAPI) — fallback
@@ -245,36 +247,71 @@ export async function POST(req: NextRequest) {
       try {
         const res = await fetch(
           `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/post?shortcode=${code}`,
-          {
-            headers: {
-              'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com',
-              'x-rapidapi-key':  rapidApiKey,
-            },
-          }
+          { headers: { 'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com', 'x-rapidapi-key':  rapidApiKey } }
         );
-        const data = await res.json();
-        if (data?.message?.includes('exceeded') || data?.message?.includes('quota')) {
-          throw new Error('quota');
-        }
-        if (res.ok && data?.status !== 'error') {
-          const videoUrl = data?.video_versions?.[0]?.url;
+        const data = await res.json().catch(() => ({}));
+        const msg = (data?.message || '').toLowerCase();
+        if (msg.match(/exceeded|quota|plan|limit/)) { quotaCount++; debug.push('fast-reliable: cupo agotado'); }
+        else if (res.ok && data?.status !== 'error') {
+          const videoUrl = data?.video_versions?.[0]?.url || data?.video_url;
           if (videoUrl) {
-            const texto = await transcribeWithGroq(videoUrl);
-            if (texto) return Response.json({ texto });
+            try {
+              const texto = await transcribeWithGroq(videoUrl);
+              if (texto) return Response.json({ texto });
+              debug.push('fast-reliable: video sin audio transcribible');
+            } catch (e) { debug.push(`fast-reliable: groq falló — ${(e as Error).message.slice(0, 60)}`); }
+          } else {
+            const caption  = data?.caption?.text || '';
+            const username = data?.user?.username || '';
+            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}\nCreador: @${username}` });
+            debug.push('fast-reliable: sin video ni caption');
           }
-          const caption  = data?.caption?.text || '';
-          const username = data?.user?.username || '';
-          if (caption) {
-            return Response.json({
-              texto: `[Caption del reel]\n\n${caption}\nCreador: @${username}`
-            });
-          }
-        }
-      } catch { /* todos fallaron */ }
+        } else debug.push(`fast-reliable: HTTP ${res.status}`);
+      } catch (e) { debug.push(`fast-reliable: ${(e as Error).message.slice(0, 60)}`); }
     }
 
+    // 3️⃣ instagram-scraper-api2 — segundo fallback
+    if (rapidApiKey) {
+      try {
+        const res = await fetch(
+          `https://instagram-scraper-api2.p.rapidapi.com/v1/post_info?code_or_id_or_url=${encodeURIComponent(url)}`,
+          { headers: { 'x-rapidapi-host': 'instagram-scraper-api2.p.rapidapi.com', 'x-rapidapi-key':  rapidApiKey } }
+        );
+        const data = await res.json().catch(() => ({}));
+        const msg = (data?.message || '').toLowerCase();
+        if (msg.match(/exceeded|quota|plan|limit/)) { quotaCount++; debug.push('scraper-api2: cupo agotado'); }
+        else if (res.ok) {
+          const item = data?.data || data;
+          const videoUrl = item?.video_url || item?.video_versions?.[0]?.url;
+          if (videoUrl) {
+            try {
+              const texto = await transcribeWithGroq(videoUrl);
+              if (texto) return Response.json({ texto });
+              debug.push('scraper-api2: video sin audio transcribible');
+            } catch (e) { debug.push(`scraper-api2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
+          } else {
+            const caption = item?.caption?.text || item?.caption || '';
+            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}` });
+            debug.push('scraper-api2: sin video ni caption');
+          }
+        } else debug.push(`scraper-api2: HTTP ${res.status}`);
+      } catch (e) { debug.push(`scraper-api2: ${(e as Error).message.slice(0, 60)}`); }
+    }
+
+    // Mensaje final inteligente según qué falló
+    const fullErrorContext = debug.join(' · ');
+    if (quotaCount >= 2) {
+      return Response.json({
+        error: `⚠️ Cupos mensuales de Instagram API agotados en múltiples proveedores. Reseteo el día 1 del mes, o suscribite a un plan superior en RapidAPI. [${fullErrorContext}]`
+      }, { status: 429 });
+    }
+    if (debug.some(d => d.includes('groq'))) {
+      return Response.json({
+        error: `Encontramos el reel pero no se pudo transcribir el audio (puede ser muy corto, sin voz, o un video sin sonido). [${fullErrorContext}]`
+      }, { status: 502 });
+    }
     return Response.json({
-      error: 'No se pudo obtener el reel de Instagram. Verifica que sea público o suscríbete a instagram-looter2 en RapidAPI.'
+      error: `No se pudo obtener el reel. Causa probable: cuenta privada, reel recién publicado (las APIs aún no lo cachearon), o restringido por Meta. [${fullErrorContext}]`
     }, { status: 502 });
   }
 
