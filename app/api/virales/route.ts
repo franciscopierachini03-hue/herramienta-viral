@@ -1245,6 +1245,73 @@ REGLAS NO NEGOCIABLES
     .slice(0, topOutput);
 }
 
+// ── Enriquecer reels de Instagram con engagement real vía Apify ──────────────
+// Estrategia: Apify es más caro/lento que RapidAPI pero NO se queda sin cuota
+// con plan Starter. Lo usamos para completar lo que RapidAPI no pudo enriquecer.
+async function enrichInstagramReelsViaApify(
+  candidates: VideoCandidate[],
+  apifyToken: string,
+  maxEnrich = 30,
+): Promise<void> {
+  // Filtrar solo los que aún no están enriquecidos y tomar hasta maxEnrich.
+  const toEnrich = candidates.filter(c => !c.enriched).slice(0, maxEnrich);
+  if (toEnrich.length === 0) return;
+
+  const urls = toEnrich.map(c => c.url);
+  try {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=512&timeout=120`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          directUrls: urls,
+          resultsType: 'posts',
+          resultsLimit: urls.length,
+          addParentData: false,
+        }),
+      },
+    );
+    if (!res.ok) {
+      console.warn(`[enrichApify] HTTP ${res.status}`);
+      return;
+    }
+    const items = await res.json();
+    if (!Array.isArray(items)) return;
+
+    // Indexar por shortcode para hacer match con candidates
+    const byShort = new Map<string, Record<string, unknown>>();
+    for (const it of items) {
+      const short = (it as { shortCode?: string }).shortCode;
+      if (short) byShort.set(short, it as Record<string, unknown>);
+    }
+
+    for (const c of toEnrich) {
+      const m = c.url.match(/\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+      const short = m?.[1];
+      if (!short) continue;
+      const data = byShort.get(short);
+      if (!data) continue;
+
+      const likes = (data.likesCount as number) || 0;
+      const views = (data.videoViewCount as number) || (data.videoPlayCount as number) || 0;
+      const comments = (data.commentsCount as number) || 0;
+      const caption = (data.caption as string) || '';
+      const owner = (data.ownerUsername as string) || '';
+
+      if (likes > 0)    { c.likesRaw = likes; c.likes = fmt(likes); }
+      if (views > 0)    { c.viewsRaw = views; c.views = fmt(views); }
+      if (comments > 0) { c.commentsRaw = comments; }
+      if (caption && c.title.startsWith('Reel de @')) c.title = caption.slice(0, 120);
+      if (owner) c.channel = `@${owner}`;
+      c.enriched = true;
+    }
+    console.log(`[enrichApify] enriched ${toEnrich.filter(c => c.enriched).length}/${toEnrich.length} reels`);
+  } catch (e) {
+    console.warn(`[enrichApify] error: ${(e as Error).message}`);
+  }
+}
+
 // ── Enriquecer reels de Instagram con engagement real (instagram-looter2) ────
 async function enrichInstagramReels(
   candidates: VideoCandidate[],
@@ -1383,6 +1450,7 @@ export async function POST(req: NextRequest) {
   if (platform==='tiktok') {
     const serperKey = process.env.SERPER_API_KEY;
     const rapidKey  = process.env.RAPIDAPI_KEY;
+    const apifyToken = process.env.APIFY_TOKEN;
 
     // 1. TikWM — búsqueda exhaustiva: muchos keywords × muchas páginas, luego filtro IA
     try {
@@ -1447,7 +1515,24 @@ export async function POST(req: NextRequest) {
       console.warn('TikWM falló:', (e as Error).message);
     }
 
-    // 2. Serper — fallback
+    // 2. Apify — fallback robusto (con plan Starter aguanta volumen alto)
+    if (apifyToken) {
+      try {
+        const videos = await searchViaApify(tema, 'tiktok', apifyToken);
+        if (videos.length > 0) {
+          const allTerms = getAllTerms(tema);
+          const preFiltered = topByViews(videos, allTerms, 200);
+          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 7);
+          if (final.length > 0) return Response.json({ videos: final });
+          // Si el filtro vacía, devolvemos los videos sin filtrar (mejor algo que nada)
+          return Response.json({ videos: videos.slice(0, 30) });
+        }
+      } catch(e) {
+        console.warn('Apify TikTok falló:', (e as Error).message);
+      }
+    }
+
+    // 3. Serper — fallback
     if (serperKey) {
       try {
         const videos = await searchViaSerper(tema, 'tiktok', serperKey);
@@ -1457,7 +1542,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. RapidAPI — último recurso
+    // 4. RapidAPI — último recurso
     if (rapidKey) {
       try {
         const videos = await searchTikTok(tema, rapidKey);
@@ -1476,16 +1561,25 @@ export async function POST(req: NextRequest) {
     // 1. Serper — búsqueda exhaustiva ES+EN+PT, enriquecimiento con engagement, filtro IA
     if (serperKey) {
       try {
-        // Más queries cuando hay keywords IA (3 idiomas)
-        const queries = aiKeys
-          ? [
-              searchViaSerper(tema,      'instagram', serperKey),
-              searchViaSerper(temaEN(),  'instagram', serperKey),
-              searchViaSerper(temaPT(),  'instagram', serperKey),
-            ]
-          : [searchViaSerper(tema, 'instagram', serperKey)];
+        // Búsqueda profunda: tema base + keywords IA en 3 idiomas, en paralelo.
+        // Cuanta más diversidad de queries, más material le damos al filtro IA.
+        const igQueries: Array<Promise<VideoCandidate[]>> = [
+          searchViaSerper(tema, 'instagram', serperKey),
+        ];
+        if (aiKeys) {
+          // Una query por cada keyword IA (hasta 2 por idioma) — más cobertura.
+          for (const k of (aiKeys.es || []).slice(0, 2)) {
+            if (k && k !== tema) igQueries.push(searchViaSerper(k, 'instagram', serperKey));
+          }
+          for (const k of (aiKeys.en || []).slice(0, 2)) {
+            if (k) igQueries.push(searchViaSerper(k, 'instagram', serperKey));
+          }
+          for (const k of (aiKeys.pt || []).slice(0, 2)) {
+            if (k) igQueries.push(searchViaSerper(k, 'instagram', serperKey));
+          }
+        }
 
-        const searches = await Promise.allSettled(queries);
+        const searches = await Promise.allSettled(igQueries);
 
         const allVideos: VideoCandidate[] = [];
         for (const r of searches) {
@@ -1496,14 +1590,21 @@ export async function POST(req: NextRequest) {
           if (seen.has(v.url)) return false;
           seen.add(v.url); return true;
         });
-        console.log(`[Instagram] ${unique.length} URLs únicos de Serper`);
+        console.log(`[Instagram] ${unique.length} URLs únicos de ${searches.length} queries`);
 
         // Marcar todos como no enriquecidos por defecto
         unique.forEach(v => { v.enriched = false; });
 
-        // Enriquecer top 50 con engagement real vía instagram-looter2 (los demás van con stats pendientes)
+        // 1) Enriquecer con RapidAPI (rápido, gratis hasta 500/mes)
         if (rapidKey && unique.length > 0) {
           unique = await enrichInstagramReels(unique, rapidKey, 50);
+        }
+
+        // 2) Apify como fallback robusto: completa los que RapidAPI no pudo
+        // (cuota agotada o errores) — toma 30-90s pero con plan Starter aguanta
+        // miles de reels al mes. Lo corremos en paralelo con el filtro tradicional.
+        if (apifyToken && unique.some(v => !v.enriched)) {
+          await enrichInstagramReelsViaApify(unique, apifyToken, 40);
         }
 
         const allTerms = getAllTerms(tema);
