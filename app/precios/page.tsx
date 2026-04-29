@@ -26,6 +26,14 @@ export default function Pricing() {
         body: JSON.stringify({ plan }),
       });
       const data = await res.json();
+
+      // Si no está logueado, /api/checkout devuelve 401 con un redirect.
+      // Lo mandamos a /login en modo signup para que cree cuenta y vuelva a pagar.
+      if (res.status === 401) {
+        window.location.href = '/login?signup=1&next=/precios';
+        return;
+      }
+
       if (data.url) {
         window.location.href = data.url;
       } else {

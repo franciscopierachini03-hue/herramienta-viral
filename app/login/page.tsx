@@ -16,8 +16,9 @@ function Login() {
   const params = useSearchParams();
   const next = params.get('next') || '';
   const reason = params.get('reason') || '';
+  const wantsSignup = params.get('signup') === '1';
 
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(wantsSignup ? 'signup' : 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
