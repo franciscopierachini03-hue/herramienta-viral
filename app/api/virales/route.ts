@@ -1159,8 +1159,12 @@ REGLAS NO NEGOCIABLES
   //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
   //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
   type Scored = { v: VideoCandidate; ai: number; viralScore: number };
-  const HARD_MIN_VIEWS = 10_000;
-  const HARD_MIN_LIKES = 500;
+  // Umbrales suavizados para no quedar con 1-2 resultados:
+  // - Antes: 10K views / 500 likes / sin stats requiere ai>=8
+  // - Ahora: 3K views / 200 likes / sin stats requiere ai>=7
+  const HARD_MIN_VIEWS = 3_000;
+  const HARD_MIN_LIKES = 200;
+  const NO_STATS_MIN_AI = Math.max(minScore, 7);
 
   const scoredByLang = new Map<string, Scored[]>();
   let dropped = { lowAi: 0, lowViews: 0, lowLikes: 0, noStats: 0 };
@@ -1176,8 +1180,8 @@ REGLAS NO NEGOCIABLES
       if (v.viewsRaw > 0 && v.viewsRaw < HARD_MIN_VIEWS) { dropped.lowViews++; continue; }
       if (v.likesRaw > 0 && v.likesRaw < HARD_MIN_LIKES) { dropped.lowLikes++; continue; }
     } else {
-      // Sin stats → solo entra si la IA está MUY convencida (>= 8)
-      if (ai < 8) { dropped.noStats++; continue; }
+      // Sin stats → la IA tiene que estar relativamente convencida.
+      if (ai < NO_STATS_MIN_AI) { dropped.noStats++; continue; }
     }
 
     // Score viral combinado: IA (0-10) × log de vistas × (1 + 5 * engagement)
@@ -1419,7 +1423,7 @@ export async function POST(req: NextRequest) {
         if (unique.length > 0) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(unique, allTerms, 250);
-          const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
+          const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
           // Si el filtro de IA descartó todo (porque Serper no trae stats y la
           // IA es muy estricta sin ellas), caemos al YouTube Data API que sí
           // devuelve videos con vistas/likes verificadas.
@@ -1506,7 +1510,7 @@ export async function POST(req: NextRequest) {
         // 1) Filtros tradicionales (tema, likes, blacklist) — top 250
         const preFiltered = topByViews(candidates, allTerms, 250);
         // 2) IA cura los 250 → top 100
-        const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
+        const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
         // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos al fallback.
         if (final.length > 0) return Response.json({ videos: final });
         console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Serper/Rapid.`);
@@ -1522,7 +1526,7 @@ export async function POST(req: NextRequest) {
         if (videos.length > 0) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(videos, allTerms, 200);
-          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 7);
+          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
           if (final.length > 0) return Response.json({ videos: final });
           // Si el filtro vacía, devolvemos los videos sin filtrar (mejor algo que nada)
           return Response.json({ videos: videos.slice(0, 30) });
@@ -1611,7 +1615,7 @@ export async function POST(req: NextRequest) {
         // 1) Filtros tradicionales (tema en caption, blacklist, likes solo si verified)
         const preFiltered = topByViews(unique, allTerms, 200);
         // 2) IA evalúa relevancia + valor → top 100
-        const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 7);
+        const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
         if (final.length > 0) return Response.json({ videos: final });
       } catch(e) {
         console.warn('Serper Instagram falló:', (e as Error).message);
