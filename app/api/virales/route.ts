@@ -1353,17 +1353,27 @@ export async function POST(req: NextRequest) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(unique, allTerms, 250);
           const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
-          return Response.json({ videos: final });
+          // Si el filtro de IA descartó todo (porque Serper no trae stats y la
+          // IA es muy estricta sin ellas), caemos al YouTube Data API que sí
+          // devuelve videos con vistas/likes verificadas.
+          if (final.length > 0) {
+            return Response.json({ videos: final });
+          }
+          console.warn(`[virales] Serper devolvió ${unique.length} pero filtro IA dejó 0. Fallback a YouTube API.`);
         }
       } catch(e) {
         console.warn('Serper YouTube falló:', (e as Error).message);
       }
     }
 
-    // 2. YouTube Data API — fallback
+    // 2. YouTube Data API — fallback (siempre que Serper haya quedado vacío,
+    // ya sea porque falló o porque el filtro IA descartó todo)
     if (ytKey) {
       const termToSearch = aiKeys ? temaES() : tema;
-      try { return Response.json({ videos: await searchYouTube(termToSearch, ytKey) }); }
+      try {
+        const ytVideos = await searchYouTube(termToSearch, ytKey);
+        if (ytVideos.length > 0) return Response.json({ videos: ytVideos });
+      }
       catch(e) { console.warn('YouTube API falló:', (e as Error).message); }
     }
 
@@ -1429,7 +1439,9 @@ export async function POST(req: NextRequest) {
         const preFiltered = topByViews(candidates, allTerms, 250);
         // 2) IA cura los 250 → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 7);
-        return Response.json({ videos: final });
+        // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos al fallback.
+        if (final.length > 0) return Response.json({ videos: final });
+        console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Serper/Rapid.`);
       }
     } catch(e) {
       console.warn('TikWM falló:', (e as Error).message);
