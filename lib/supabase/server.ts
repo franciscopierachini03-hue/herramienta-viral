@@ -8,6 +8,15 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient as createSupaClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
+// Quitamos maxAge/expires de las cookies de auth para que vivan solo mientras
+// el navegador esté abierto. Cuando el usuario cierra el browser, la sesión
+// muere y tiene que volver a loguearse en la próxima visita.
+function makeSessionCookie<T extends Record<string, unknown> | undefined>(options: T): T {
+  if (!options) return options;
+  const { maxAge: _ma, expires: _ex, ...rest } = options as Record<string, unknown>;
+  return rest as T;
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient(
@@ -21,7 +30,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, makeSessionCookie(options)),
             );
           } catch {
             // En Server Components puros no se pueden setear cookies — Supabase

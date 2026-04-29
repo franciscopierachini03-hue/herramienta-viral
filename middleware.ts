@@ -37,6 +37,16 @@ export async function middleware(req: NextRequest) {
 
   let response = NextResponse.next({ request: req });
 
+  // Cookies de auth con vida de "session" (mueren al cerrar el navegador).
+  // Quitamos maxAge/expires para que sean session cookies.
+  const stripPersistence = (
+    options?: Record<string, unknown>,
+  ): Record<string, unknown> | undefined => {
+    if (!options) return options;
+    const { maxAge: _ma, expires: _ex, ...rest } = options;
+    return rest;
+  };
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -49,7 +59,7 @@ export async function middleware(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
           response = NextResponse.next({ request: req });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, stripPersistence(options)),
           );
         },
       },
