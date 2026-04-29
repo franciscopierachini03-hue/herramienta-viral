@@ -831,7 +831,9 @@ async function searchViaApify(
         body: JSON.stringify({
           directUrls: hashtags,
           resultsType: 'posts',
-          resultsLimit: 50, // 50 por hashtag × 3-4 hashtags = ~150-200 posts
+          // 100 por hashtag × 3-4 hashtags = ~300-400 posts crudos.
+          // Después filtramos solo videos (típicamente <30% del feed) → ~100 videos.
+          resultsLimit: 100,
           addParentData: false,
         }),
       }
@@ -848,13 +850,15 @@ async function searchViaApify(
   const flag  = platform === 'tiktok' ? '🎵' : '📸';
   const label = platform === 'tiktok' ? 'TikTok' : 'Instagram';
 
-  const candidates: VideoCandidate[] = items.map((raw) => {
+  const rawCandidates = items.map((raw): VideoCandidate | null => {
     const v = raw as Record<string, unknown>;
 
     if (platform === 'tiktok') {
       const id       = (v.id as string) || '';
       const authorId = (v.authorMeta as Record<string,unknown>)?.name as string || '';
       const plays    = (v.playCount as number) || 0;
+      // TikTok: descartamos posts sin engagement (algunos vienen vacíos por geo-restriction)
+      if (plays === 0 && !(v.diggCount as number)) return null;
       return {
         id,
         title:     (v.text as string)?.slice(0, 120) || 'Video de TikTok',
@@ -867,22 +871,39 @@ async function searchViaApify(
         platform, flag, langLabel: label, audioLang: '',
       };
     } else {
+      // Instagram: SOLO videos/reels, descartar Images y Sidecars (fotos)
+      const type = String(v.type || '');
+      const productType = String(v.productType || '');
+      const isVideoLike = type === 'Video' || productType === 'clips';
+      if (!isVideoLike) return null;
+
       const shortCode = (v.shortCode as string) || '';
       const owner     = (v.ownerUsername as string) || '';
-      const plays     = (v.videoPlayCount as number) || (v.likesCount as number) || 0;
+      // Engagement: views vienen de videoViewCount/videoPlayCount, NO confundir con likes
+      const views = (v.videoViewCount as number) || (v.videoPlayCount as number) || 0;
+      const likes = (v.likesCount as number) || 0;
+      const comments = (v.commentsCount as number) || 0;
+      // Descartar reels sin engagement reportado (Apify a veces devuelve posts vacíos)
+      if (views === 0 && likes === 0) return null;
+
       return {
         id:          shortCode || owner,
         title:       (v.caption as string)?.slice(0, 120) || `Reel de @${owner}`,
         channel:     `@${owner}`,
-        views:       fmt(plays), likes: fmt((v.likesCount as number) || 0),
-        viewsRaw:    plays, likesRaw: (v.likesCount as number) || 0, commentsRaw: (v.commentsCount as number) || 0, commentScore: 0.5,
+        views:       fmt(views), likes: fmt(likes),
+        viewsRaw:    views, likesRaw: likes, commentsRaw: comments, commentScore: 0.5,
         duration:    (v.videoDuration as number) || 30,
         thumbnail:   (v.displayUrl as string) || '',
         url:         shortCode ? `https://www.instagram.com/reel/${shortCode}/` : `https://www.instagram.com/${owner}/`,
         platform, flag, langLabel: label, audioLang: '',
+        enriched:    true, // Apify ya nos dio los datos completos
       };
     }
   });
+
+  // Filtrar nulls (posts que descartamos por ser fotos o estar vacíos)
+  const candidates = rawCandidates.filter((c): c is VideoCandidate => c !== null);
+  console.log(`[searchViaApify] ${platform}: ${items.length} items raw → ${candidates.length} videos válidos`);
 
   return guaranteeResults(candidates, allTerms, 12);
 }
