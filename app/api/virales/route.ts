@@ -762,27 +762,46 @@ async function searchInstagram(tema:string, key:string) {
 }
 
 // ── Apify — scrapers nativos de TikTok e Instagram ───────────────────────────
-async function searchViaApify(tema: string, platform: 'tiktok'|'instagram', apifyToken: string) {
+async function searchViaApify(
+  tema: string,
+  platform: 'tiktok'|'instagram',
+  apifyToken: string,
+  aiKeysOverride?: AIKeywords | null,
+) {
   const entry = findMapEntry(tema);
-  const allTerms = getAllTerms(tema);
 
-  const esTerm = entry?.es?.[0] || tema;
-  const enTerm = entry?.en?.[0] || tema;
+  // Construir keywords ES + EN + PT (preferir IA si hay, sino mapa, sino tema)
+  const ai = aiKeysOverride || null;
+  const esKeywords = Array.from(new Set([
+    ...(ai?.es || []).slice(0, 2),
+    ...(entry?.es || []).slice(0, 2),
+    tema,
+  ])).filter(Boolean).slice(0, 3);
+  const enKeywords = Array.from(new Set([
+    ...(ai?.en || []).slice(0, 2),
+    ...(entry?.en || []).slice(0, 2),
+  ])).filter(Boolean).slice(0, 3);
+  const ptKeywords = Array.from(new Set([
+    ...(ai?.pt || []).slice(0, 2),
+    ...(entry?.pt || []).slice(0, 2),
+  ])).filter(Boolean).slice(0, 2);
 
   let items: unknown[] = [];
 
   if (platform === 'tiktok') {
-    // clockworks/tiktok-scraper — busca por keyword (usa timeout alto por el cold start)
-    const keywords = [esTerm, enTerm].filter((v, i, a) => a.indexOf(v) === i);
+    // clockworks/tiktok-scraper — usa el motor de búsqueda nativo de TikTok.
+    // Returns posts ordered by TikTok's own virality ranking — exactamente
+    // lo que se ve si abrís la app y buscás.
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords];
     const res = await fetch(
-      `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=512&timeout=120`,
+      `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           searchSection: 'keyword',
-          searchQueries: keywords,
-          maxItems: 20,
+          searchQueries: allKeywords,
+          maxItems: 80, // 80 totales, distribuidos entre las queries
           shouldDownloadVideos: false,
           shouldDownloadCovers: false,
           shouldDownloadSubtitles: false,
@@ -795,17 +814,23 @@ async function searchViaApify(tema: string, platform: 'tiktok'|'instagram', apif
     }
     items = await res.json();
   } else {
-    // apify/instagram-scraper — busca por hashtag
-    const hashtags = [
-      `https://www.instagram.com/explore/tags/${encodeURIComponent(esTerm.replace(/\s+/g,''))}/`,
-      `https://www.instagram.com/explore/tags/${encodeURIComponent(enTerm.replace(/\s+/g,''))}/`,
-    ].filter((v, i, a) => a.indexOf(v) === i);
+    // apify/instagram-scraper — busca por hashtag (motor de descubrimiento
+    // nativo de IG). Cada hashtag devuelve los TOP posts ordenados por engagement.
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords];
+    const hashtags = allKeywords.map(k =>
+      `https://www.instagram.com/explore/tags/${encodeURIComponent(String(k).replace(/\s+/g,''))}/`,
+    );
     const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=512&timeout=120`,
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directUrls: hashtags, resultsType: 'posts', resultsLimit: 30, addParentData: false }),
+        body: JSON.stringify({
+          directUrls: hashtags,
+          resultsType: 'posts',
+          resultsLimit: 25, // 25 por hashtag × 6-8 hashtags = ~150 posts
+          addParentData: false,
+        }),
       }
     );
     if (!res.ok) {
@@ -1159,12 +1184,12 @@ REGLAS NO NEGOCIABLES
   //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
   //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
   type Scored = { v: VideoCandidate; ai: number; viralScore: number };
-  // Umbrales suavizados para no quedar con 1-2 resultados:
-  // - Antes: 10K views / 500 likes / sin stats requiere ai>=8
-  // - Ahora: 3K views / 200 likes / sin stats requiere ai>=7
-  const HARD_MIN_VIEWS = 3_000;
-  const HARD_MIN_LIKES = 200;
-  const NO_STATS_MIN_AI = Math.max(minScore, 7);
+  // Umbrales para resultados realmente virales (al nivel del search nativo
+  // de TikTok/IG): mínimo 30K vistas y 1.500 likes.
+  // Sin stats verificables → exigir AI muy convencida (>=8).
+  const HARD_MIN_VIEWS = 30_000;
+  const HARD_MIN_LIKES = 1_500;
+  const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
   let dropped = { lowAi: 0, lowViews: 0, lowLikes: 0, noStats: 0 };
@@ -1456,7 +1481,29 @@ export async function POST(req: NextRequest) {
     const rapidKey  = process.env.RAPIDAPI_KEY;
     const apifyToken = process.env.APIFY_TOKEN;
 
-    // 1. TikWM — búsqueda exhaustiva: muchos keywords × muchas páginas, luego filtro IA
+    // 1. Apify — PRIMARIO: usa el motor de búsqueda nativo de TikTok,
+    // así obtenemos lo mismo que se ve abriendo la app y buscando.
+    if (apifyToken) {
+      try {
+        const videos = await searchViaApify(tema, 'tiktok', apifyToken, aiKeys);
+        if (videos.length > 0) {
+          const allTerms = getAllTerms(tema);
+          const preFiltered = topByViews(videos, allTerms, 200);
+          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+          if (final.length > 0) return Response.json({ videos: final });
+          // Si el filtro IA descarta todo pero Apify devolvió contenido,
+          // devolvemos top 20 por views (Apify ya viene ordenado por trending)
+          const topByViewsRaw = [...videos]
+            .sort((a, b) => b.viewsRaw - a.viewsRaw)
+            .slice(0, 20);
+          if (topByViewsRaw.length > 0) return Response.json({ videos: topByViewsRaw });
+        }
+      } catch(e) {
+        console.warn('Apify TikTok falló:', (e as Error).message);
+      }
+    }
+
+    // 2. TikWM — fallback (free, rate-limited)
     try {
       // Construir términos por idioma: IA + mapa + tema base
       const entry = findMapEntry(tema);
@@ -1519,23 +1566,6 @@ export async function POST(req: NextRequest) {
       console.warn('TikWM falló:', (e as Error).message);
     }
 
-    // 2. Apify — fallback robusto (con plan Starter aguanta volumen alto)
-    if (apifyToken) {
-      try {
-        const videos = await searchViaApify(tema, 'tiktok', apifyToken);
-        if (videos.length > 0) {
-          const allTerms = getAllTerms(tema);
-          const preFiltered = topByViews(videos, allTerms, 200);
-          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return Response.json({ videos: final });
-          // Si el filtro vacía, devolvemos los videos sin filtrar (mejor algo que nada)
-          return Response.json({ videos: videos.slice(0, 30) });
-        }
-      } catch(e) {
-        console.warn('Apify TikTok falló:', (e as Error).message);
-      }
-    }
-
     // 3. Serper — fallback
     if (serperKey) {
       try {
@@ -1562,7 +1592,28 @@ export async function POST(req: NextRequest) {
     const serperKey  = process.env.SERPER_API_KEY;
     const rapidKey   = process.env.RAPIDAPI_KEY;
 
-    // 1. Serper — búsqueda exhaustiva ES+EN+PT, enriquecimiento con engagement, filtro IA
+    // 1. Apify — PRIMARIO: hashtag scraper con engagement real.
+    // Igual que abrir IG y buscar el hashtag — top posts ordenados por likes/views.
+    if (apifyToken) {
+      try {
+        const videos = await searchViaApify(tema, 'instagram', apifyToken, aiKeys);
+        if (videos.length > 0) {
+          const allTerms = getAllTerms(tema);
+          const preFiltered = topByViews(videos, allTerms, 200);
+          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+          if (final.length > 0) return Response.json({ videos: final });
+          // Fallback: si IA descarta todo, devolver top 20 por views/likes
+          const topByEngagement = [...videos]
+            .sort((a, b) => (b.viewsRaw + b.likesRaw * 10) - (a.viewsRaw + a.likesRaw * 10))
+            .slice(0, 20);
+          if (topByEngagement.length > 0) return Response.json({ videos: topByEngagement });
+        }
+      } catch(e) {
+        console.warn('Apify Instagram falló:', (e as Error).message);
+      }
+    }
+
+    // 2. Serper — fallback (Google search en site:instagram.com)
     if (serperKey) {
       try {
         // Búsqueda profunda: tema base + keywords IA en 3 idiomas, en paralelo.
@@ -1622,17 +1673,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Apify
-    if (apifyToken) {
-      try {
-        const videos = await searchViaApify(tema, platform, apifyToken);
-        return Response.json({ videos });
-      } catch(e) {
-        console.warn('Apify falló:', (e as Error).message);
-      }
-    }
-
-    // 3. RapidAPI
+    // 3. RapidAPI — último recurso (free tier, ~500/mes)
     if (rapidKey) {
       try {
         return Response.json({ videos: await searchInstagram(tema, rapidKey) });
