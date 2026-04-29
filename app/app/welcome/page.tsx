@@ -139,6 +139,6 @@ export default async function Welcome({
     // Aun así dejamos pasar — el webhook puede arreglarlo después.
   }
 
-  // 5. Listo, mandalo a la app.
-  redirect('/app');
+  // 5. Listo, mandalo a la app. ?session=new para que SessionGuard marque el tab.
+  redirect('/app?session=new');
 }

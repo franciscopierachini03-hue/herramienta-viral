@@ -71,8 +71,11 @@ function Login() {
         setLoading(false);
         return;
       }
-      // Éxito → redirigimos a donde diga el server (/precios o /app)
-      window.location.href = data.redirect || '/app';
+      // Éxito → redirigimos a donde diga el server (/precios o /app).
+      // Le pegamos ?session=new para que SessionGuard marque la pestaña.
+      const target = data.redirect || '/app';
+      const sep = target.includes('?') ? '&' : '?';
+      window.location.href = `${target}${sep}session=new`;
     } catch {
       setError('Error de conexión. Intentá de nuevo.');
       setLoading(false);
@@ -131,10 +134,12 @@ function Login() {
               </div>
             )}
 
-            {reason === 'idle' && mode !== 'forgot' && (
+            {(reason === 'idle' || reason === 'tab') && mode !== 'forgot' && (
               <div className="rounded-xl p-3 text-xs mb-4"
                 style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
-                Cerramos tu sesión por inactividad. Volvé a entrar para seguir.
+                {reason === 'idle'
+                  ? 'Cerramos tu sesión por inactividad. Volvé a entrar para seguir.'
+                  : 'Por seguridad, cerramos tu sesión al cerrar la pestaña. Volvé a entrar.'}
               </div>
             )}
 

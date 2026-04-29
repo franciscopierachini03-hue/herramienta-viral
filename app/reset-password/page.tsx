@@ -45,7 +45,7 @@ export default function ResetPassword() {
         return;
       }
       setDone(true);
-      setTimeout(() => { window.location.href = '/app'; }, 1500);
+      setTimeout(() => { window.location.href = '/app?session=new'; }, 1500);
     } catch {
       setError('Error de conexión. Probá de nuevo.');
       setLoading(false);
