@@ -23,6 +23,12 @@ export async function middleware(req: NextRequest) {
   if (!REQUIRE_AUTH) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
+
+  // /app/welcome es la página de "post-pago": viene de Stripe a verificar la
+  // sesión y activar la suscripción. Si la bloqueáramos por subscription_status
+  // entraría en loop (justo viene a setearlo). Solo le exigimos que esté logueado.
+  const isWelcome = pathname === '/app/welcome' || pathname.startsWith('/app/welcome/');
+
   const isProtected =
     pathname.startsWith('/app') ||
     pathname.startsWith('/editor') ||
@@ -54,9 +60,12 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     const loginUrl = new URL('/login', req.url);
-    loginUrl.searchParams.set('next', pathname);
+    loginUrl.searchParams.set('next', pathname + req.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
+
+  // /app/welcome solo requiere login; el chequeo de pago lo hace la propia página.
+  if (isWelcome) return response;
 
   // 2. ¿Pagó? Buscamos el status en profiles por email.
   const email = user.email;

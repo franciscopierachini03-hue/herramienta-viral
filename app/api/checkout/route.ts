@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 // Crea una sesión de Stripe Checkout y devuelve la URL para redirigir al usuario.
-// Requiere variables de entorno:
-//   STRIPE_SECRET_KEY
-//   STRIPE_PRICE_MONTHLY
-//   STRIPE_PRICE_YEARLY
-//   NEXT_PUBLIC_APP_URL (para success/cancel URLs)
+//
+// IMPORTANTE: requiere usuario logueado. Pasamos su email a Stripe como
+// `customer_email` para:
+//   1. Pre-rellenar el email en el checkout (mejor UX).
+//   2. Que el webhook (o el verify post-pago) pueda matchear el pago al perfil.
 
 export async function POST(req: NextRequest) {
   const { plan } = await req.json();
@@ -28,13 +29,25 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
-  // Stripe Checkout Session vía API REST (sin SDK para mantener bundle ligero).
-  // Si querés más features, instalamos `stripe` npm package y usamos el SDK oficial.
+  // Necesitamos el email del usuario logueado para vincular el pago.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return Response.json({
+      error: 'Tenés que iniciar sesión antes de pagar.',
+      redirect: '/login?next=/precios',
+    }, { status: 401 });
+  }
+
   const params = new URLSearchParams();
   params.append('mode', 'subscription');
   params.append('line_items[0][price]', priceId);
   params.append('line_items[0][quantity]', '1');
-  params.append('success_url', `${appUrl}/app?welcome=1&session_id={CHECKOUT_SESSION_ID}`);
+  params.append('customer_email', user.email);
+  params.append('client_reference_id', user.id);
+  // Tras pagar, /app/welcome verifica el pago y activa la suscripción.
+  params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
   params.append('cancel_url', `${appUrl}/precios?cancelled=1`);
   params.append('allow_promotion_codes', 'true');
   params.append('billing_address_collection', 'auto');
