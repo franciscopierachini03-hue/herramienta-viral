@@ -769,6 +769,7 @@ async function searchViaApify(
   aiKeysOverride?: AIKeywords | null,
 ) {
   const entry = findMapEntry(tema);
+  const allTerms = getAllTerms(tema);
 
   // Construir keywords ES + EN + PT (preferir IA si hay, sino mapa, sino tema)
   const ai = aiKeysOverride || null;
