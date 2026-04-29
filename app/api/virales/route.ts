@@ -771,21 +771,23 @@ async function searchViaApify(
   const entry = findMapEntry(tema);
   const allTerms = getAllTerms(tema);
 
-  // Construir keywords ES + EN + PT (preferir IA si hay, sino mapa, sino tema)
+  // Construir keywords ES + EN + PT — CONSERVADOR.
+  // Demasiadas variantes traen hashtags off-topic (gente que pone #emprendimiento
+  // en un reel de gimnasio para visibilidad). Mantener cerca al tema original.
   const ai = aiKeysOverride || null;
   const esKeywords = Array.from(new Set([
-    ...(ai?.es || []).slice(0, 2),
-    ...(entry?.es || []).slice(0, 2),
-    tema,
-  ])).filter(Boolean).slice(0, 3);
-  const enKeywords = Array.from(new Set([
-    ...(ai?.en || []).slice(0, 2),
-    ...(entry?.en || []).slice(0, 2),
-  ])).filter(Boolean).slice(0, 3);
-  const ptKeywords = Array.from(new Set([
-    ...(ai?.pt || []).slice(0, 2),
-    ...(entry?.pt || []).slice(0, 2),
+    tema,                          // Siempre el tema exacto del usuario
+    ...(entry?.es || []).slice(0, 1),
+    ...(ai?.es || []).slice(0, 1),
   ])).filter(Boolean).slice(0, 2);
+  const enKeywords = Array.from(new Set([
+    ...(entry?.en || []).slice(0, 1),
+    ...(ai?.en || []).slice(0, 1),
+  ])).filter(Boolean).slice(0, 1);  // Solo 1 traducción en inglés
+  const ptKeywords = Array.from(new Set([
+    ...(entry?.pt || []).slice(0, 1),
+    ...(ai?.pt || []).slice(0, 1),
+  ])).filter(Boolean).slice(0, 1);  // Solo 1 traducción en portugués
 
   let items: unknown[] = [];
 
@@ -829,7 +831,7 @@ async function searchViaApify(
         body: JSON.stringify({
           directUrls: hashtags,
           resultsType: 'posts',
-          resultsLimit: 25, // 25 por hashtag × 6-8 hashtags = ~150 posts
+          resultsLimit: 50, // 50 por hashtag × 3-4 hashtags = ~150-200 posts
           addParentData: false,
         }),
       }
