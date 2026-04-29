@@ -17,7 +17,7 @@ function Login() {
   const next = params.get('next') || '';
   const reason = params.get('reason') || '';
 
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -109,30 +109,6 @@ function Login() {
         <div className="w-full max-w-md">
           <div className="rounded-3xl p-8"
             style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-
-            {/* Toggle login / signup (oculto en modo forgot) */}
-            {mode !== 'forgot' && (
-              <div className="flex gap-1 p-1 rounded-2xl mb-6" style={{ background: '#0a0a0a' }}>
-                <button
-                  type="button"
-                  onClick={() => switchMode('signup')}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={mode === 'signup'
-                    ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-                    : { color: '#666' }}>
-                  Crear cuenta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={mode === 'login'
-                    ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-                    : { color: '#666' }}>
-                  Iniciar sesión
-                </button>
-              </div>
-            )}
 
             {(reason === 'idle' || reason === 'tab') && mode !== 'forgot' && (
               <div className="rounded-xl p-3 text-xs mb-4"
@@ -273,11 +249,30 @@ function Login() {
             </form>
             )}
 
-            <p className="text-xs text-center mt-6" style={{ color: '#555' }}>
-              {mode === 'signup'
-                ? 'Después de crear tu cuenta te llevamos al checkout.'
-                : 'Si todavía no tenés cuenta, creá una arriba.'}
-            </p>
+            {mode !== 'forgot' && (
+              <div className="mt-6 pt-6 text-center text-sm"
+                style={{ borderTop: '1px solid #1f1f1f', color: '#888' }}>
+                {mode === 'login' ? (
+                  <>
+                    ¿Todavía no tenés cuenta?{' '}
+                    <button type="button" onClick={() => switchMode('signup')}
+                      className="font-semibold underline"
+                      style={{ color: '#c4b5fd' }}>
+                      Crear cuenta →
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    ¿Ya tenés cuenta?{' '}
+                    <button type="button" onClick={() => switchMode('login')}
+                      className="font-semibold underline"
+                      style={{ color: '#c4b5fd' }}>
+                      Iniciar sesión →
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <p className="text-xs text-center mt-6" style={{ color: '#555' }}>
