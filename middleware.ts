@@ -21,15 +21,16 @@ const REQUIRE_AUTH = process.env.REQUIRE_AUTH === '1';
 const ACTIVE_STATUSES = new Set(['active']);
 
 export async function middleware(req: NextRequest) {
-  if (!REQUIRE_AUTH) return NextResponse.next();
-
   const { pathname } = req.nextUrl;
 
-  // TOPCUT (/editor) está en construcción — bloqueamos el acceso directo por URL
-  // y mandamos a /app. Cuando esté listo, eliminar este bloque.
+  // TOPCUT (/editor) está en construcción — siempre bloquear el acceso directo
+  // por URL y mandar a /app, sin importar el estado de auth ni REQUIRE_AUTH.
+  // Cuando esté listo, eliminar este bloque y descomentar /editor en el matcher.
   if (pathname.startsWith('/editor')) {
     return NextResponse.redirect(new URL('/app', req.url));
   }
+
+  if (!REQUIRE_AUTH) return NextResponse.next();
 
   // /app/welcome es la página de "post-pago": viene de Stripe a verificar la
   // sesión y activar la suscripción. Si la bloqueáramos por subscription_status
