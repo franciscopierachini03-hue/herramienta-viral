@@ -35,9 +35,9 @@ export default function Landing() {
           </Link>
           <Link href="/login" className="px-4 py-2 rounded-xl text-sm transition-colors"
             style={{ background: '#111', border: '1px solid #1f1f1f', color: '#ccc' }}>
-            Entrar
+            Iniciar sesión
           </Link>
-          <Link href="/precios"
+          <Link href="/login?signup=1"
             className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
             Empezar →
@@ -66,7 +66,7 @@ export default function Landing() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/precios"
+          <Link href="/login?signup=1"
             className="px-7 py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 30px #7c3aed44' }}>
             Empezar ahora — $47/mes →
@@ -168,7 +168,7 @@ export default function Landing() {
           </div>
           <p className="text-xs mb-6" style={{ color: '#666' }}>o $470 al año <span style={{ color: '#22c55e' }}>(20% off)</span></p>
 
-          <Link href="/precios" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
+          <Link href="/login?signup=1" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
             Empezar ahora →
           </Link>
