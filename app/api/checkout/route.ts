@@ -40,13 +40,29 @@ export async function POST(req: NextRequest) {
     }, { status: 401 });
   }
 
+  // Stripe rechaza `mode=subscription` con prices de tipo `one_time` y viceversa.
+  // Consultamos el price para elegir el mode correcto y soportar ambos casos.
+  let mode: 'subscription' | 'payment' = 'subscription';
+  try {
+    const priceRes = await fetch(
+      `https://api.stripe.com/v1/prices/${encodeURIComponent(priceId)}`,
+      { headers: { Authorization: `Bearer ${secret}` }, cache: 'no-store' },
+    );
+    if (priceRes.ok) {
+      const priceData = await priceRes.json();
+      mode = priceData?.type === 'recurring' ? 'subscription' : 'payment';
+    }
+  } catch (e) {
+    console.warn('[checkout] price lookup failed, defaulting to subscription mode:', e);
+  }
+
   const params = new URLSearchParams();
-  params.append('mode', 'subscription');
+  params.append('mode', mode);
   params.append('line_items[0][price]', priceId);
   params.append('line_items[0][quantity]', '1');
   params.append('customer_email', user.email);
   params.append('client_reference_id', user.id);
-  // Tras pagar, /app/welcome verifica el pago y activa la suscripción.
+  // Tras pagar, /app/welcome verifica el pago y activa la cuenta.
   params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
   params.append('cancel_url', `${appUrl}/precios?cancelled=1`);
   params.append('allow_promotion_codes', 'true');
