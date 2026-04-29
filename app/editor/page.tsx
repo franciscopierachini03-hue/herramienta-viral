@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import ProductNav from '../_components/ProductNav';
 
 // ── Types ──────────────────────────────────────────────────
 type CaptionStyle = 'classic' | 'yellow' | 'neon' | 'minimal';
@@ -327,35 +328,13 @@ function ExportModal({ open, stage, progress, error, outputUrl, onClose }: Expor
   );
 }
 
-// ── Header (shared) ────────────────────────────────────────
+// ── Header (compartido con /app y /guiones) ─────────────────
 function Header({ onExport }: { onExport?: () => void }) {
   return (
-    <header className="flex items-center gap-3 px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #161616' }}>
-      <div className="flex items-center gap-1 p-1 rounded-2xl shrink-0" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
-        <Link href="/app"
-          className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-          style={{ color: '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-          🧬 ViralADN
-        </Link>
-        <div className="px-4 py-2 rounded-xl text-xs font-bold cursor-default"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 12px #7c3aed44' }}>
-          ✂️ TOPCUT
-        </div>
-        <Link href="/guiones"
-          className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-          style={{ color: '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-          ✍️ Guiones
-        </Link>
-      </div>
-      <div className="w-px h-4 mx-1 shrink-0" style={{ background: '#222' }} />
-      <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0" style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#a78bfa' }}>BETA</span>
-
+    <header className="px-6 pt-10 pb-2 max-w-6xl mx-auto w-full">
+      <ProductNav active="topcut" />
       {onExport && (
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex justify-end -mt-6 mb-4">
           <button className="px-4 py-1.5 rounded-xl text-xs font-bold"
             style={{ background: 'linear-gradient(135deg,#7c3aed,#c13584)', color: '#fff', boxShadow: '0 0 16px #7c3aed44' }}
             onClick={onExport}>

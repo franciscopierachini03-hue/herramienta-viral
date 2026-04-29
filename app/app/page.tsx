@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ProductNav from '../_components/ProductNav';
 
 const VIRAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube Shorts', color: '#FF0000' },
@@ -675,45 +676,7 @@ export default function Home() {
       <div className="max-w-3xl mx-auto px-6 pt-10 pb-20">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', boxShadow: '0 0 20px #7c3aed55' }}>
-            🧬
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">ViralADN</h1>
-            <p className="text-xs" style={{ color: '#555' }}>Descifra el ADN del contenido viral</p>
-          </div>
-        </div>
-
-        {/* Product switcher */}
-        <div className="flex items-center gap-1 p-1 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
-          <div className="px-4 py-2 rounded-xl text-xs font-bold cursor-default"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 12px #7c3aed44' }}>
-            🧬 ViralADN
-          </div>
-          <Link href="/editor"
-            className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-            style={{ color: '#555' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-            ✂️ TOPCUT
-          </Link>
-          <Link href="/guiones"
-            className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-            style={{ color: '#555' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-            ✍️ Guiones
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }}></span>
-          <span className="text-xs" style={{ color: '#555' }}>En vivo</span>
-        </div>
-      </div>
+      <ProductNav active="viral" />
 
       {/* Tabs */}
       <div className="flex gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>

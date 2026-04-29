@@ -1,0 +1,81 @@
+'use client';
+
+import Link from 'next/link';
+
+// Header común a las 3 herramientas (ViralADN, TOPCUT, Guiones).
+// Usar siempre en /app, /editor, /guiones para que la nav quede idéntica.
+//
+// Props:
+//   active: cuál producto está activo (resaltado en violeta).
+
+type Active = 'viral' | 'topcut' | 'guiones';
+
+const ITEMS: Array<{ id: Active; href: string; label: string }> = [
+  { id: 'viral',   href: '/app',     label: '🧬 ViralADN' },
+  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT' },
+  { id: 'guiones', href: '/guiones', label: '✍️ Guiones' },
+];
+
+const TITLES: Record<Active, { title: string; sub: string }> = {
+  viral:   { title: 'ViralADN', sub: 'Descifra el ADN del contenido viral' },
+  topcut:  { title: 'TOPCUT',   sub: 'Edita y exporta tus mejores cortes' },
+  guiones: { title: 'Guiones',  sub: 'Genera scripts virales con IA' },
+};
+
+export default function ProductNav({ active }: { active: Active }) {
+  const meta = TITLES[active];
+
+  return (
+    <div className="flex items-center justify-between mb-10 gap-4 flex-wrap">
+      {/* Logo + título */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', boxShadow: '0 0 20px #7c3aed55' }}>
+          🧬
+        </div>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">{meta.title}</h1>
+          <p className="text-xs" style={{ color: '#555' }}>{meta.sub}</p>
+        </div>
+      </div>
+
+      {/* Switcher */}
+      <div className="flex items-center gap-1 p-1 rounded-2xl"
+        style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
+        {ITEMS.map(item => {
+          const isActive = item.id === active;
+          if (isActive) {
+            return (
+              <div key={item.id}
+                className="px-4 py-2 rounded-xl text-xs font-bold cursor-default"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 12px #7c3aed44' }}>
+                {item.label}
+              </div>
+            );
+          }
+          return (
+            <Link key={item.id} href={item.href}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
+              style={{ color: '#555' }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.color = '#fff';
+                (e.currentTarget as HTMLElement).style.background = '#1a1a1a';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.color = '#555';
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}>
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Status */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }}></span>
+        <span className="text-xs" style={{ color: '#555' }}>En vivo</span>
+      </div>
+    </div>
+  );
+}
