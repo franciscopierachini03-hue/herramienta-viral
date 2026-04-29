@@ -298,20 +298,49 @@ export async function POST(req: NextRequest) {
       } catch (e) { debug.push(`scraper-api2: ${(e as Error).message.slice(0, 60)}`); }
     }
 
-    // Mensaje final inteligente según qué falló
-    const fullErrorContext = debug.join(' · ');
-    if (quotaCount >= 2) {
-      return Response.json({
-        error: `⚠️ Cupos mensuales de Instagram API agotados en múltiples proveedores. Reseteo el día 1 del mes, o suscribite a un plan superior en RapidAPI. [${fullErrorContext}]`
-      }, { status: 429 });
+    // 4️⃣ Apify — fallback robusto cuando los 3 RapidAPI se agotan/fallan.
+    // Usa el actor oficial `apify/instagram-scraper` que toma la URL directa del
+    // post y devuelve videoUrl. Tarda ~10-30s pero es muy confiable.
+    const apifyToken = process.env.APIFY_TOKEN;
+    if (apifyToken) {
+      try {
+        const res = await fetch(
+          `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=512&timeout=120`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ directUrls: [url], resultsType: 'posts', resultsLimit: 1, addParentData: false }),
+          }
+        );
+        if (res.ok) {
+          const items = await res.json();
+          const item = Array.isArray(items) ? items[0] : items;
+          const videoUrl = item?.videoUrl || item?.video_url || item?.video_versions?.[0]?.url;
+          if (videoUrl) {
+            try {
+              const texto = await transcribeWithGroq(videoUrl);
+              if (texto) return Response.json({ texto });
+              debug.push('apify: video sin audio transcribible');
+            } catch (e) { debug.push(`apify: groq falló — ${(e as Error).message.slice(0, 60)}`); }
+          } else {
+            const caption = item?.caption || '';
+            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}` });
+            debug.push('apify: sin video ni caption');
+          }
+        } else debug.push(`apify: HTTP ${res.status}`);
+      } catch (e) { debug.push(`apify: ${(e as Error).message.slice(0, 60)}`); }
     }
+
+    // Mensaje final más amigable (sin jerga técnica de "cupo agotado").
+    // El log queda en server logs por si necesitamos diagnosticar.
+    console.warn('[transcribir/instagram] todos los proveedores fallaron:', debug.join(' · '));
     if (debug.some(d => d.includes('groq'))) {
       return Response.json({
-        error: `Encontramos el reel pero no se pudo transcribir el audio (puede ser muy corto, sin voz, o un video sin sonido). [${fullErrorContext}]`
+        error: 'No pudimos transcribir este reel ahora. Puede que el audio sea muy corto o no tenga voz. Probá con otro.'
       }, { status: 502 });
     }
     return Response.json({
-      error: `No se pudo obtener el reel. Causa probable: cuenta privada, reel recién publicado (las APIs aún no lo cachearon), o restringido por Meta. [${fullErrorContext}]`
+      error: 'No pudimos encontrarlo en este momento. Probá de nuevo en un rato o con otro reel.'
     }, { status: 502 });
   }
 
