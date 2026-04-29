@@ -21,8 +21,24 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 //   3. Devuelve { ok: true, redirect: '/app' o `next` si vino con uno }
 //      (el middleware se encarga de rebotar a /precios si no hay suscripción)
 
+// Helper: lee la lista de códigos válidos desde env. Coma-separada, en mayúsculas.
+// Ej: INVITE_CODES="BETA50,FRIEND2026,LAUNCH"
+function isValidInviteCode(input: string): boolean {
+  if (!input) return false;
+  const valid = (process.env.INVITE_CODES || '')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean);
+  return valid.includes(input.trim().toUpperCase());
+}
+
+function trialDays(): number {
+  const n = parseInt(process.env.TRIAL_DAYS || '5', 10);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+}
+
 export async function POST(req: NextRequest) {
-  const { mode, name, email, phone, password, next } = await req.json();
+  const { mode, name, email, phone, password, code, next } = await req.json();
 
   // ── Validación común ───────────────────────────────────────────────────
   if (!email || !email.includes('@')) {
@@ -72,13 +88,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Insertar/actualizar perfil.
+    // 2. Si trajo código de invitación válido → activar trial sin pasar por Stripe.
+    const useTrial = code && isValidInviteCode(code);
+    const trialEndsAt = useTrial
+      ? new Date(Date.now() + trialDays() * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    const profileRow: Record<string, unknown> = {
+      email,
+      name: name.trim(),
+      phone: phone.trim(),
+    };
+    if (useTrial) {
+      profileRow.subscription_status = 'trialing';
+      profileRow.trial_ends_at = trialEndsAt;
+      profileRow.redeemed_code = String(code).trim().toUpperCase();
+      profileRow.activated_at = new Date().toISOString();
+    }
+
     const { error: upsertErr } = await admin
       .from('profiles')
-      .upsert(
-        { email, name: name.trim(), phone: phone.trim() },
-        { onConflict: 'email' },
-      );
+      .upsert(profileRow, { onConflict: 'email' });
     if (upsertErr) console.error('[auth/signup] upsert profile:', upsertErr);
 
     // 3. Iniciar sesión automáticamente (cookie).
@@ -86,12 +116,16 @@ export async function POST(req: NextRequest) {
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
     if (signInErr) {
       console.error('[auth/signup] auto sign-in:', signInErr);
-      // El usuario está creado pero no logueado — que vaya a /login.
       return Response.json({ ok: true, redirect: '/login' });
     }
 
-    // 4. Redirigir a /precios para que pague.
-    return Response.json({ ok: true, redirect: '/precios', userId: created.user?.id });
+    // 4. Redirect: si tiene trial → directo a /app. Si no → /precios para pagar.
+    return Response.json({
+      ok: true,
+      redirect: useTrial ? '/app' : '/precios',
+      userId: created.user?.id,
+      trial: useTrial ? { endsAt: trialEndsAt, days: trialDays() } : null,
+    });
   }
 
   // ── LOGIN ──────────────────────────────────────────────────────────────

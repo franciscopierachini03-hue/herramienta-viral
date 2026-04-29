@@ -14,10 +14,11 @@ import { createServerClient } from '@supabase/ssr';
 
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === '1';
 
-// Estados que cuentan como "pagó y puede entrar".
-// `trialing` por si después agregamos free trial. `past_due` lo dejamos afuera
-// a propósito — si la tarjeta rebotó, no entra hasta regularizar.
-const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+// Estados que cuentan como "pagó y puede entrar". `trialing` se verifica
+// aparte con trial_ends_at para no dejar pasar trials vencidos.
+// `past_due` queda afuera a propósito: si la tarjeta rebotó, no entra
+// hasta regularizar.
+const ACTIVE_STATUSES = new Set(['active']);
 
 export async function middleware(req: NextRequest) {
   if (!REQUIRE_AUTH) return NextResponse.next();
@@ -86,16 +87,22 @@ export async function middleware(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('subscription_status')
+    .select('subscription_status, trial_ends_at')
     .eq('email', email)
     .maybeSingle();
 
   const status = profile?.subscription_status ?? 'pending';
+  const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+  const trialActive = !!trialEndsAt && trialEndsAt.getTime() > Date.now();
 
-  if (!ACTIVE_STATUSES.has(status)) {
-    // Está logueado pero no pagó (o canceló) → a /precios.
+  // Pasa si: (1) status activo o (2) está en trial vigente
+  const allowedByStatus = ACTIVE_STATUSES.has(status);
+  const allowedByTrial = status === 'trialing' && trialActive;
+
+  if (!allowedByStatus && !allowedByTrial) {
     const url = new URL('/precios', req.url);
-    url.searchParams.set('need', 'pago');
+    // ?need=trial-expirado si el trial venció, ?need=pago si nunca pagó.
+    url.searchParams.set('need', status === 'trialing' && !trialActive ? 'trial-expirado' : 'pago');
     return NextResponse.redirect(url);
   }
 

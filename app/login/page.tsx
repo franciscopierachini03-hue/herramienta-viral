@@ -23,6 +23,8 @@ function Login() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [showCodeField, setShowCodeField] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
@@ -64,7 +66,7 @@ function Login() {
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, name, email, phone, password, next }),
+        body: JSON.stringify({ mode, name, email, phone, password, code, next }),
       });
       const data = await res.json();
       if (data.error) {
@@ -220,6 +222,32 @@ function Login() {
                 </div>
               )}
 
+              {/* Código de invitación (solo en signup, oculto por default) */}
+              {mode === 'signup' && (
+                showCodeField ? (
+                  <div>
+                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
+                      Código de invitación <span style={{ color: '#555' }}>(activa 5 días gratis)</span>
+                    </label>
+                    <input
+                      value={code}
+                      onChange={e => setCode(e.target.value.toUpperCase())}
+                      placeholder="EJ: BETA2026"
+                      autoCapitalize="characters"
+                      className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                      style={{ background: '#0a0a0a', border: '1px solid #c4b5fd55', color: '#fff', letterSpacing: '0.05em' }}
+                    />
+                  </div>
+                ) : (
+                  <button type="button"
+                    onClick={() => setShowCodeField(true)}
+                    className="text-xs underline self-start"
+                    style={{ color: '#888' }}>
+                    ¿Tenés un código de invitación? +
+                  </button>
+                )
+              )}
+
               {error && (
                 <div className="rounded-xl p-3 text-xs" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
                   {error}
@@ -233,7 +261,7 @@ function Login() {
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
                 {loading
                   ? 'Procesando...'
-                  : mode === 'signup' ? 'Crear cuenta y pagar →'
+                  : mode === 'signup' ? (code.trim() ? 'Empezar prueba gratis →' : 'Crear cuenta y pagar →')
                   : mode === 'login' ? 'Entrar →'
                   : 'Mandame el link →'}
               </button>
