@@ -15,6 +15,7 @@ export default function LoginPage() {
 function Login() {
   const params = useSearchParams();
   const next = params.get('next') || '';
+  const reason = params.get('reason') || '';
 
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
   const [name, setName] = useState('');
@@ -127,6 +128,13 @@ function Login() {
                     : { color: '#666' }}>
                   Iniciar sesión
                 </button>
+              </div>
+            )}
+
+            {reason === 'idle' && mode !== 'forgot' && (
+              <div className="rounded-xl p-3 text-xs mb-4"
+                style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                Cerramos tu sesión por inactividad. Volvé a entrar para seguir.
               </div>
             )}
 

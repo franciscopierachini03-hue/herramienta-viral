@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
+import SessionGuard from '../_components/SessionGuard';
 
 const VIRAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube Shorts', color: '#FF0000' },
@@ -675,6 +676,7 @@ export default function Home() {
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
       <div className="max-w-3xl mx-auto px-6 pt-10 pb-20">
 
+      <SessionGuard />
       {/* Header */}
       <ProductNav active="viral" />
 

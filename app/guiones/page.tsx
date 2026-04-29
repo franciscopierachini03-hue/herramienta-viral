@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
+import SessionGuard from '../_components/SessionGuard';
 
 const TONOS = [
   { id: 'motivacional', label: '🔥 Motivacional', desc: 'Energía alta, inspira a actuar' },
@@ -68,6 +69,7 @@ export default function Guiones() {
 
       {/* ── Header ── */}
       <div className="max-w-6xl mx-auto w-full px-6 pt-10">
+        <SessionGuard />
         <ProductNav active="guiones" />
       </div>
 

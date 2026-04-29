@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
+import SessionGuard from '../_components/SessionGuard';
 
 // ── Types ──────────────────────────────────────────────────
 type CaptionStyle = 'classic' | 'yellow' | 'neon' | 'minimal';
@@ -332,6 +333,7 @@ function ExportModal({ open, stage, progress, error, outputUrl, onClose }: Expor
 function Header({ onExport }: { onExport?: () => void }) {
   return (
     <header className="px-6 pt-10 pb-2 max-w-6xl mx-auto w-full">
+      <SessionGuard />
       <ProductNav active="topcut" />
       {onExport && (
         <div className="flex justify-end -mt-6 mb-4">
