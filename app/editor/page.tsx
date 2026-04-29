@@ -332,7 +332,7 @@ function Header({ onExport }: { onExport?: () => void }) {
   return (
     <header className="flex items-center gap-3 px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #161616' }}>
       <div className="flex items-center gap-1 p-1 rounded-2xl shrink-0" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
-        <Link href="/"
+        <Link href="/app"
           className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
           style={{ color: '#555' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
@@ -1125,7 +1125,7 @@ export default function Editor() {
       {/* ── Header ── */}
       <header className="flex items-center gap-3 px-5 py-3 shrink-0" style={{ borderBottom: '1px solid #161616' }}>
         <div className="flex items-center gap-1 p-1 rounded-2xl shrink-0" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
-          <Link href="/"
+          <Link href="/app"
             className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
             style={{ color: '#555' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = '#1a1a1a'; }}
