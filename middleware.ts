@@ -25,6 +25,12 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
 
+  // TOPCUT (/editor) está en construcción — bloqueamos el acceso directo por URL
+  // y mandamos a /app. Cuando esté listo, eliminar este bloque.
+  if (pathname.startsWith('/editor')) {
+    return NextResponse.redirect(new URL('/app', req.url));
+  }
+
   // /app/welcome es la página de "post-pago": viene de Stripe a verificar la
   // sesión y activar la suscripción. Si la bloqueáramos por subscription_status
   // entraría en loop (justo viene a setearlo). Solo le exigimos que esté logueado.
@@ -32,7 +38,6 @@ export async function middleware(req: NextRequest) {
 
   const isProtected =
     pathname.startsWith('/app') ||
-    pathname.startsWith('/editor') ||
     pathname.startsWith('/guiones');
   if (!isProtected) return NextResponse.next();
 

@@ -10,9 +10,18 @@ import Link from 'next/link';
 
 type Active = 'viral' | 'topcut' | 'guiones';
 
-const ITEMS: Array<{ id: Active; href: string; label: string }> = [
+type Item = {
+  id: Active;
+  href: string;
+  label: string;
+  comingSoon?: boolean;
+};
+
+// TOPCUT está oculto del menú principal mientras está en construcción.
+// Cuando esté listo: bajar `comingSoon: false`.
+const ITEMS: Item[] = [
   { id: 'viral',   href: '/app',     label: '🧬 ViralADN' },
-  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT' },
+  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT', comingSoon: true },
   { id: 'guiones', href: '/guiones', label: '✍️ Guiones' },
 ];
 
@@ -44,6 +53,8 @@ export default function ProductNav({ active }: { active: Active }) {
         style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
         {ITEMS.map(item => {
           const isActive = item.id === active;
+
+          // ── Activo (resaltado en violeta) ─────────────────────
           if (isActive) {
             return (
               <div key={item.id}
@@ -53,6 +64,24 @@ export default function ProductNav({ active }: { active: Active }) {
               </div>
             );
           }
+
+          // ── Próximamente (deshabilitado, no clickeable) ───────
+          if (item.comingSoon) {
+            return (
+              <div key={item.id}
+                title="Disponible próximamente"
+                className="relative px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed flex items-center gap-1.5"
+                style={{ color: '#3a3a3a', opacity: 0.7 }}>
+                <span>{item.label}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                  style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#a78bfa' }}>
+                  Pronto
+                </span>
+              </div>
+            );
+          }
+
+          // ── Link normal ───────────────────────────────────────
           return (
             <Link key={item.id} href={item.href}
               className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
