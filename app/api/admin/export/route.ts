@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 // GET /api/admin/export — descarga la tabla profiles como CSV.
-// Solo accesible para emails en ADMIN_EMAILS.
+// Solo accesible para: email en ADMIN_EMAILS + cookie admin_pin_ok válida.
 
 function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
@@ -27,6 +28,12 @@ export async function GET(_req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email || !isAdminEmail(user.email)) {
     return new Response('Forbidden', { status: 403 });
+  }
+
+  // Exigir cookie del PIN — sin esto, no se puede exportar.
+  const cookieStore = await cookies();
+  if (cookieStore.get('admin_pin_ok')?.value !== '1') {
+    return new Response('PIN required', { status: 403 });
   }
 
   const admin = createServiceClient();

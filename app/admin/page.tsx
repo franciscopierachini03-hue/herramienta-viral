@@ -1,17 +1,23 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
-// Acceso restringido: solo emails listados en ADMIN_EMAILS (env var,
-// coma-separada). Si la var no está, NADIE puede entrar (fail-closed).
+// Acceso restringido en 2 capas:
+//   1. Email del usuario logueado debe estar en ADMIN_EMAILS (env var).
+//   2. Cookie `admin_pin_ok` válida — se obtiene poniendo el PIN correcto
+//      (definido en ADMIN_PIN). La cookie vive 4 horas.
 //
-// Render: server component. Stats arriba + tabla con búsqueda client-side.
+// Si falla cualquiera de las dos, mostramos lo correspondiente.
+// Render: server component. Stats arriba + tabla con búsqueda.
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ q?: string; status?: string }>;
+type SearchParams = Promise<{ q?: string; status?: string; wrong?: string }>;
+
+const PIN_COOKIE = 'admin_pin_ok';
 
 function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
@@ -68,12 +74,14 @@ function statusPill(p: Profile): { label: string; color: string; bg: string } {
 }
 
 export default async function Admin({ searchParams }: { searchParams: SearchParams }) {
-  const { q = '', status: statusFilter = '' } = await searchParams;
+  const { q = '', status: statusFilter = '', wrong } = await searchParams;
 
-  // 1. Autenticación + autorización.
+  // 1. Autenticación.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect('/login?next=/admin');
+
+  // 2. Email allowlist.
   if (!isAdminEmail(user.email)) {
     return (
       <main className="min-h-screen text-white flex items-center justify-center p-8"
@@ -87,6 +95,65 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           <Link href="/app" className="text-sm underline" style={{ color: '#c4b5fd' }}>
             ← Volver a la app
           </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // 3. PIN gate. Si no hay cookie válida, pedimos el PIN.
+  const cookieStore = await cookies();
+  const hasPin = cookieStore.get(PIN_COOKIE)?.value === '1';
+
+  if (!hasPin) {
+    return (
+      <main className="min-h-screen text-white flex items-center justify-center p-8"
+        style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
+        <div className="w-full max-w-sm">
+          <div className="rounded-3xl p-8 text-center"
+            style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+            <div className="text-5xl mb-3">🔑</div>
+            <h1 className="text-xl font-bold mb-2">Ingresá el PIN</h1>
+            <p className="text-sm mb-6" style={{ color: '#888' }}>
+              Capa extra de seguridad para abrir el panel.
+            </p>
+
+            {wrong === '1' && (
+              <div className="rounded-xl p-3 text-xs mb-4"
+                style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
+                PIN incorrecto. Probá de nuevo.
+              </div>
+            )}
+            {wrong === 'noconfig' && (
+              <div className="rounded-xl p-3 text-xs mb-4"
+                style={{ background: '#92400e22', border: '1px solid #92400e44', color: '#fde68a' }}>
+                Falta configurar ADMIN_PIN en el servidor.
+              </div>
+            )}
+
+            <form method="POST" action="/api/admin/pin" className="flex flex-col gap-3">
+              <input
+                type="password"
+                name="pin"
+                required
+                inputMode="numeric"
+                autoComplete="off"
+                autoFocus
+                placeholder="••••••"
+                className="w-full px-4 py-3 rounded-xl text-center text-lg outline-none tracking-widest"
+                style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff', fontFamily: 'monospace' }}
+              />
+              <button type="submit"
+                className="w-full py-3.5 rounded-2xl text-sm font-bold"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
+                Entrar →
+              </button>
+            </form>
+
+            <Link href="/app" className="text-xs underline mt-6 inline-block"
+              style={{ color: '#666' }}>
+              ← Volver a la app
+            </Link>
+          </div>
         </div>
       </main>
     );
