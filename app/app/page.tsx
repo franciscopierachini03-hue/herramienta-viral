@@ -479,11 +479,50 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
+  // Cargar biblioteca desde el servidor + migrar localStorage si quedó del legacy
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('guiones');
-      if (saved) setGuiones(JSON.parse(saved));
-    } catch {}
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/biblioteca', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const remoteGuiones = (data.guiones || []) as Guion[];
+
+        // Migración: si hay guiones en localStorage que no están en el server, subirlos.
+        let localItems: Guion[] = [];
+        try {
+          const raw = localStorage.getItem('guiones');
+          if (raw) localItems = JSON.parse(raw) as Guion[];
+        } catch {}
+
+        const remoteIds = new Set(remoteGuiones.map(g => g.id));
+        const toMigrate = localItems.filter(g => !remoteIds.has(g.id));
+
+        if (toMigrate.length > 0) {
+          await fetch('/api/biblioteca', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: toMigrate }),
+          }).catch(() => {});
+          // Limpiar localStorage solo si la migración no falló
+          try { localStorage.removeItem('guiones'); } catch {}
+        }
+
+        // Re-fetch para tener todo unificado y ordenado
+        const fresh = await fetch('/api/biblioteca', { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+        if (!cancelled && fresh?.guiones) setGuiones(fresh.guiones);
+        else if (!cancelled) setGuiones([...remoteGuiones, ...toMigrate]);
+      } catch (e) {
+        console.warn('[biblioteca] error cargando', e);
+        // Fallback al localStorage si la API falla
+        try {
+          const raw = localStorage.getItem('guiones');
+          if (raw && !cancelled) setGuiones(JSON.parse(raw) as Guion[]);
+        } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // ── Transcribir (multi-URL) ──────────────────────────────
@@ -535,8 +574,18 @@ export default function Home() {
     setIsTranscribing(false);
   }
 
-  // ── Biblioteca ──────────────────────────────────────────
-  function guardarGuion(idx: number) {
+  // ── Biblioteca (persistida en servidor por usuario) ────────────────
+  async function persistGuion(g: Guion) {
+    try {
+      await fetch('/api/biblioteca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(g),
+      });
+    } catch {}
+  }
+
+  async function guardarGuion(idx: number) {
     const r = results[idx];
     if (!r?.transcript || r.transcript.startsWith('❌')) return;
     const guion: Guion = {
@@ -547,10 +596,9 @@ export default function Home() {
       transcript: r.transcript,
       savedAt: new Date().toISOString(),
     };
-    const updated = [guion, ...guiones];
-    setGuiones(updated);
-    localStorage.setItem('guiones', JSON.stringify(updated));
+    setGuiones([guion, ...guiones]);
     setSavedIdx(prev => new Set([...prev, idx]));
+    await persistGuion(guion);
   }
 
   async function guardarEnEspanol(idx: number) {
@@ -573,27 +621,32 @@ export default function Home() {
         transcript: textoEs,
         savedAt: new Date().toISOString(),
       };
-      const updated = [guion, ...guiones];
-      setGuiones(updated);
-      localStorage.setItem('guiones', JSON.stringify(updated));
+      setGuiones([guion, ...guiones]);
       setSavedIdx(prev => new Set([...prev, idx]));
+      await persistGuion(guion);
     } finally {
       setSavingEs(false);
       setSaveModal(null);
     }
   }
 
-  function eliminarGuion(id: string) {
-    const updated = guiones.filter(g => g.id !== id);
-    setGuiones(updated);
-    localStorage.setItem('guiones', JSON.stringify(updated));
+  async function eliminarGuion(id: string) {
+    setGuiones(guiones.filter(g => g.id !== id));
     if (expandedId === id) setExpandedId(null);
+    try {
+      await fetch(`/api/biblioteca?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {}
   }
 
-  function renameGuion(id: string, name: string) {
-    const updated = guiones.map(g => g.id === id ? { ...g, name } : g);
-    setGuiones(updated);
-    localStorage.setItem('guiones', JSON.stringify(updated));
+  async function renameGuion(id: string, name: string) {
+    setGuiones(guiones.map(g => g.id === id ? { ...g, name } : g));
+    try {
+      await fetch('/api/biblioteca', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name }),
+      });
+    } catch {}
   }
 
   async function traducirTexto() {
@@ -615,10 +668,12 @@ export default function Home() {
     setTranslating(false);
   }
 
-  function borrarTodo() {
+  async function borrarTodo() {
     setGuiones([]);
-    localStorage.removeItem('guiones');
     setConfirmDeleteAll(false);
+    try {
+      await fetch('/api/biblioteca?all=1', { method: 'DELETE' });
+    } catch {}
   }
 
   // ── Virales ─────────────────────────────────────────────
