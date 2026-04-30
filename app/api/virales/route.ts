@@ -258,6 +258,88 @@ EJEMPLO tema "amor consciente":
   return null;
 }
 
+// ── Análisis visual con GPT-4o-mini (Vision) ──────────────────────────────────
+// Mira el THUMBNAIL del video junto con el caption y devuelve un score por cada
+// candidato. Detecta promos disfrazadas, banners de venta, lifestyle vacío.
+// Solo se llama sobre los top 30 candidatos para ahorrar tokens.
+//
+// Retorna un Map<index, score 0-10> donde:
+//   0-2 = promo / banner / venta de curso
+//   3-4 = lifestyle vacío sin enseñanza
+//   5-6 = contenido aceptable pero genérico
+//   7-8 = contenido educativo replicable
+//   9-10 = oro: framework, caso de éxito con números, autoridad real
+async function visionRescore(
+  candidates: VideoCandidate[],
+  tema: string,
+  maxAnalyze = 30,
+): Promise<Map<number, number>> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const out = new Map<number, number>();
+  if (!apiKey) return out;
+
+  const subset = candidates.slice(0, maxAnalyze).filter(c => c.thumbnail);
+  if (subset.length === 0) return out;
+
+  // Procesar en batches de 10 para no exceder rate limits ni timeout
+  const BATCH = 10;
+  for (let start = 0; start < subset.length; start += BATCH) {
+    const batch = subset.slice(start, start + BATCH);
+
+    const userContent: Array<Record<string, unknown>> = [];
+    userContent.push({
+      type: 'text',
+      text: `Tema buscado: "${tema}"\n\nCalificá cada video del 0 al 10 según qué tan replicable es por un creador para crecer en su nicho.\n\nReglas:\n- 0-2: Banner/promo de curso/mentoría, anuncio de producto, llamada a comprar/agendar\n- 3-4: Lifestyle vacío (autos, mansiones, viajes), motivación genérica sin método\n- 5-6: Habla del tema pero superficial o muy básico\n- 7-8: Consejo claro y aplicable, framework concreto, lección extraíble\n- 9-10: Mentor con autoridad, números/datos específicos, framework completo\n\nDevolvé SOLO un array JSON: [{"i":0,"s":7},{"i":1,"s":3},...] (i=índice 0-based, s=score 0-10).`,
+    });
+    batch.forEach((c, i) => {
+      userContent.push({ type: 'text', text: `[${i}] @${c.channel} — "${c.title.slice(0, 150)}"` });
+      userContent.push({ type: 'image_url', image_url: { url: c.thumbnail, detail: 'low' } });
+    });
+
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'Sos un curador experto de contenido viral. Evaluás videos cortos para creadores que quieren replicar fórmulas que funcionan.' },
+            { role: 'user', content: userContent },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+          max_tokens: 600,
+        }),
+      });
+      if (!res.ok) {
+        console.warn(`[vision] HTTP ${res.status}`);
+        continue;
+      }
+      const data = await res.json();
+      const raw = data?.choices?.[0]?.message?.content || '{}';
+      const parsed = JSON.parse(raw);
+      // Aceptar { scores: [...] } o array directo
+      const scores: Array<{ i: number; s: number }> = Array.isArray(parsed)
+        ? parsed
+        : parsed.scores || parsed.items || [];
+      for (const s of scores) {
+        const globalIdx = start + (s.i ?? -1);
+        if (globalIdx >= 0 && globalIdx < subset.length) {
+          // Encontrar el índice del candidato dentro del array original
+          const origIdx = candidates.indexOf(subset[globalIdx]);
+          if (origIdx >= 0 && typeof s.s === 'number') {
+            out.set(origIdx, Math.max(0, Math.min(10, s.s)));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[vision] batch ${start} falló:`, (e as Error).message);
+    }
+  }
+  console.log(`[vision] analizados ${out.size}/${subset.length} thumbnails`);
+  return out;
+}
+
 // Todas las palabras aceptables en el título (cualquier idioma)
 function getAllTerms(tema: string): string[] {
   const entry = findMapEntry(tema);
@@ -1253,6 +1335,42 @@ REGLAS NO NEGOCIABLES
     }
   } catch (e) {
     console.warn('[IA] Error:', (e as Error).message);
+  }
+
+  // ── 3.5. Vision rescore (GPT-4o-mini con thumbnails) ─────────────────────
+  // Aplicamos solo a los top 30 que pasaron el primer corte de IA (score >= minScore).
+  // Esto descarta promos disfrazadas que el texto no detecta pero el banner sí.
+  const topForVision = toScore
+    .map((v, i) => ({ v, i, ai: scoreMap.get(i) ?? 0 }))
+    .filter(x => x.ai >= minScore)
+    .sort((a, b) => b.ai - a.ai)
+    .slice(0, 30);
+
+  if (topForVision.length > 0) {
+    try {
+      const visionScores = await visionRescore(
+        topForVision.map(x => x.v),
+        tema,
+        30,
+      );
+      // Combinar: score final = (texto + visión) / 2.
+      // Si el visual contradice fuerte (>= 3 puntos menos), pesa el visual.
+      let visionAdjusted = 0;
+      visionScores.forEach((vs, subsetIdx) => {
+        const x = topForVision[subsetIdx];
+        if (!x) return;
+        const txtScore = x.ai;
+        const combined = vs <= txtScore - 3
+          ? vs                    // Visual fuertemente contradictorio → confiar en visual
+          : Math.round((txtScore + vs) / 2); // Promedio
+        scoreMap.set(x.i, combined);
+        if (combined !== txtScore) visionAdjusted++;
+      });
+      console.log(`[vision] ajustó ${visionAdjusted}/${visionScores.size} scores`);
+    } catch (e) {
+      console.warn('[vision] error:', (e as Error).message);
+      // No bloquear el flujo si vision falla
+    }
   }
 
   // ── 4. Filtro duro post-IA + agrupar por idioma ──────────────────────────
