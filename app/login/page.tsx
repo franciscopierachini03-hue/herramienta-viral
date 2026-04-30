@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import PasswordInput from '../_components/PasswordInput';
 
 export default function LoginPage() {
   return (
@@ -198,8 +199,7 @@ function Login() {
                   <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
                     Contraseña {mode === 'signup' && <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>}
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required

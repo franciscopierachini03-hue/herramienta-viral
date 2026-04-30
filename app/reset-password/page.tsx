@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import PasswordInput from '../_components/PasswordInput';
 
 // Esta página la abre el usuario tras clickear el link "Olvidé mi contraseña"
 // del correo. Cuando llegan acá, Supabase ya intercambió el code en
@@ -86,8 +87,7 @@ export default function ResetPassword() {
                     <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
                       Nueva contraseña <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>
                     </label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       required
@@ -99,8 +99,7 @@ export default function ResetPassword() {
                   </div>
                   <div>
                     <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Confirmar</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={confirm}
                       onChange={e => setConfirm(e.target.value)}
                       required
