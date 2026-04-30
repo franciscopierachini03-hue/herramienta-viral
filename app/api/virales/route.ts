@@ -1619,10 +1619,73 @@ async function enrichInstagramReels(
   return [...toEnrich, ...rest];
 }
 
+// ── Cache vía Supabase ────────────────────────────────────────────────────────
+// TTL: 24 horas. Si una búsqueda (tema+platform) se hizo en las últimas 24h,
+// devolvemos lo cacheado en lugar de re-correr todo el pipeline.
+// Tabla: public.viral_cache (cache_key PK, tema, platform, videos, fetched_at)
+const CACHE_TTL_HOURS = 24;
+
+function cacheKey(tema: string, platform: string): string {
+  return `${tema.trim().toLowerCase()}|${platform}`;
+}
+
+async function readCache(tema: string, platform: string): Promise<unknown[] | null> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const sb = createServiceClient();
+    const { data, error } = await sb
+      .from('viral_cache')
+      .select('videos, fetched_at')
+      .eq('cache_key', cacheKey(tema, platform))
+      .maybeSingle();
+    if (error || !data) return null;
+    const ageMs = Date.now() - new Date(data.fetched_at).getTime();
+    if (ageMs > CACHE_TTL_HOURS * 60 * 60 * 1000) return null;
+    return data.videos as unknown[];
+  } catch { return null; }
+}
+
+async function writeCache(tema: string, platform: string, videos: unknown[]): Promise<void> {
+  if (!Array.isArray(videos) || videos.length === 0) return;
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const sb = createServiceClient();
+    await sb.from('viral_cache').upsert(
+      {
+        cache_key: cacheKey(tema, platform),
+        tema: tema.trim().toLowerCase(),
+        platform,
+        videos,
+        fetched_at: new Date().toISOString(),
+      },
+      { onConflict: 'cache_key' },
+    );
+  } catch (e) {
+    console.warn('[cache] write error:', (e as Error).message);
+  }
+}
+
+// Helper: responde con videos y fire-and-forget escribe al cache.
+// Usar en lugar de `return Response.json({ videos })` en handlers que
+// resuelven búsquedas exitosas para que las próximas requests las tengan
+// instantáneas.
+function respondAndCache(tema: string, platform: string, videos: unknown[]) {
+  // No bloqueamos la respuesta esperando el write — best-effort.
+  void writeCache(tema, platform, videos);
+  return Response.json({ videos });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { tema, platform } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
+
+  // ── Cache hit? — devolver instantáneo si la búsqueda está fresca ────────
+  const cached = await readCache(tema, platform);
+  if (cached && cached.length > 0) {
+    console.log(`[cache] HIT ${tema}|${platform} (${cached.length} videos)`);
+    return Response.json({ videos: cached, cached: true });
+  }
 
   // ── Expansión de keywords con IA (SIEMPRE, también para temas conocidos) ─────
   // La IA enriquece con variantes nativas que el mapa no tiene
@@ -1677,7 +1740,7 @@ export async function POST(req: NextRequest) {
           // IA es muy estricta sin ellas), caemos al YouTube Data API que sí
           // devuelve videos con vistas/likes verificadas.
           if (final.length > 0) {
-            return Response.json({ videos: final });
+            return respondAndCache(tema, platform, final);
           }
           console.warn(`[virales] Serper devolvió ${unique.length} pero filtro IA dejó 0. Fallback a YouTube API.`);
         }
@@ -1692,7 +1755,7 @@ export async function POST(req: NextRequest) {
       const termToSearch = aiKeys ? temaES() : tema;
       try {
         const ytVideos = await searchYouTube(termToSearch, ytKey);
-        if (ytVideos.length > 0) return Response.json({ videos: ytVideos });
+        if (ytVideos.length > 0) return respondAndCache(tema, platform, ytVideos);
       }
       catch(e) { console.warn('YouTube API falló:', (e as Error).message); }
     }
@@ -1714,13 +1777,13 @@ export async function POST(req: NextRequest) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(videos, allTerms, 200);
           const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return Response.json({ videos: final });
+          if (final.length > 0) return respondAndCache(tema, platform, final);
           // Si el filtro IA descarta todo pero Apify devolvió contenido,
           // devolvemos top 20 por views (Apify ya viene ordenado por trending)
           const topByViewsRaw = [...videos]
             .sort((a, b) => b.viewsRaw - a.viewsRaw)
             .slice(0, 20);
-          if (topByViewsRaw.length > 0) return Response.json({ videos: topByViewsRaw });
+          if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw);
         }
       } catch(e) {
         console.warn('Apify TikTok falló:', (e as Error).message);
@@ -1783,7 +1846,7 @@ export async function POST(req: NextRequest) {
         // 2) IA cura los 250 → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
         // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos al fallback.
-        if (final.length > 0) return Response.json({ videos: final });
+        if (final.length > 0) return respondAndCache(tema, platform, final);
         console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Serper/Rapid.`);
       }
     } catch(e) {
@@ -1825,12 +1888,12 @@ export async function POST(req: NextRequest) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(videos, allTerms, 200);
           const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return Response.json({ videos: final });
+          if (final.length > 0) return respondAndCache(tema, platform, final);
           // Fallback: si IA descarta todo, devolver top 20 por views/likes
           const topByEngagement = [...videos]
             .sort((a, b) => (b.viewsRaw + b.likesRaw * 10) - (a.viewsRaw + a.likesRaw * 10))
             .slice(0, 20);
-          if (topByEngagement.length > 0) return Response.json({ videos: topByEngagement });
+          if (topByEngagement.length > 0) return respondAndCache(tema, platform, topByEngagement);
         }
       } catch(e) {
         console.warn('Apify Instagram falló:', (e as Error).message);
@@ -1891,7 +1954,7 @@ export async function POST(req: NextRequest) {
         const preFiltered = topByViews(unique, allTerms, 200);
         // 2) IA evalúa relevancia + valor → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-        if (final.length > 0) return Response.json({ videos: final });
+        if (final.length > 0) return respondAndCache(tema, platform, final);
       } catch(e) {
         console.warn('Serper Instagram falló:', (e as Error).message);
       }
