@@ -209,7 +209,7 @@ function preferredTerm(tema: string, mappedTerm: string | undefined): string {
 }
 
 // ── IA: expandir cualquier tema con GPT-4o-mini ──────────────────────────────
-interface AIKeywords { es: string[]; en: string[]; pt: string[] }
+interface AIKeywords { es: string[]; en: string[]; pt: string[]; ru?: string[]; de?: string[] }
 
 async function expandWithAI(tema: string): Promise<AIKeywords | null> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -221,28 +221,32 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.3,
-        max_tokens: 400,
+        max_tokens: 600,
         response_format: { type: 'json_object' },
         messages: [{
           role: 'system',
-          content: `Eres un experto en SEO de TikTok, Instagram y YouTube. Dado un tema, generas keywords de búsqueda potentes en 3 idiomas (español, inglés, portugués brasileño).
+          content: `Eres un experto en hashtags virales de TikTok, Instagram y YouTube. Dado un tema, generás los hashtags REALES que usan los creators GRANDES (1M+ followers) cuando publican en ese nicho.
 
 Formato ESTRICTO JSON:
-{"es":["k1","k2","k3","k4","k5"],"en":["k1","k2","k3","k4","k5"],"pt":["k1","k2","k3","k4"]}
+{"es":["k1","k2","k3","k4","k5"],"en":["k1","k2","k3","k4","k5"],"pt":["k1","k2","k3","k4","k5"],"ru":["k1","k2","k3"],"de":["k1","k2","k3"]}
 
-REGLAS:
-- 5 keywords ES, 5 EN, 4 PT — todas DIFERENTES entre sí
-- Deben ser frases reales que la gente busca en TikTok/IG (cortas, 1-3 palabras cada una)
-- Mezcla: términos directos + sinónimos + variantes coloquiales + términos técnicos
-- En inglés y portugués siempre incluye keywords NATIVAS (no traducción literal)
-- Sin artículos, sin "video sobre", sin "como hacer" largos
-- Si el tema es muy nicho, usa términos relacionados que mantengan el espíritu
+REGLAS CRÍTICAS:
+1. 5 keywords ES, 5 EN, 5 PT, 3 RU, 3 DE — todas DIFERENTES
+2. **NO uses solo el tema literal** — genera CONCEPTOS RELACIONADOS que los creators grandes usan. Ejemplo: para "dinero" no pongas solo #dinero, también #riqueza #abundancia #libertadfinanciera #mindsetganador
+3. Mezclá: tema literal (1) + sinónimos (1) + conceptos amplios del nicho (3+)
+4. Incluí keywords ASPIRACIONALES que conectan con el tema (ej: "dinero" → "millonario", "libertad", "exito")
+5. Frases cortas, 1-2 palabras (lo que va después de # en redes)
+6. Nada con espacios largos, sin "como hacer", sin artículos
+7. RU en cirílico nativo. DE con palabras alemanas reales
+
+EJEMPLO tema "dinero":
+{"es":["dinero","riqueza","libertadfinanciera","mindsetganador","mentalidadabundante"],"en":["money","wealth","financialfreedom","richmindset","entrepreneurship"],"pt":["dinheiro","riqueza","liberdadefinanceira","mentalidaderica","empreendedorismo"],"ru":["деньги","богатство","финансы"],"de":["geld","reichtum","finanzen"]}
 
 EJEMPLO tema "negocios":
-{"es":["negocios","emprendimiento","ideas de negocio","empresario","mentor de negocios"],"en":["business","entrepreneur","startup","business tips","side hustle"],"pt":["negócios","empreendedorismo","empresário","negócio próprio"]}
+{"es":["negocios","emprendimiento","empresarioexitoso","mentordenegocios","escalarTuNegocio"],"en":["business","entrepreneurship","sidehustle","businessmindset","scalingbusiness"],"pt":["negocios","empreendedorismo","empresario","escalarnegocio","mentorianegocios"],"ru":["бизнес","предприниматель","успех"],"de":["business","unternehmer","erfolg"]}
 
 EJEMPLO tema "amor consciente":
-{"es":["amor consciente","relaciones conscientes","amor real","apego seguro","relaciones sanas"],"en":["conscious love","mindful relationship","secure attachment","healthy relationship","emotional intelligence dating"],"pt":["amor consciente","relacionamento consciente","apego seguro","relação saudável"]}`,
+{"es":["amorconsciente","apegoseguro","relacionessanas","amorpropio","autoestima"],"en":["consciousLove","secureattachment","healthyrelationship","selflove","mindfulDating"],"pt":["amorconsciente","apegoseguro","relacionamentosaudavel","amorpróprio","autoestima"],"ru":["любовь","отношения","психология"],"de":["liebe","beziehung","selbstliebe"]}`,
         }, {
           role: 'user',
           content: `Tema: "${tema}"`,
@@ -975,23 +979,26 @@ async function searchViaApify(
   const entry = findMapEntry(tema);
   const allTerms = getAllTerms(tema);
 
-  // Construir keywords ES + EN + PT — CONSERVADOR.
-  // Demasiadas variantes traen hashtags off-topic (gente que pone #emprendimiento
-  // en un reel de gimnasio para visibilidad). Mantener cerca al tema original.
+  // Construir keywords ES + EN + PT + RU + DE.
+  // Ahora la IA genera conceptos RELACIONADOS (no solo traducciones literales),
+  // así pescamos los reels virales de creators grandes que NO etiquetan con la
+  // palabra literal sino con hashtags conceptuales del nicho.
   const ai = aiKeysOverride || null;
   const esKeywords = Array.from(new Set([
-    tema,                          // Siempre el tema exacto del usuario
-    ...(entry?.es || []).slice(0, 1),
-    ...(ai?.es || []).slice(0, 1),
-  ])).filter(Boolean).slice(0, 2);
+    tema,                                    // Tema literal
+    ...(ai?.es || []).slice(0, 4),           // 4 conceptos ES
+    ...(entry?.es || []).slice(0, 1),        // 1 del mapa hardcoded
+  ])).filter(Boolean).slice(0, 5);
   const enKeywords = Array.from(new Set([
+    ...(ai?.en || []).slice(0, 4),
     ...(entry?.en || []).slice(0, 1),
-    ...(ai?.en || []).slice(0, 1),
-  ])).filter(Boolean).slice(0, 1);  // Solo 1 traducción en inglés
+  ])).filter(Boolean).slice(0, 4);
   const ptKeywords = Array.from(new Set([
+    ...(ai?.pt || []).slice(0, 3),
     ...(entry?.pt || []).slice(0, 1),
-    ...(ai?.pt || []).slice(0, 1),
-  ])).filter(Boolean).slice(0, 1);  // Solo 1 traducción en portugués
+  ])).filter(Boolean).slice(0, 3);
+  const ruKeywords = (ai?.ru || []).slice(0, 2);   // 2 keywords RU
+  const deKeywords = (ai?.de || []).slice(0, 2);   // 2 keywords DE
 
   let items: unknown[] = [];
 
@@ -999,7 +1006,7 @@ async function searchViaApify(
     // clockworks/tiktok-scraper — usa el motor de búsqueda nativo de TikTok.
     // Returns posts ordered by TikTok's own virality ranking — exactamente
     // lo que se ve si abrís la app y buscás.
-    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords];
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords];
     const res = await fetch(
       `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
       {
@@ -1023,7 +1030,7 @@ async function searchViaApify(
   } else {
     // apify/instagram-scraper — busca por hashtag (motor de descubrimiento
     // nativo de IG). Cada hashtag devuelve los TOP posts ordenados por engagement.
-    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords];
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords];
     const hashtags = allKeywords.map(k =>
       `https://www.instagram.com/explore/tags/${encodeURIComponent(String(k).replace(/\s+/g,''))}/`,
     );
@@ -1035,9 +1042,9 @@ async function searchViaApify(
         body: JSON.stringify({
           directUrls: hashtags,
           resultsType: 'posts',
-          // 100 por hashtag × 3-4 hashtags = ~300-400 posts crudos.
-          // Después filtramos solo videos (típicamente <30% del feed) → ~100 videos.
-          resultsLimit: 200, // Pool grande para que los virales reales aparezcan en el top
+          // 100 por hashtag × 13-16 hashtags multilenguaje = ~1500 posts crudos.
+          // Después filtramos solo videos (~30% del feed) → ~450 videos virales.
+          resultsLimit: 100,
           addParentData: false,
         }),
       }
