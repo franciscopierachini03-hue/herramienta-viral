@@ -396,6 +396,7 @@ interface VideoCandidate {
   duration: number; thumbnail: string; url: string;
   platform: string; flag: string; langLabel: string; audioLang: string;
   enriched?: boolean; // true si las stats fueron verificadas (Instagram via instagram-looter2)
+  fromHashtag?: boolean; // true si vino de un scrape de hashtag/keyword (ya es topic-relevante)
 }
 
 // ── Análisis de calidad de comentarios ────────────────────────────────────────
@@ -510,8 +511,12 @@ function applyFilter(candidates: VideoCandidate[], allTerms: string[], level: Fi
     // Si están enriquecidas y likes es 0 explícito (verificado bajo), también descartar
     if (v.enriched && v.likesRaw === 0) return false;
 
-    // Siempre: el tema DEBE aparecer en el título limpio (en cualquier idioma)
-    if (!hasTopicInTitle(titleNorm, allTerms)) return false;
+    // El tema DEBE aparecer en el título limpio... salvo que el video haya
+    // venido de un scrape por hashtag/keyword (ya pasó por ese match en la
+    // plataforma). Apify scraper de #dinero ya devuelve solo posts del
+    // hashtag — re-exigir "dinero" en caption descarta videos virales que
+    // taggean el hashtag pero no escriben la palabra en el caption.
+    if (!v.fromHashtag && !hasTopicInTitle(titleNorm, allTerms)) return false;
 
     if (level === 'strict') {
       const audioBase = v.audioLang.split('-')[0].toLowerCase();
@@ -1032,7 +1037,7 @@ async function searchViaApify(
           resultsType: 'posts',
           // 100 por hashtag × 3-4 hashtags = ~300-400 posts crudos.
           // Después filtramos solo videos (típicamente <30% del feed) → ~100 videos.
-          resultsLimit: 100,
+          resultsLimit: 200, // Pool grande para que los virales reales aparezcan en el top
           addParentData: false,
         }),
       }
@@ -1068,6 +1073,7 @@ async function searchViaApify(
         thumbnail:   (v.covers as string[])?.[0] || (v.coverUrl as string) || '',
         url:         `https://www.tiktok.com/@${authorId}/video/${id}`,
         platform, flag, langLabel: label, audioLang: '',
+        fromHashtag: true, // ya vino de búsqueda por keyword en TikTok nativo
       };
     } else {
       // Instagram: SOLO videos/reels, descartar Images y Sidecars (fotos)
@@ -1096,13 +1102,23 @@ async function searchViaApify(
         url:         shortCode ? `https://www.instagram.com/reel/${shortCode}/` : `https://www.instagram.com/${owner}/`,
         platform, flag, langLabel: label, audioLang: '',
         enriched:    true, // Apify ya nos dio los datos completos
+        fromHashtag: true, // ya vino de scrapeo de hashtag en IG nativo
       };
     }
   });
 
   // Filtrar nulls (posts que descartamos por ser fotos o estar vacíos)
   const candidates = rawCandidates.filter((c): c is VideoCandidate => c !== null);
-  console.log(`[searchViaApify] ${platform}: ${items.length} items raw → ${candidates.length} videos válidos`);
+
+  // Ordenar por engagement (views + likes×8) ANTES del filtro para que los
+  // realmente virales (millones de vistas) lleguen primero a la IA.
+  candidates.sort((a, b) => {
+    const sa = a.viewsRaw + a.likesRaw * 8;
+    const sb = b.viewsRaw + b.likesRaw * 8;
+    return sb - sa;
+  });
+
+  console.log(`[searchViaApify] ${platform}: ${items.length} items → ${candidates.length} videos | top viral: ${candidates[0]?.viewsRaw || 0} views`);
 
   return guaranteeResults(candidates, allTerms, 12);
 }
