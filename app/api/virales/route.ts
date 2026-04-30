@@ -1013,7 +1013,7 @@ async function searchViaApify(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          searchSection: 'keyword',
+          searchSection: '',  // Vacío = búsqueda general (incluye videos)
           searchQueries: allKeywords,
           maxItems: 80, // 80 totales, distribuidos entre las queries
           shouldDownloadVideos: false,
@@ -1068,19 +1068,33 @@ async function searchViaApify(
       const id       = (v.id as string) || '';
       const authorId = (v.authorMeta as Record<string,unknown>)?.name as string || '';
       const plays    = (v.playCount as number) || 0;
-      // TikTok: descartamos posts sin engagement (algunos vienen vacíos por geo-restriction)
+      // Descartar slideshows (carruseles de fotos con música) — no son video replicable
+      if (v.isSlideshow === true) return null;
+      // Descartar posts sin engagement (geo-restricted o defectuosos)
       if (plays === 0 && !(v.diggCount as number)) return null;
+      const videoMeta = (v.videoMeta as Record<string, unknown>) || {};
+      const duration = (videoMeta.duration as number) || 0;
+      // Si no hay duración real (=slideshow disfrazado o error), descartar
+      if (duration <= 0) return null;
+      // Thumbnail: TikTok lo pone en videoMeta.coverUrl (no en covers root)
+      const thumbnail =
+        (videoMeta.coverUrl as string) ||
+        (videoMeta.originalCoverUrl as string) ||
+        (v.covers as string[])?.[0] ||
+        (v.coverUrl as string) ||
+        '';
       return {
         id,
         title:     (v.text as string)?.slice(0, 120) || 'Video de TikTok',
         channel:   `@${authorId}`,
         views:       fmt(plays), likes: fmt((v.diggCount as number) || 0),
         viewsRaw:    plays, likesRaw: (v.diggCount as number) || 0, commentsRaw: (v.commentCount as number) || 0, commentScore: 0.5,
-        duration:    (v.videoMeta as Record<string,unknown>)?.duration as number || 30,
-        thumbnail:   (v.covers as string[])?.[0] || (v.coverUrl as string) || '',
+        duration,
+        thumbnail,
         url:         `https://www.tiktok.com/@${authorId}/video/${id}`,
-        platform, flag, langLabel: label, audioLang: '',
+        platform, flag, langLabel: label, audioLang: (v.textLanguage as string) || '',
         fromHashtag: true, // ya vino de búsqueda por keyword en TikTok nativo
+        enriched: true,
       };
     } else {
       // Instagram: SOLO videos/reels, descartar Images y Sidecars (fotos)
@@ -1552,36 +1566,34 @@ REGLAS NO NEGOCIABLES
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  // Cantidad mínima garantizada: si quedan menos de TARGET_MIN, relajamos
-  // los thresholds escalonadamente hasta llegar a la cantidad objetivo.
-  // Mejor 8 resultados decentes que 2 perfectos.
-  const TARGET_MIN = 8;
+  // Cantidad mínima garantizada — pero con FLOOR de calidad.
+  // Mejor 5 virales reales que 8 mediocres rellenando.
+  const TARGET_MIN = 6;
+  // Floor INNEGOCIABLE: nunca rellenar con videos de menos de 100K vistas o 5K likes
+  const QUALITY_FLOOR_VIEWS = 100_000;
+  const QUALITY_FLOOR_LIKES = 5_000;
 
   if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
 
-  // Pasada 2: relajar HARD_MIN a la mitad (15K vistas / 750 likes) y AI a 5
+  // Pasada 2: rellenar SOLO con candidatos que cumplen el quality floor.
   const fillerSet = new Set(finalOrdered.map(v => v.url));
-  for (const c of candidates) {
+  const candidatesByEngagement = [...candidates].sort(
+    (a, b) => (b.viewsRaw + b.likesRaw * 8) - (a.viewsRaw + a.likesRaw * 8),
+  );
+  for (const c of candidatesByEngagement) {
     if (finalOrdered.length >= TARGET_MIN) break;
     if (fillerSet.has(c.url)) continue;
     if (looksLikePromo(c.title)) continue;
-    if (c.viewsRaw > 0 && c.viewsRaw < 15_000) continue;
-    if (c.likesRaw > 0 && c.likesRaw < 750) continue;
+    // Si tiene stats, exigir el floor de calidad
+    if (c.viewsRaw > 0 && c.viewsRaw < QUALITY_FLOOR_VIEWS) continue;
+    if (c.likesRaw > 0 && c.likesRaw < QUALITY_FLOOR_LIKES) continue;
     finalOrdered.push(c);
     fillerSet.add(c.url);
   }
 
-  // Pasada 3: si aun así no llegamos, ordenar TODO por engagement y completar
-  if (finalOrdered.length < TARGET_MIN) {
-    const remaining = [...candidates]
-      .filter(v => !fillerSet.has(v.url) && !looksLikePromo(v.title))
-      .sort((a, b) => scoreComposite(b) - scoreComposite(a));
-    for (const c of remaining) {
-      if (finalOrdered.length >= TARGET_MIN) break;
-      finalOrdered.push(c);
-    }
-  }
-
+  // No hay pasada 3 con relax total. Si después del floor no llegamos a 6,
+  // devolvemos lo que haya (ej. 4 resultados PERFECTOS) en vez de inflar
+  // con junk. Mejor menos cantidad que peor calidad.
   return finalOrdered.slice(0, topOutput);
 }
 

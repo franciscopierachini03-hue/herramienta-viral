@@ -108,7 +108,10 @@ const PLAT_ICON: Record<string, string> = { youtube: '▶', tiktok: '♪', insta
 
 function proxyThumb(url: string | undefined, platform: string): string | undefined {
   if (!url) return undefined;
-  if (platform === 'instagram') return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  // Instagram y TikTok bloquean hot-linking sin referer correcto → proxy server-side
+  if (platform === 'instagram' || platform === 'tiktok') {
+    return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  }
   return url;
 }
 
