@@ -75,6 +75,59 @@ const BLACKLIST = [
   'cancion del','bebe','bebé','potty','popo','popó','baño bebe',
 ];
 
+// ── Patrones de PROMO disfrazada ──────────────────────────────────────────────
+// Reels/videos que en vez de enseñar, venden cursos, mentorías o productos.
+// Si el caption tiene cualquiera de estos, score IA cae a la mitad.
+// Detectamos en caption (no en título) porque las llamadas a la acción suelen
+// estar al final del caption, no en el primer renglón visible.
+const PROMO_PATTERNS = [
+  // CTAs comerciales explícitos
+  /\blink\s*(en|in|na)\s*(la\s*)?bio\b/i,
+  /\blinkin\.?bio\b/i,
+  /\blinkbi\b/i,
+  /\bdm\s+(me|para|for)\b/i,
+  /\benv[ií]ame\s+(un\s+)?(dm|mensaje|whats)/i,
+  /\bmand[áa]me\s+(un\s+)?(dm|mensaje|whats)/i,
+  /\bescribime\s+(al\s+)?(whats|dm|priv)/i,
+  /\bagenda\s+(tu\s+)?(cita|llamada|reuni[óo]n|sesi[óo]n)\b/i,
+  /\bagenda\s+aqu[íi]\b/i,
+  /\bcompr[áa]\s+(ya|aqu[íi]|tu)\b/i,
+  /\bregistr[áa]te\s+(ya|aqu[íi]|gratis)\b/i,
+  /\binscr[íi]bete\s+(ya|aqu[íi]|gratis)\b/i,
+  // Productos/servicios pagos
+  /\b(curso|mentor[íi]a|asesor[íi]a|consultor[íi]a|coaching|workshop|masterclass|webinar|programa)\s+(de|para|gratuito|gratis|en\s+vivo|completo|exclusivo)\b/i,
+  /\b(course|mentorship|consulting|coaching|workshop|masterclass|webinar|program)\s+(for|on|free|live|complete|exclusive)\b/i,
+  /\b(curso|programa|masterclass|webinar)\s+gratis\b/i,
+  /\b\$\s?\d{2,5}\s*(usd|mxn|cop|ars|pesos|d[óo]lares)?\s*(al\s+mes|mensual|por\s+mes)?/i, // Precios visibles
+  // Patrones de "llamada a acción" intrusiva
+  /\bcomenta\s+["'']?(yo|si|listo|info|interes|🙋)/i,
+  /\bcomenta\s+(la\s+palabra)\b/i,
+  /\benv[ií]o\s+(toda\s+)?(la\s+)?(info|informaci[óo]n)\s+(por|via|al)\b/i,
+  /\bcuposlimitados\b/i,
+  /\bcupos\s+limitados\b/i,
+  /\b[úu]ltimos\s+cupos\b/i,
+  /\bsolo\s+\d+\s+cupos\b/i,
+  // WhatsApp / contacto directo
+  /(\+?[1-9]{1,3}\s?)?\d{2,4}\s?\d{3,4}\s?\d{4}/,  // teléfono c/ código
+  /\bwhats?app\b.{0,30}\d/i,
+  // Bio/IG-specific
+  /\bsigueme\b.{0,50}m[áa]s\s+contenido/i,
+  /\bsuscr[íi]bete\b.{0,30}canal/i,
+];
+
+function looksLikePromo(caption: string): boolean {
+  if (!caption) return false;
+  // Si el caption tiene 3+ patterns = casi seguro promo
+  let hits = 0;
+  for (const re of PROMO_PATTERNS) {
+    if (re.test(caption)) {
+      hits++;
+      if (hits >= 2) return true; // Con 2 ya descartamos
+    }
+  }
+  return false;
+}
+
 // Idiomas de audio europeos/americanos permitidos
 const ALLOWED_AUDIO = new Set([
   'es','en','pt','de','fr','it','nl','pl','ro','sv','no','da','ca','gl','eu',''
@@ -1216,12 +1269,16 @@ REGLAS NO NEGOCIABLES
   const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
-  let dropped = { lowAi: 0, lowViews: 0, lowLikes: 0, noStats: 0 };
+  let dropped = { lowAi: 0, lowViews: 0, lowLikes: 0, noStats: 0, promo: 0 };
 
   for (let i = 0; i < toScore.length; i++) {
     const v  = toScore[i];
     const ai = scoreMap.get(i) ?? 0;
     if (ai < minScore) { dropped.lowAi++; continue; }
+
+    // Filtro de promo disfrazada: si el caption suena a venta de
+    // curso/mentoría/DM/whatsapp, descartar — no es contenido replicable.
+    if (looksLikePromo(v.title)) { dropped.promo++; continue; }
 
     const hasStats = v.viewsRaw > 0 || v.likesRaw > 0;
 
@@ -1286,16 +1343,41 @@ REGLAS NO NEGOCIABLES
   finalScored.sort((a, b) => b.score - a.score);
   const finalOrdered = finalScored.map(s => s.v);
 
-  console.log(`[IA] ${toScore.length} evaluados | descartados: lowAi=${dropped.lowAi} lowViews=${dropped.lowViews} lowLikes=${dropped.lowLikes} noStats=${dropped.noStats} | aprobados: ${finalOrdered.length} | distribución: ${
+  console.log(`[IA] ${toScore.length} evaluados | descartados: lowAi=${dropped.lowAi} promo=${dropped.promo} lowViews=${dropped.lowViews} lowLikes=${dropped.lowLikes} noStats=${dropped.noStats} | aprobados: ${finalOrdered.length} | distribución: ${
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  if (finalOrdered.length > 0) return finalOrdered;
-  // Fallback: si la IA descarta todo, devolver top por engagement (con stats verificadas)
-  return [...candidates]
-    .filter(v => v.viewsRaw >= HARD_MIN_VIEWS && v.likesRaw >= HARD_MIN_LIKES)
-    .sort((a, b) => scoreComposite(b) - scoreComposite(a))
-    .slice(0, topOutput);
+  // Cantidad mínima garantizada: si quedan menos de TARGET_MIN, relajamos
+  // los thresholds escalonadamente hasta llegar a la cantidad objetivo.
+  // Mejor 8 resultados decentes que 2 perfectos.
+  const TARGET_MIN = 8;
+
+  if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
+
+  // Pasada 2: relajar HARD_MIN a la mitad (15K vistas / 750 likes) y AI a 5
+  const fillerSet = new Set(finalOrdered.map(v => v.url));
+  for (const c of candidates) {
+    if (finalOrdered.length >= TARGET_MIN) break;
+    if (fillerSet.has(c.url)) continue;
+    if (looksLikePromo(c.title)) continue;
+    if (c.viewsRaw > 0 && c.viewsRaw < 15_000) continue;
+    if (c.likesRaw > 0 && c.likesRaw < 750) continue;
+    finalOrdered.push(c);
+    fillerSet.add(c.url);
+  }
+
+  // Pasada 3: si aun así no llegamos, ordenar TODO por engagement y completar
+  if (finalOrdered.length < TARGET_MIN) {
+    const remaining = [...candidates]
+      .filter(v => !fillerSet.has(v.url) && !looksLikePromo(v.title))
+      .sort((a, b) => scoreComposite(b) - scoreComposite(a));
+    for (const c of remaining) {
+      if (finalOrdered.length >= TARGET_MIN) break;
+      finalOrdered.push(c);
+    }
+  }
+
+  return finalOrdered.slice(0, topOutput);
 }
 
 // ── Enriquecer reels de Instagram con engagement real vía Apify ──────────────
