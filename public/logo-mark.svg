@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="lmBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#c13584"/>
+    </linearGradient>
+    <linearGradient id="lmStrand" x1="0" y1="12" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.7"/>
+    </linearGradient>
+    <filter id="lmGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square fondo con gradiente -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#lmBg)"/>
+
+  <!-- Doble hélice de ADN estilizada -->
+  <g filter="url(#lmGlow)" stroke="url(#lmStrand)" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <!-- Strand 1 -->
+    <path d="M22 12 C 42 22, 22 32, 42 42 C 22 52, 42 62, 42 62" transform="translate(0,-2)"/>
+    <!-- Strand 2 (espejada) -->
+    <path d="M42 12 C 22 22, 42 32, 22 42 C 42 52, 22 62, 22 62" transform="translate(0,-2)"/>
+  </g>
+
+  <!-- Travesaños (rungs) de la doble hélice -->
+  <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.85">
+    <line x1="26" y1="17" x2="38" y2="17"/>
+    <line x1="22" y1="27" x2="42" y2="27"/>
+    <line x1="26" y1="37" x2="38" y2="37"/>
+    <line x1="22" y1="47" x2="42" y2="47"/>
+  </g>
+</svg>

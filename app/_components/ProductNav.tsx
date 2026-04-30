@@ -38,10 +38,9 @@ export default function ProductNav({ active }: { active: Active }) {
     <div className="flex items-center justify-between mb-10 gap-4 flex-wrap">
       {/* Logo + título */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', boxShadow: '0 0 20px #7c3aed55' }}>
-          🧬
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-mark.svg" alt="ViralADN" width={40} height={40}
+          style={{ filter: 'drop-shadow(0 0 18px #7c3aed55)' }} />
         <div>
           <h1 className="text-xl font-bold tracking-tight">{meta.title}</h1>
           <p className="text-xs" style={{ color: '#555' }}>{meta.sub}</p>

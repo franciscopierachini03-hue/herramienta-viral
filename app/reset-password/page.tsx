@@ -56,10 +56,9 @@ export default function ResetPassword() {
     <main className="min-h-screen text-white flex flex-col" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
       <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-lg"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', boxShadow: '0 0 20px #7c3aed55' }}>
-            🧬
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt="ViralADN" width={36} height={36}
+            style={{ filter: 'drop-shadow(0 0 14px #7c3aed55)' }} />
           <span className="text-lg font-bold">ViralADN</span>
         </Link>
       </nav>

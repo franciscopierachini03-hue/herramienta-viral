@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" fill="none">
+  <defs>
+    <linearGradient id="lBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#c13584"/>
+    </linearGradient>
+    <linearGradient id="lText" x1="64" y1="0" x2="280" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#c4b5fd"/>
+    </linearGradient>
+    <linearGradient id="lADN" x1="180" y1="0" x2="270" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="lStrand" x1="0" y1="12" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark cuadrado -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#lBg)"/>
+
+  <!-- Doble hélice -->
+  <g stroke="url(#lStrand)" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <path d="M22 10 C 42 20, 22 30, 42 40 C 22 50, 42 60, 42 60"/>
+    <path d="M42 10 C 22 20, 42 30, 22 40 C 42 50, 22 60, 22 60"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.85">
+    <line x1="26" y1="15" x2="38" y2="15"/>
+    <line x1="22" y1="25" x2="42" y2="25"/>
+    <line x1="26" y1="35" x2="38" y2="35"/>
+    <line x1="22" y1="45" x2="42" y2="45"/>
+    <line x1="26" y1="55" x2="38" y2="55"/>
+  </g>
+
+  <!-- Wordmark "Viral" + "ADN" -->
+  <text x="78" y="44"
+    font-family="-apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+    font-weight="800"
+    font-size="32"
+    letter-spacing="-1"
+    fill="url(#lText)">Viral</text>
+  <text x="178" y="44"
+    font-family="-apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+    font-weight="800"
+    font-size="32"
+    letter-spacing="-1"
+    fill="url(#lADN)">ADN</text>
+</svg>
