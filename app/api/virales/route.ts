@@ -745,6 +745,70 @@ async function searchYouTube(tema: string, apiKey: string) {
   return final;
 }
 
+// ── Enriquecer YouTube Shorts con stats reales (vía Data API) ──────────────
+// Serper devuelve URLs sin views/likes. Si no enriquecemos, el filtro de viralidad
+// no puede descartar videos con 1 like. Hacemos UNA llamada batch al Data API
+// (50 IDs por request) para traer los stats de todos los candidatos.
+function extractYoutubeId(url: string): string | null {
+  const m1 = url.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/);
+  if (m1) return m1[1];
+  const m2 = url.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m2) return m2[1];
+  const m3 = url.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (m3) return m3[1];
+  return null;
+}
+
+async function enrichYouTubeStats(
+  candidates: VideoCandidate[],
+  ytKey: string,
+): Promise<void> {
+  // Mapear URL → candidate (con su id de YouTube)
+  const idToCandidate = new Map<string, VideoCandidate>();
+  for (const c of candidates) {
+    const id = extractYoutubeId(c.url);
+    if (id) idToCandidate.set(id, c);
+  }
+  if (idToCandidate.size === 0) return;
+
+  const ids = Array.from(idToCandidate.keys());
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) batches.push(ids.slice(i, i + 50));
+
+  await Promise.all(batches.map(async batch => {
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${batch.join(',')}&key=${ytKey}`,
+      );
+      if (!res.ok) {
+        console.warn(`[enrichYT] HTTP ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      for (const v of (data.items || [])) {
+        const c = idToCandidate.get(v.id);
+        if (!c) continue;
+        const views = parseInt(v.statistics?.viewCount || '0', 10);
+        const likes = parseInt(v.statistics?.likeCount || '0', 10);
+        const comments = parseInt(v.statistics?.commentCount || '0', 10);
+        if (views > 0) { c.viewsRaw = views; c.views = fmt(views); }
+        if (likes > 0) { c.likesRaw = likes; c.likes = fmt(likes); }
+        if (comments > 0) c.commentsRaw = comments;
+        if (v.snippet?.title) c.title = v.snippet.title;
+        if (v.snippet?.channelTitle) c.channel = v.snippet.channelTitle;
+        if (v.snippet?.thumbnails?.medium?.url) c.thumbnail = v.snippet.thumbnails.medium.url;
+        if (v.contentDetails?.duration) c.duration = parseDuration(v.contentDetails.duration);
+        c.enriched = true;
+      }
+    } catch (e) {
+      console.warn(`[enrichYT] error:`, (e as Error).message);
+    }
+  }));
+
+  const enrichedCount = candidates.filter(c => c.enriched).length;
+  console.log(`[enrichYT] enriched ${enrichedCount}/${candidates.length} YouTube candidates`);
+}
+
 // ── TikTok — TikWM (gratis, sin cuota) ───────────────────────────────────────
 interface TikWMVideo {
   video_id?: string; title?: string;
@@ -1733,6 +1797,13 @@ export async function POST(req: NextRequest) {
           seen.add(v.url); return true;
         });
         if (unique.length > 0) {
+          // Enriquecer con stats reales del YouTube Data API antes de filtrar.
+          // Sin esto, Serper devuelve URLs vacías y el filtro de virality
+          // (HARD_MIN_VIEWS/LIKES) no puede aplicar — colábamos shorts con 1 like.
+          if (ytKey) {
+            await enrichYouTubeStats(unique, ytKey);
+          }
+
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(unique, allTerms, 250);
           const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
