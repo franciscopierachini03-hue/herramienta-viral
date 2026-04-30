@@ -211,6 +211,28 @@ function preferredTerm(tema: string, mappedTerm: string | undefined): string {
 // ── IA: expandir cualquier tema con GPT-4o-mini ──────────────────────────────
 interface AIKeywords { es: string[]; en: string[]; pt: string[]; ru?: string[]; de?: string[] }
 
+// Detectar el idioma del término buscado por el usuario.
+// Heurística simple: caracteres especiales + palabras frecuentes.
+function detectQueryLanguage(tema: string): 'es' | 'en' | 'pt' | 'de' | 'ru' {
+  const t = tema.toLowerCase().trim();
+  // Cirílico → ruso
+  if (/[Ѐ-ӿ]/.test(tema)) return 'ru';
+  // Caracteres especiales españoles
+  if (/[ñáéíóú¿¡]/.test(tema)) return 'es';
+  // Caracteres alemanes
+  if (/[äöüß]/.test(tema)) return 'de';
+  // Caracteres portugueses (combinaciones únicas)
+  if (/[ãõç]/.test(tema) || /(ção|nho|nha)$/.test(t)) return 'pt';
+  // Palabras frecuentes ES
+  const esWords = ['dinero','negocio','negocios','amor','éxito','exito','salud','belleza','familia','viaje','casa','auto','comer','trabajo','vida','ventas','marketing','crecer','aprender','enseñar','enseñanza','productividad','psicología','psicologia','mente','cuerpo','mejor','rápido','rapido','fácil','facil','consejo','consejos','tip','tips','cómo','como'];
+  if (esWords.some(w => new RegExp(`\\b${w}\\b`).test(t))) return 'es';
+  // Palabras frecuentes PT
+  const ptWords = ['dinheiro','negócio','sucesso','saúde','vida','amor','beleza','viagem'];
+  if (ptWords.some(w => new RegExp(`\\b${w}\\b`).test(t))) return 'pt';
+  // Default: inglés
+  return 'en';
+}
+
 async function expandWithAI(tema: string): Promise<AIKeywords | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -1306,6 +1328,10 @@ async function aiScoreRelevance(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || candidates.length === 0) return candidates.slice(0, topOutput);
 
+  // Idioma del query → para boostear contenido en ese idioma
+  const queryLang = detectQueryLanguage(tema);
+  console.log(`[aiScore] queryLang detected: ${queryLang} for "${tema}"`);
+
   // ── 1. Agrupar por idioma para cuotas balanceadas ─────────────────────────
   const byLang = new Map<string, VideoCandidate[]>();
   for (const c of candidates) {
@@ -1480,11 +1506,12 @@ REGLAS NO NEGOCIABLES
   //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
   //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
   type Scored = { v: VideoCandidate; ai: number; viralScore: number };
-  // Umbrales para resultados realmente virales (al nivel del search nativo
-  // de TikTok/IG): mínimo 30K vistas y 1.500 likes.
-  // Sin stats verificables → exigir AI muy convencida (>=8).
-  const HARD_MIN_VIEWS = 30_000;
-  const HARD_MIN_LIKES = 1_500;
+  // Umbrales reescalados — solo videos REALMENTE virales pasan.
+  // Antes 30K/1.5K era muy permisivo y dejaba colar resultados de 50K vistas.
+  // Ahora 150K vistas y 7K likes mínimo.
+  // Sin stats verificables → AI debe estar muy convencida (>=8).
+  const HARD_MIN_VIEWS = 150_000;
+  const HARD_MIN_LIKES = 7_000;
   const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
@@ -1512,7 +1539,14 @@ REGLAS NO NEGOCIABLES
     // Score viral combinado: IA (0-10) × log de vistas × (1 + 5 * engagement)
     const views      = Math.max(v.viewsRaw, 1);
     const engagement = v.viewsRaw > 0 ? v.likesRaw / v.viewsRaw : 0;
-    const viralScore = ai * Math.log10(views + 1) * (1 + 5 * Math.min(engagement, 0.2));
+    // Bonus por matchear el idioma del query del usuario.
+    // Si buscó en español, contenido en español tiene 60% de boost — los virales
+    // top mundialmente suelen ser en inglés y pisan los resultados regionales.
+    const audioLangShort = (v.audioLang || '').split('-')[0].toLowerCase();
+    const langMatchBonus = audioLangShort === queryLang ? 1.6
+      : (queryLang === 'es' && audioLangShort === '') ? 1.1  // sin lang reportado, neutral leve
+      : 1.0;
+    const viralScore = ai * Math.log10(views + 1) * (1 + 5 * Math.min(engagement, 0.2)) * langMatchBonus;
 
     const k = v.langLabel || 'Otros';
     if (!scoredByLang.has(k)) scoredByLang.set(k, []);
@@ -1566,12 +1600,13 @@ REGLAS NO NEGOCIABLES
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  // Cantidad mínima garantizada — pero con FLOOR de calidad.
-  // Mejor 5 virales reales que 8 mediocres rellenando.
+  // Cantidad mínima garantizada — pero con FLOOR de calidad ALTO.
+  // Mejor 4 virales reales (1M+ vistas) que 8 mediocres rellenando.
   const TARGET_MIN = 6;
-  // Floor INNEGOCIABLE: nunca rellenar con videos de menos de 100K vistas o 5K likes
-  const QUALITY_FLOOR_VIEWS = 100_000;
-  const QUALITY_FLOOR_LIKES = 5_000;
+  // Floor INNEGOCIABLE para fillers: 250K vistas / 12K likes.
+  // Si no llegamos a 6 con esto, devolvemos lo que haya.
+  const QUALITY_FLOOR_VIEWS = 250_000;
+  const QUALITY_FLOOR_LIKES = 12_000;
 
   if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
 
