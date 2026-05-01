@@ -1506,12 +1506,13 @@ REGLAS NO NEGOCIABLES
   //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
   //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
   type Scored = { v: VideoCandidate; ai: number; viralScore: number };
-  // Umbrales reescalados — solo videos REALMENTE virales pasan.
-  // Antes 30K/1.5K era muy permisivo y dejaba colar resultados de 50K vistas.
-  // Ahora 150K vistas y 7K likes mínimo.
-  // Sin stats verificables → AI debe estar muy convencida (>=8).
-  const HARD_MIN_VIEWS = 150_000;
-  const HARD_MIN_LIKES = 7_000;
+  // Umbrales calibrados:
+  //   - Estricto (HARD_MIN) = 60K vistas / 3K likes — descarta cuentas chicas/promo,
+  //     deja pasar contenido decente de creators medianos.
+  //   - Para temas nicho (desarrollo personal, etc.) este corte rinde 8-15 resultados.
+  //   - Sin stats verificables → AI debe estar muy convencida (>=8).
+  const HARD_MIN_VIEWS = 60_000;
+  const HARD_MIN_LIKES = 3_000;
   const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
@@ -1539,12 +1540,12 @@ REGLAS NO NEGOCIABLES
     // Score viral combinado: IA (0-10) × log de vistas × (1 + 5 * engagement)
     const views      = Math.max(v.viewsRaw, 1);
     const engagement = v.viewsRaw > 0 ? v.likesRaw / v.viewsRaw : 0;
-    // Bonus por matchear el idioma del query del usuario.
-    // Si buscó en español, contenido en español tiene 60% de boost — los virales
-    // top mundialmente suelen ser en inglés y pisan los resultados regionales.
+    // Bonus por matchear idioma del query del usuario, pero moderado:
+    // 30% más al match (no 60%) para que contenido viral global en otro idioma
+    // siga siendo competitivo en temas nicho con poco contenido regional.
     const audioLangShort = (v.audioLang || '').split('-')[0].toLowerCase();
-    const langMatchBonus = audioLangShort === queryLang ? 1.6
-      : (queryLang === 'es' && audioLangShort === '') ? 1.1  // sin lang reportado, neutral leve
+    const langMatchBonus = audioLangShort === queryLang ? 1.3
+      : (queryLang === 'es' && audioLangShort === '') ? 1.05
       : 1.0;
     const viralScore = ai * Math.log10(views + 1) * (1 + 5 * Math.min(engagement, 0.2)) * langMatchBonus;
 
@@ -1600,13 +1601,12 @@ REGLAS NO NEGOCIABLES
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  // Cantidad mínima garantizada — pero con FLOOR de calidad ALTO.
-  // Mejor 4 virales reales (1M+ vistas) que 8 mediocres rellenando.
-  const TARGET_MIN = 6;
-  // Floor INNEGOCIABLE para fillers: 250K vistas / 12K likes.
-  // Si no llegamos a 6 con esto, devolvemos lo que haya.
-  const QUALITY_FLOOR_VIEWS = 250_000;
-  const QUALITY_FLOOR_LIKES = 12_000;
+  // Cantidad mínima garantizada — apuntamos a 8 resultados con piso decente.
+  const TARGET_MIN = 8;
+  // Floor para fillers: 50K vistas / 2K likes — videos de creators medianos
+  // con engagement real (no mediocre).
+  const QUALITY_FLOOR_VIEWS = 50_000;
+  const QUALITY_FLOOR_LIKES = 2_000;
 
   if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
 
