@@ -1072,9 +1072,10 @@ async function searchViaApify(
         body: JSON.stringify({
           directUrls: hashtags,
           resultsType: 'posts',
-          // 200 por hashtag × ~22 hashtags = ~4400 posts crudos.
-          // Después filtramos solo videos (~30% del feed) → ~1300 videos virales.
-          resultsLimit: 200,
+          // 150 por hashtag × ~22 hashtags = ~3300 posts crudos.
+          // Después filtramos solo videos (~30% del feed) → ~1000 videos virales.
+          // 150 vs 200 evita timeouts en hashtags muy fotograficos.
+          resultsLimit: 150,
           addParentData: false,
         }),
       }
@@ -1086,7 +1087,12 @@ async function searchViaApify(
     items = await res.json();
   }
 
-  if (!Array.isArray(items) || items.length === 0) throw new Error('Sin resultados de Apify');
+  // Si Apify literalmente no devolvió posts (raro), throw para que el caller pruebe fallback
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('Sin resultados de Apify');
+  }
+  // Si devolvió posts pero ninguno es video (típico en hashtags muy fotograficos como #cerveza),
+  // NO throw — devolvemos array vacío para que el caller decida si caer a fallback o no.
 
   const flag  = platform === 'tiktok' ? '🎵' : '📸';
   const label = platform === 'tiktok' ? 'TikTok' : 'Instagram';
@@ -2034,7 +2040,9 @@ export async function POST(req: NextRequest) {
     const rapidKey   = process.env.RAPIDAPI_KEY;
 
     // 1. Apify — PRIMARIO: hashtag scraper con engagement real.
-    // Igual que abrir IG y buscar el hashtag — top posts ordenados por likes/views.
+    // Tracking si Apify funcionó pero el tema simplemente NO tiene reels virales
+    // en IG (típico para temas muy fotograficos como #cerveza, #comida, etc.)
+    let apifyWorkedButEmpty = false;
     if (apifyToken) {
       try {
         const videos = await searchViaApify(tema, 'instagram', apifyToken, aiKeys);
@@ -2048,10 +2056,21 @@ export async function POST(req: NextRequest) {
             .sort((a, b) => (b.viewsRaw + b.likesRaw * 10) - (a.viewsRaw + a.likesRaw * 10))
             .slice(0, 20);
           if (topByEngagement.length > 0) return respondAndCache(tema, platform, topByEngagement);
+        } else {
+          // Apify funcionó pero devolvió 0 videos = tema sin contenido viral en IG.
+          // No tiene sentido caer a RapidAPI (que va a fallar igual). Mensaje claro.
+          apifyWorkedButEmpty = true;
         }
       } catch(e) {
         console.warn('Apify Instagram falló:', (e as Error).message);
       }
+    }
+
+    // Si Apify funcionó pero no hay videos del tema → mensaje claro, no RapidAPI
+    if (apifyWorkedButEmpty) {
+      return Response.json({
+        error: `No encontramos reels virales en Instagram para "${tema}". Probá un tema más popular o buscá en TikTok/YouTube.`,
+      }, { status: 422 });
     }
 
     // 2. Serper — fallback (Google search en site:instagram.com)
