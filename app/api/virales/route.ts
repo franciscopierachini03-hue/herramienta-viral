@@ -1045,7 +1045,7 @@ async function searchViaApify(
         body: JSON.stringify({
           searchSection: '',  // Vacío = búsqueda general (incluye videos)
           searchQueries: allKeywords,
-          maxItems: 80, // 80 totales, distribuidos entre las queries
+          maxItems: 200, // 200 totales, distribuidos entre las queries para más cobertura
           shouldDownloadVideos: false,
           shouldDownloadCovers: false,
           shouldDownloadSubtitles: false,
@@ -1072,9 +1072,9 @@ async function searchViaApify(
         body: JSON.stringify({
           directUrls: hashtags,
           resultsType: 'posts',
-          // 100 por hashtag × 13-16 hashtags multilenguaje = ~1500 posts crudos.
-          // Después filtramos solo videos (~30% del feed) → ~450 videos virales.
-          resultsLimit: 100,
+          // 200 por hashtag × ~22 hashtags = ~4400 posts crudos.
+          // Después filtramos solo videos (~30% del feed) → ~1300 videos virales.
+          resultsLimit: 200,
           addParentData: false,
         }),
       }
@@ -1431,8 +1431,11 @@ EJEMPLOS DE CALIBRACIÓN
 ═══════════════════════════════════════
 REGLAS NO NEGOCIABLES
 ═══════════════════════════════════════
-1. **TEMA DEL USUARIO ES PRIORIDAD ABSOLUTA.** Si el reel NO se conecta directamente con "${tema}" → score máximo 4. Aunque el reel sea bueno por sí mismo, si está fuera del tema buscado, no le sirve al usuario.
-2. **Adyacencia mide así:** habla DIRECTAMENTE de "${tema}" → 7+. Habla de un tema relacionado pero MENCIONA "${tema}" → 5-6. Tema relacionado que NO menciona "${tema}" → máximo 4 (descartado). Off-topic total (ej: lifestyle, gym, 5amroutine) → 0-2.
+1. **RELEVANCIA AL TEMA del usuario:** prioridad alta pero no excluyente.
+2. **Adyacencia se evalúa así:**
+   - Habla DIRECTAMENTE de "${tema}" → 7+ (siempre que tenga calidad)
+   - Habla de un nicho cercano y útil para el creador del tema (ej: para "negocios" → emprendimiento, escalar, ventas, marketing) → 5-7
+   - Tema completamente diferente (ej: para "negocios" → salud, gym, recetas) → 0-3
 3. Sé ULTRA ESTRICTO con la relevancia al tema. Ante la duda, baja el score 2 puntos.
 4. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
 5. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
@@ -1517,13 +1520,12 @@ REGLAS NO NEGOCIABLES
   //  • Si tiene stats verificadas → views >= 10K Y likes >= 500
   //  • Si stats están en 0 (no enriquecido) → solo entra si la IA le dio >= 8
   type Scored = { v: VideoCandidate; ai: number; viralScore: number };
-  // Umbrales calibrados:
-  //   - Estricto (HARD_MIN) = 60K vistas / 3K likes — descarta cuentas chicas/promo,
-  //     deja pasar contenido decente de creators medianos.
-  //   - Para temas nicho (desarrollo personal, etc.) este corte rinde 8-15 resultados.
+  // Umbrales calibrados para un pool grande:
+  //   - Estricto (HARD_MIN) = 40K vistas / 2K likes — sigue descartando contenido
+  //     mediocre, pero permite que más videos virales medianos pasen.
   //   - Sin stats verificables → AI debe estar muy convencida (>=8).
-  const HARD_MIN_VIEWS = 60_000;
-  const HARD_MIN_LIKES = 3_000;
+  const HARD_MIN_VIEWS = 40_000;
+  const HARD_MIN_LIKES = 2_000;
   const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
@@ -1612,12 +1614,12 @@ REGLAS NO NEGOCIABLES
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  // Cantidad mínima garantizada — apuntamos a 8 resultados con piso decente.
-  const TARGET_MIN = 8;
-  // Floor para fillers: 50K vistas / 2K likes — videos de creators medianos
-  // con engagement real (no mediocre).
-  const QUALITY_FLOOR_VIEWS = 50_000;
-  const QUALITY_FLOOR_LIKES = 2_000;
+  // Cantidad objetivo: 25 resultados de calidad consistente.
+  const TARGET_MIN = 25;
+  // Floor para fillers: 30K vistas / 1.5K likes — videos de creators medianos
+  // con engagement real (no mediocre, no spam).
+  const QUALITY_FLOOR_VIEWS = 30_000;
+  const QUALITY_FLOOR_LIKES = 1_500;
 
   if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
 
