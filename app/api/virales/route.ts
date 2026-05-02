@@ -77,10 +77,14 @@ const BLACKLIST = [
 
 // ── Patrones de PROMO disfrazada ──────────────────────────────────────────────
 // Reels/videos que en vez de enseñar, venden cursos, mentorías o productos.
-// Si el caption tiene cualquiera de estos, score IA cae a la mitad.
-// Detectamos en caption (no en título) porque las llamadas a la acción suelen
-// estar al final del caption, no en el primer renglón visible.
+// Detectamos en el título/caption — si hay 2+ matches, descartamos.
 const PROMO_PATTERNS = [
+  // Cursos/academias específicas de trading/crypto/forex (mucho ruido en #dinero)
+  /\b(curso|academia|formaci[óo]n|programa)\s+(de\s+)?(trading|forex|crypto|bolsa|inversiones?)\b/i,
+  /\b(se[ñn]ales|alertas)\s+(de\s+)?(trading|forex|crypto|bitcoin)\b/i,
+  /\b(predicciones?|an[áa]lisis)\s+(bitcoin|crypto|bolsa|forex)\b/i,
+  /\bquiero\s+(ganar|hacer)\s+\d+\s+(d[óo]lares|dolares|usd|mxn|pesos|euros)\b/i,
+  // Patrones genéricos de venta
   // CTAs comerciales explícitos
   /\blink\s*(en|in|na)\s*(la\s*)?bio\b/i,
   /\blinkin\.?bio\b/i,
@@ -243,32 +247,37 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.3,
-        max_tokens: 600,
+        max_tokens: 700,
         response_format: { type: 'json_object' },
         messages: [{
           role: 'system',
-          content: `Eres un experto en hashtags virales de TikTok, Instagram y YouTube. Dado un tema, generás los hashtags REALES que usan los creators GRANDES (1M+ followers) cuando publican en ese nicho.
+          content: `Eres un experto en hashtags virales que usan creators GRANDES (1M+ followers). Dado un tema, generás 4 grupos de hashtags para construir un pool de búsqueda profundo.
 
 Formato ESTRICTO JSON:
-{"es":["k1","k2","k3","k4","k5"],"en":["k1","k2","k3","k4","k5"],"pt":["k1","k2","k3","k4","k5"],"ru":["k1","k2","k3"],"de":["k1","k2","k3"]}
+{"es":["k1","k2","k3","k4","k5","k6","k7","k8"],"en":["k1","k2","k3","k4","k5","k6"],"pt":["k1","k2","k3","k4"],"ru":["k1","k2"],"de":["k1","k2"]}
 
-REGLAS CRÍTICAS:
-1. 5 keywords ES, 5 EN, 5 PT, 3 RU, 3 DE — todas DIFERENTES
-2. **NO uses solo el tema literal** — genera CONCEPTOS RELACIONADOS que los creators grandes usan. Ejemplo: para "dinero" no pongas solo #dinero, también #riqueza #abundancia #libertadfinanciera #mindsetganador
-3. Mezclá: tema literal (1) + sinónimos (1) + conceptos amplios del nicho (3+)
-4. Incluí keywords ASPIRACIONALES que conectan con el tema (ej: "dinero" → "millonario", "libertad", "exito")
-5. Frases cortas, 1-2 palabras (lo que va después de # en redes)
-6. Nada con espacios largos, sin "como hacer", sin artículos
-7. RU en cirílico nativo. DE con palabras alemanas reales
+ESTRUCTURA — 4 grupos por idioma, en este orden:
+1. **Tema literal + sinónimos directos** (2 keywords): la palabra exacta + traducciones cortas
+2. **Conceptos del nicho que usan creators grandes** (3-4 keywords): los hashtags que un creador top usaría — abstractos, aspiracionales, mentalidad
+3. **Adyacentes ALINEADOS** (2-3 keywords): conceptos cercanos que un creador del tema típicamente cubre. **NO incluyas adyacentes ruidosos** que tendrían que filtrarse después.
+4. **Multi-idioma** (RU + DE) para 2-3 conceptos universales
+
+REGLAS NO NEGOCIABLES:
+- Frases cortas, 1-2 palabras (van después de #)
+- Sin espacios largos, sin "como hacer", sin artículos
+- TODOS los keywords deben ser de la MISMA familia conceptual del tema. Si el tema es "dinero", NO pongas "5amroutine" o "gymmotivation" aunque se cruce a veces — eso lo filtramos diferente.
+- Excluí explícitamente nichos técnicos especializados (trading técnico, análisis bursátil, criptos detalladas) salvo que el tema los pida directamente
+- Excluí lifestyle desconectado (5amroutine, gymworkout, fooddiet) salvo que el tema sea ese
+- RU en cirílico nativo, DE con palabras alemanas reales
 
 EJEMPLO tema "dinero":
-{"es":["dinero","riqueza","libertadfinanciera","mindsetganador","mentalidadabundante"],"en":["money","wealth","financialfreedom","richmindset","entrepreneurship"],"pt":["dinheiro","riqueza","liberdadefinanceira","mentalidaderica","empreendedorismo"],"ru":["деньги","богатство","финансы"],"de":["geld","reichtum","finanzen"]}
+{"es":["dinero","plata","riqueza","libertadfinanciera","mentalidadrica","educacionfinanciera","emprendimiento","ahorro"],"en":["money","wealth","financialfreedom","richmindset","passiveincome","savings","finance","entrepreneurship"],"pt":["dinheiro","riqueza","liberdadefinanceira","mentalidaderica"],"ru":["деньги","богатство"],"de":["geld","reichtum"]}
 
-EJEMPLO tema "negocios":
-{"es":["negocios","emprendimiento","empresarioexitoso","mentordenegocios","escalarTuNegocio"],"en":["business","entrepreneurship","sidehustle","businessmindset","scalingbusiness"],"pt":["negocios","empreendedorismo","empresario","escalarnegocio","mentorianegocios"],"ru":["бизнес","предприниматель","успех"],"de":["business","unternehmer","erfolg"]}
+EJEMPLO tema "fitness":
+{"es":["fitness","entrenamiento","transformacion","mentefuerte","disciplina","rutinaentreno","nutricion","comidasaludable"],"en":["fitness","workout","transformation","strongmindset","discipline","training","nutrition","healthyfood"],"pt":["fitness","treino","transformacao","disciplina"],"ru":["фитнес","тренировка"],"de":["fitness","training"]}
 
 EJEMPLO tema "amor consciente":
-{"es":["amorconsciente","apegoseguro","relacionessanas","amorpropio","autoestima"],"en":["consciousLove","secureattachment","healthyrelationship","selflove","mindfulDating"],"pt":["amorconsciente","apegoseguro","relacionamentosaudavel","amorpróprio","autoestima"],"ru":["любовь","отношения","психология"],"de":["liebe","beziehung","selbstliebe"]}`,
+{"es":["amorconsciente","apegoseguro","relacionessanas","amorpropio","autoestima","intelygenciaemocional","comunicacionsana","limitessaludables"],"en":["consciousLove","secureattachment","healthyrelationship","selflove","emotionalintelligence","mindfulDating"],"pt":["amorconsciente","apegoseguro","relacionamentosaudavel","amorproprio"],"ru":["любовь","отношения"],"de":["liebe","beziehung"]}`,
         }, {
           role: 'user',
           content: `Tema: "${tema}"`,
@@ -1001,26 +1010,25 @@ async function searchViaApify(
   const entry = findMapEntry(tema);
   const allTerms = getAllTerms(tema);
 
-  // Construir keywords ES + EN + PT + RU + DE.
-  // Ahora la IA genera conceptos RELACIONADOS (no solo traducciones literales),
-  // así pescamos los reels virales de creators grandes que NO etiquetan con la
-  // palabra literal sino con hashtags conceptuales del nicho.
+  // Pool ANCHO de keywords. La IA ahora genera 4 grupos por idioma:
+  // literal + conceptos + adyacentes alineados + multi-idioma.
+  // Total objetivo: ~22 hashtags por búsqueda.
   const ai = aiKeysOverride || null;
   const esKeywords = Array.from(new Set([
-    tema,                                    // Tema literal
-    ...(ai?.es || []).slice(0, 4),           // 4 conceptos ES
-    ...(entry?.es || []).slice(0, 1),        // 1 del mapa hardcoded
-  ])).filter(Boolean).slice(0, 5);
+    tema,
+    ...(ai?.es || []).slice(0, 8),           // hasta 8 keywords ES
+    ...(entry?.es || []).slice(0, 1),
+  ])).filter(Boolean).slice(0, 9);
   const enKeywords = Array.from(new Set([
-    ...(ai?.en || []).slice(0, 4),
+    ...(ai?.en || []).slice(0, 6),           // hasta 6 EN
     ...(entry?.en || []).slice(0, 1),
-  ])).filter(Boolean).slice(0, 4);
+  ])).filter(Boolean).slice(0, 6);
   const ptKeywords = Array.from(new Set([
-    ...(ai?.pt || []).slice(0, 3),
+    ...(ai?.pt || []).slice(0, 4),           // hasta 4 PT
     ...(entry?.pt || []).slice(0, 1),
-  ])).filter(Boolean).slice(0, 3);
-  const ruKeywords = (ai?.ru || []).slice(0, 2);   // 2 keywords RU
-  const deKeywords = (ai?.de || []).slice(0, 2);   // 2 keywords DE
+  ])).filter(Boolean).slice(0, 4);
+  const ruKeywords = (ai?.ru || []).slice(0, 2);
+  const deKeywords = (ai?.de || []).slice(0, 2);
 
   let items: unknown[] = [];
 
@@ -1423,16 +1431,19 @@ EJEMPLOS DE CALIBRACIÓN
 ═══════════════════════════════════════
 REGLAS NO NEGOCIABLES
 ═══════════════════════════════════════
-1. Sé ULTRA ESTRICTO. Ante la duda, baja el score 2 puntos.
-2. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
-3. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
-4. Hashtags y emojis no aportan score: evalúa el contenido del título.
-5. Autoridad del creador OBLIGATORIA para 7+: el @autor debe sonar a empresa real, mentor reconocido, marca consolidada o experto. Cuentas genéricas (nombres aleatorios, números al final, "official" sin contexto, "tips_xyz") → máximo 4.
-6. Clickbait vacío sin payload concreto → máximo 3. Ejemplos: "esto cambió mi vida", "no vas a creer", "el secreto que nadie dice", "mira hasta el final". Si no hay número, framework, caso o método específico en el título → bajá score.
-7. Contenido infantil, médico-clínico, lifestyle de marca, o promo de producto en el título → máximo 3 aunque mencione el tema.
-8. Títulos genéricos sin gancho específico ("hábitos", "negocios", "motivación" como única palabra) → máximo 4.
-9. Score 9-10 SOLO si el título promete un framework concreto, números específicos, o cita a una autoridad nombrada (Naval, Hormozi, Buffett, etc.).
-10. Devuelve SOLO el JSON, sin explicaciones.`;
+1. **TEMA DEL USUARIO ES PRIORIDAD ABSOLUTA.** Si el reel NO se conecta directamente con "${tema}" → score máximo 4. Aunque el reel sea bueno por sí mismo, si está fuera del tema buscado, no le sirve al usuario.
+2. **Adyacencia mide así:** habla DIRECTAMENTE de "${tema}" → 7+. Habla de un tema relacionado pero MENCIONA "${tema}" → 5-6. Tema relacionado que NO menciona "${tema}" → máximo 4 (descartado). Off-topic total (ej: lifestyle, gym, 5amroutine) → 0-2.
+3. Sé ULTRA ESTRICTO con la relevancia al tema. Ante la duda, baja el score 2 puntos.
+4. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
+5. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
+6. Hashtags y emojis no aportan score: evalúa el contenido del título.
+7. Autoridad del creador OBLIGATORIA para 7+: el @autor debe sonar a empresa real, mentor reconocido, marca consolidada o experto. Cuentas genéricas (nombres aleatorios, números al final, "official" sin contexto, "tips_xyz") → máximo 4.
+8. Clickbait vacío sin payload concreto → máximo 3.
+9. Contenido infantil, médico-clínico, lifestyle de marca, o promo de producto en el título → máximo 3.
+10. **Trading/crypto especializado (gráficos, análisis técnico, predicciones bursátiles, "señales", "alertas")** → máximo 4 — es nicho técnico, no replicable para creators generales.
+11. Títulos genéricos sin gancho específico → máximo 4.
+12. Score 9-10 SOLO si el título promete framework concreto, números específicos, o cita autoridad nombrada (Naval, Hormozi, Buffett, etc.) Y trata el tema buscado.
+13. Devuelve SOLO el JSON, sin explicaciones.`;
 
   let scoreMap = new Map<number, number>();
 
