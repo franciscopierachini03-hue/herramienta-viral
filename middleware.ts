@@ -32,14 +32,16 @@ export async function middleware(req: NextRequest) {
 
   if (!REQUIRE_AUTH) return NextResponse.next();
 
-  // /app/welcome es la página de "post-pago": viene de Stripe a verificar la
-  // sesión y activar la suscripción. Si la bloqueáramos por subscription_status
-  // entraría en loop (justo viene a setearlo). Solo le exigimos que esté logueado.
+  // /app/welcome (post-pago) y /cuenta (gestión de suscripción) requieren
+  // login pero NO chequeo de subscription_status. Sino los usuarios con trial
+  // vencido o cancelados nunca podrían volver a pagar/gestionar.
   const isWelcome = pathname === '/app/welcome' || pathname.startsWith('/app/welcome/');
+  const isCuenta = pathname === '/cuenta' || pathname.startsWith('/cuenta/');
 
   const isProtected =
     pathname.startsWith('/app') ||
-    pathname.startsWith('/guiones');
+    pathname.startsWith('/guiones') ||
+    isCuenta;
   if (!isProtected) return NextResponse.next();
 
   let response = NextResponse.next({ request: req });
@@ -81,8 +83,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // /app/welcome solo requiere login; el chequeo de pago lo hace la propia página.
-  if (isWelcome) return response;
+  // /app/welcome y /cuenta solo requieren login; el chequeo de pago no aplica.
+  if (isWelcome || isCuenta) return response;
 
   // 2. ¿Pagó? Buscamos el status en profiles por email.
   const email = user.email;
@@ -116,5 +118,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/editor/:path*', '/guiones/:path*', '/admin/:path*'],
+  matcher: ['/app/:path*', '/editor/:path*', '/guiones/:path*', '/admin/:path*', '/cuenta/:path*', '/cuenta'],
 };

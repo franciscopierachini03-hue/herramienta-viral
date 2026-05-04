@@ -110,8 +110,22 @@ export default function ProductNav({ active }: { active: Active }) {
         })}
       </div>
 
-      {/* Status + Admin */}
+      {/* Status + Cuenta + Admin */}
       <div className="flex items-center gap-3">
+        <Link href="/cuenta"
+          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+          title="Mi cuenta"
+          style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', color: '#888' }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = '#1a1a1a';
+            (e.currentTarget as HTMLElement).style.color = '#fff';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = '#0f0f0f';
+            (e.currentTarget as HTMLElement).style.color = '#888';
+          }}>
+          👤 Cuenta
+        </Link>
         {isAdmin && (
           <Link href="/admin"
             className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"

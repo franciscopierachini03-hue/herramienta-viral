@@ -21,20 +21,57 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 //   3. Devuelve { ok: true, redirect: '/app' o `next` si vino con uno }
 //      (el middleware se encarga de rebotar a /precios si no hay suscripción)
 
-// Helper: lee la lista de códigos válidos desde env. Coma-separada, en mayúsculas.
-// Ej: INVITE_CODES="BETA50,FRIEND2026,LAUNCH"
-function isValidInviteCode(input: string): boolean {
-  if (!input) return false;
-  const valid = (process.env.INVITE_CODES || '')
-    .split(',')
-    .map(s => s.trim().toUpperCase())
-    .filter(Boolean);
-  return valid.includes(input.trim().toUpperCase());
+// Helper: lee la lista de códigos válidos desde env, soportando duración custom.
+// Formato: "CODE" (usa TRIAL_DAYS default) o "CODE:DURATION"
+//   DURATION = 15m | 2h | 5d (minutos / horas / días)
+// Ejemplos:
+//   INVITE_CODES="BETA50,PRUEBA1:15m,VIP:1h,EXPERT:5d"
+//   → BETA50 = TRIAL_DAYS días
+//   → PRUEBA1 = 15 minutos
+//   → VIP = 1 hora
+//   → EXPERT = 5 días
+
+function parseDurationToMs(spec: string): number | null {
+  const m = spec.trim().toLowerCase().match(/^(\d+)\s*(m|h|d)$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const unit = m[2];
+  if (unit === 'm') return n * 60 * 1000;
+  if (unit === 'h') return n * 60 * 60 * 1000;
+  if (unit === 'd') return n * 24 * 60 * 60 * 1000;
+  return null;
 }
 
-function trialDays(): number {
+function defaultTrialMs(): number {
   const n = parseInt(process.env.TRIAL_DAYS || '5', 10);
-  return Number.isFinite(n) && n > 0 ? n : 5;
+  const d = Number.isFinite(n) && n > 0 ? n : 5;
+  return d * 24 * 60 * 60 * 1000;
+}
+
+// Devuelve { code, durationMs } si el input es válido, o null si no.
+function lookupInviteCode(input: string): { code: string; durationMs: number } | null {
+  if (!input) return null;
+  const target = input.trim().toUpperCase();
+  const entries = (process.env.INVITE_CODES || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const entry of entries) {
+    const parts = entry.split(':');
+    const code = parts[0]?.trim().toUpperCase();
+    if (!code) continue;
+    if (code !== target) continue;
+
+    const durationSpec = parts[1]?.trim();
+    if (durationSpec) {
+      const ms = parseDurationToMs(durationSpec);
+      if (ms) return { code, durationMs: ms };
+    }
+    return { code, durationMs: defaultTrialMs() };
+  }
+  return null;
 }
 
 // Normaliza email para evitar duplicados por capitalización/espacios.
@@ -97,9 +134,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Si trajo código de invitación válido → activar trial sin pasar por Stripe.
-    const useTrial = code && isValidInviteCode(code);
-    const trialEndsAt = useTrial
-      ? new Date(Date.now() + trialDays() * 24 * 60 * 60 * 1000).toISOString()
+    // Cada código puede tener su propia duración (ej: PRUEBA1:15m, EXPERT:5d).
+    const codeMatch = code ? lookupInviteCode(code) : null;
+    const trialEndsAt = codeMatch
+      ? new Date(Date.now() + codeMatch.durationMs).toISOString()
       : null;
 
     const profileRow: Record<string, unknown> = {
@@ -107,10 +145,10 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       phone: phone.trim(),
     };
-    if (useTrial) {
+    if (codeMatch) {
       profileRow.subscription_status = 'trialing';
       profileRow.trial_ends_at = trialEndsAt;
-      profileRow.redeemed_code = String(code).trim().toUpperCase();
+      profileRow.redeemed_code = codeMatch.code;
       profileRow.activated_at = new Date().toISOString();
     }
 
@@ -130,9 +168,9 @@ export async function POST(req: NextRequest) {
     // 4. Redirect: si tiene trial → directo a /app. Si no → /precios para pagar.
     return Response.json({
       ok: true,
-      redirect: useTrial ? '/app' : '/precios',
+      redirect: codeMatch ? '/app' : '/precios',
       userId: created.user?.id,
-      trial: useTrial ? { endsAt: trialEndsAt, days: trialDays() } : null,
+      trial: codeMatch ? { endsAt: trialEndsAt, durationMs: codeMatch.durationMs } : null,
     });
   }
 
