@@ -173,7 +173,14 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     .map(p => p.stripe_customer_id)
     .filter((s): s is string => !!s);
 
-  const billing = await getBillingOverview(ourCustomerIds);
+  // Pasamos también los emails de profiles para reconocer pagos cuyo
+  // stripe_customer_id todavía no se sincronizó (típico para los primeros
+  // pagos donde el webhook puede tardar en escribir en profiles).
+  const ourEmails = (profiles || [])
+    .map(p => p.email)
+    .filter((s): s is string => !!s);
+
+  const billing = await getBillingOverview(ourCustomerIds, ourEmails);
 
   if (error) {
     console.error('[admin] fetch profiles:', error);

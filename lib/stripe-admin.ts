@@ -99,20 +99,31 @@ async function listActiveSubscriptions(): Promise<StripeSubscription[]> {
 
 /**
  * Filtra los charges para que solo cuenten los de ViralADN.
- * Estrategia dual:
+ * Estrategia triple:
  *   1. Si el charge tiene metadata.app === 'viraladn' → es nuestro
  *   2. Si el customer está en nuestra lista de stripe_customer_id de profiles → es nuestro
+ *   3. Si el receipt_email/billing_details.email está en nuestros profiles → es nuestro
  *
  * Esto descarta charges del Stripe que pertenecen a OTROS productos del mismo
- * dueño de la cuenta (típico cuando se comparte la cuenta de Stripe).
+ * dueño de la cuenta. Cubre desde pagos viejos sin metadata hasta nuevos sin
+ * customer todavía sincronizado.
  */
-function isOurCharge(c: StripeCharge & { metadata?: Record<string, string> }, ourCustomerIds: Set<string>): boolean {
+function isOurCharge(
+  c: StripeCharge & { metadata?: Record<string, string> },
+  ourCustomerIds: Set<string>,
+  ourEmails: Set<string>,
+): boolean {
   if (c.metadata && c.metadata.app === 'viraladn') return true;
   if (c.customer && ourCustomerIds.has(c.customer)) return true;
+  const email = (c.receipt_email || c.billing_details?.email || '').toLowerCase().trim();
+  if (email && ourEmails.has(email)) return true;
   return false;
 }
 
-export async function getBillingOverview(ourCustomerIds: string[] = []): Promise<BillingOverview> {
+export async function getBillingOverview(
+  ourCustomerIds: string[] = [],
+  ourEmails: string[] = [],
+): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) {
     return {
       totalRevenueAllTime: 0,
@@ -133,11 +144,12 @@ export async function getBillingOverview(ourCustomerIds: string[] = []): Promise
     ]);
 
     const customerSet = new Set(ourCustomerIds.filter(Boolean));
+    const emailSet = new Set(ourEmails.map(e => e.toLowerCase().trim()).filter(Boolean));
 
     // Solo charges exitosos NUESTROS (descartar OTROS productos en la misma cuenta Stripe)
     const successCharges = charges
       .filter(c => c.paid && c.status === 'succeeded')
-      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }, customerSet));
+      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }, customerSet, emailSet));
 
     // Mismo filtro para subs activas
     const ourSubs = subs.filter(s => customerSet.has(s.customer));
