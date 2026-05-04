@@ -68,7 +68,14 @@ export async function POST(req: NextRequest) {
   // 2. Validar el código
   const match = lookupInviteCode(code);
   if (!match) {
-    return Response.json({ error: 'Código no válido o expirado.' }, { status: 400 });
+    // Log para que el admin pueda diagnosticar — si alguien intenta un código
+    // que se ve legítimo pero no está en la lista, queremos saberlo.
+    const configuredCodes = (process.env.INVITE_CODES || '')
+      .split(',').map(s => s.trim()).filter(Boolean).length;
+    console.warn(`[redeem] código rechazado: "${code}" — INVITE_CODES tiene ${configuredCodes} códigos configurados`);
+    return Response.json({
+      error: 'Código no válido o expirado. Si pensás que debería funcionar, contactá al equipo.',
+    }, { status: 400 });
   }
 
   // 3. Chequear estado actual del usuario
