@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 const FEATURES = [
   '🔥 Búsqueda viral ilimitada en YouTube + TikTok + Instagram',
@@ -13,7 +14,67 @@ const FEATURES = [
   '🚀 Acceso a todas las features futuras',
 ];
 
+// Banner contextual según el motivo por el que el usuario llegó a /precios.
+// Lo controla el query param `need`:
+//   - 'trial-expirado' → terminó su prueba gratis (vino del middleware)
+//   - 'pago'           → nunca pagó, llegó por restricción de acceso
+//   - 'cancelled'      → canceló el checkout en Stripe a mitad de camino
+function ContextBanner() {
+  const params = useSearchParams();
+  const need = params.get('need') || (params.get('cancelled') === '1' ? 'cancelled' : '');
+  if (!need) return null;
+
+  if (need === 'trial-expirado') {
+    return (
+      <div className="max-w-2xl mx-auto px-6 mb-6">
+        <div className="rounded-2xl p-5 text-center"
+          style={{ background: 'linear-gradient(135deg, #7c3aed22, #c1358422)', border: '1px solid #7c3aed66' }}>
+          <div className="text-3xl mb-2">⏰</div>
+          <h3 className="text-lg font-bold mb-1">Tu prueba gratuita terminó</h3>
+          <p className="text-sm" style={{ color: '#c4b5fd' }}>
+            Esperamos que la hayas aprovechado. Si te gustó la app,
+            suscribite por <strong>$47/mes</strong> y seguí encontrando
+            contenido viral todos los días.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (need === 'pago') {
+    return (
+      <div className="max-w-2xl mx-auto px-6 mb-6">
+        <div className="rounded-2xl p-4 text-center text-sm"
+          style={{ background: '#92400e22', border: '1px solid #92400e44', color: '#fde68a' }}>
+          🔒 Para acceder a la app necesitás suscribirte primero.
+        </div>
+      </div>
+    );
+  }
+
+  if (need === 'cancelled') {
+    return (
+      <div className="max-w-2xl mx-auto px-6 mb-6">
+        <div className="rounded-2xl p-4 text-center text-sm"
+          style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
+          Cancelaste el pago. Cuando quieras volver, estamos acá.
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function Pricing() {
+  return (
+    <Suspense fallback={null}>
+      <PricingInner />
+    </Suspense>
+  );
+}
+
+function PricingInner() {
   const [plan, setPlan] = useState<'monthly' | 'yearly'>('monthly');
   const [loading, setLoading] = useState(false);
 
@@ -64,8 +125,12 @@ export default function Pricing() {
         </Link>
       </nav>
 
+      <div className="pt-10">
+        <ContextBanner />
+      </div>
+
       {/* HEADER */}
-      <section className="text-center px-6 pt-12 pb-8 max-w-2xl mx-auto">
+      <section className="text-center px-6 pt-2 pb-8 max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           Un precio.<br />
           <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #7c3aed, #c13584)' }}>
