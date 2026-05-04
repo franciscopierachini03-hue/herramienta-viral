@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { getBillingOverview } from '@/lib/stripe-admin';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -159,18 +160,25 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     );
   }
 
-  // 2. Cargar perfiles con service client (bypass RLS).
+  // 2. Cargar perfiles + datos de Stripe en paralelo.
   const admin = createServiceClient();
-  const { data: profiles, error } = await admin
-    .from('profiles')
-    .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
-    .order('created_at', { ascending: false });
+  const [profilesResult, billing] = await Promise.all([
+    admin
+      .from('profiles')
+      .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
+      .order('created_at', { ascending: false }),
+    getBillingOverview(),
+  ]);
+  const { data: profiles, error } = profilesResult;
 
   if (error) {
     console.error('[admin] fetch profiles:', error);
   }
 
   const all: Profile[] = profiles || [];
+
+  const fmtUSD = (n: number) =>
+    n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
   // 3. Aplicar filtros.
   const qLower = q.trim().toLowerCase();
@@ -248,6 +256,129 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
             </div>
           ))}
+        </div>
+
+        {/* ── BILLING (Stripe) ───────────────────────────────────────────── */}
+        <div className="mb-6">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            💳 Facturación
+            {billing.configured && !billing.error && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: '#22c55e22', color: '#86efac' }}>
+                Stripe conectado
+              </span>
+            )}
+            {(!billing.configured || billing.error) && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: '#7f1d1d33', color: '#fca5a5' }}>
+                {billing.error || 'No configurado'}
+              </span>
+            )}
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e44' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Este mes</div>
+              <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(billing.totalRevenueThisMonth)}</div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Mes pasado</div>
+              <div className="text-2xl font-bold" style={{ color: '#888' }}>{fmtUSD(billing.totalRevenueLastMonth)}</div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Total acumulado</div>
+              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.totalRevenueAllTime)}</div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Suscripciones activas</div>
+              <div className="text-2xl font-bold" style={{ color: '#fff' }}>{billing.activeSubscriptions}</div>
+            </div>
+          </div>
+
+          {/* Histórico mensual (mini-bar chart con divs) */}
+          {billing.monthlyRevenue.length > 0 && (
+            <div className="rounded-2xl p-4 mb-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-3" style={{ color: '#666' }}>Últimos 6 meses</div>
+              <div className="flex items-end gap-2 h-24">
+                {billing.monthlyRevenue.map(m => {
+                  const max = Math.max(...billing.monthlyRevenue.map(x => x.revenue), 1);
+                  const h = Math.max(4, (m.revenue / max) * 100);
+                  return (
+                    <div key={m.month} className="flex-1 flex flex-col items-center justify-end gap-1">
+                      <div className="text-[10px] font-semibold" style={{ color: '#888' }}>
+                        {m.revenue > 0 ? fmtUSD(m.revenue) : ''}
+                      </div>
+                      <div
+                        className="w-full rounded-t-lg"
+                        style={{
+                          height: `${h}%`,
+                          background: m.revenue > 0
+                            ? 'linear-gradient(180deg, #7c3aed, #c13584)'
+                            : '#1a1a1a',
+                          minHeight: '4px',
+                        }}
+                        title={`${m.count} pago${m.count !== 1 ? 's' : ''}`}
+                      />
+                      <div className="text-[10px]" style={{ color: '#666' }}>{m.month}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Lista de pagos recientes */}
+          {billing.recentPayments.length > 0 && (
+            <details className="rounded-2xl overflow-hidden"
+              style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+              <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center justify-between"
+                style={{ color: '#aaa' }}>
+                <span>Historial de pagos ({billing.recentPayments.length})</span>
+                <span className="text-xs" style={{ color: '#666' }}>Click para expandir ↓</span>
+              </summary>
+              <div className="overflow-x-auto" style={{ borderTop: '1px solid #1a1a1a' }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs" style={{ color: '#666', borderBottom: '1px solid #1a1a1a' }}>
+                      <th className="px-4 py-3 font-semibold">Fecha</th>
+                      <th className="px-4 py-3 font-semibold">Email</th>
+                      <th className="px-4 py-3 font-semibold">Monto</th>
+                      <th className="px-4 py-3 font-semibold">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billing.recentPayments.map(p => {
+                      const d = new Date(p.date);
+                      return (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #141414' }}>
+                          <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
+                            {d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}{' '}
+                            {d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-4 py-3" style={{ color: '#eee' }}>{p.email || '—'}</td>
+                          <td className="px-4 py-3 font-bold" style={{ color: '#86efac' }}>
+                            {fmtUSD(p.amount)} {p.currency}
+                          </td>
+                          <td className="px-4 py-3">
+                            {p.refunded ? (
+                              <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#7f1d1d33', color: '#fca5a5' }}>Reembolsado</span>
+                            ) : (
+                              <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#22c55e22', color: '#86efac' }}>Pagado</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </div>
 
         {/* Filtros */}
