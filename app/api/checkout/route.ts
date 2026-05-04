@@ -62,6 +62,17 @@ export async function POST(req: NextRequest) {
   params.append('line_items[0][quantity]', '1');
   params.append('customer_email', user.email);
   params.append('client_reference_id', user.id);
+  // Tags para identificar pagos de ViralADN cuando la cuenta de Stripe se
+  // comparte con otros productos. El admin panel filtra por estos.
+  params.append('metadata[app]', 'viraladn');
+  params.append('metadata[plan]', plan === 'yearly' ? 'yearly' : 'monthly');
+  if (mode === 'subscription') {
+    params.append('subscription_data[metadata][app]', 'viraladn');
+    params.append('subscription_data[metadata][plan]', plan === 'yearly' ? 'yearly' : 'monthly');
+  } else {
+    params.append('payment_intent_data[metadata][app]', 'viraladn');
+    params.append('payment_intent_data[metadata][plan]', plan === 'yearly' ? 'yearly' : 'monthly');
+  }
   // Tras pagar, /app/welcome verifica el pago y activa la cuenta.
   params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
   params.append('cancel_url', `${appUrl}/precios?cancelled=1`);

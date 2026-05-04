@@ -160,16 +160,20 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     );
   }
 
-  // 2. Cargar perfiles + datos de Stripe en paralelo.
+  // 2. Cargar perfiles primero — necesitamos los stripe_customer_id para filtrar
+  // charges de Stripe a SOLO los de ViralADN (evita mezcla con otros productos
+  // que comparten la misma cuenta Stripe).
   const admin = createServiceClient();
-  const [profilesResult, billing] = await Promise.all([
-    admin
-      .from('profiles')
-      .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
-      .order('created_at', { ascending: false }),
-    getBillingOverview(),
-  ]);
-  const { data: profiles, error } = profilesResult;
+  const { data: profiles, error } = await admin
+    .from('profiles')
+    .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
+    .order('created_at', { ascending: false });
+
+  const ourCustomerIds = (profiles || [])
+    .map(p => p.stripe_customer_id)
+    .filter((s): s is string => !!s);
+
+  const billing = await getBillingOverview(ourCustomerIds);
 
   if (error) {
     console.error('[admin] fetch profiles:', error);

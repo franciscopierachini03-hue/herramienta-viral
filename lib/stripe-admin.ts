@@ -97,7 +97,22 @@ async function listActiveSubscriptions(): Promise<StripeSubscription[]> {
   return data?.data || [];
 }
 
-export async function getBillingOverview(): Promise<BillingOverview> {
+/**
+ * Filtra los charges para que solo cuenten los de ViralADN.
+ * Estrategia dual:
+ *   1. Si el charge tiene metadata.app === 'viraladn' → es nuestro
+ *   2. Si el customer está en nuestra lista de stripe_customer_id de profiles → es nuestro
+ *
+ * Esto descarta charges del Stripe que pertenecen a OTROS productos del mismo
+ * dueño de la cuenta (típico cuando se comparte la cuenta de Stripe).
+ */
+function isOurCharge(c: StripeCharge & { metadata?: Record<string, string> }, ourCustomerIds: Set<string>): boolean {
+  if (c.metadata && c.metadata.app === 'viraladn') return true;
+  if (c.customer && ourCustomerIds.has(c.customer)) return true;
+  return false;
+}
+
+export async function getBillingOverview(ourCustomerIds: string[] = []): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) {
     return {
       totalRevenueAllTime: 0,
@@ -113,12 +128,19 @@ export async function getBillingOverview(): Promise<BillingOverview> {
 
   try {
     const [charges, subs] = await Promise.all([
-      listAllCharges(200),
+      listAllCharges(500),  // Más profundidad para encontrar TODOS los nuestros
       listActiveSubscriptions(),
     ]);
 
-    // Solo charges exitosos cuentan como ingreso (descontamos refunds)
-    const successCharges = charges.filter(c => c.paid && c.status === 'succeeded');
+    const customerSet = new Set(ourCustomerIds.filter(Boolean));
+
+    // Solo charges exitosos NUESTROS (descartar OTROS productos en la misma cuenta Stripe)
+    const successCharges = charges
+      .filter(c => c.paid && c.status === 'succeeded')
+      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }, customerSet));
+
+    // Mismo filtro para subs activas
+    const ourSubs = subs.filter(s => customerSet.has(s.customer));
 
     // Helper: monto neto en USD (cents → USD, descuenta refund)
     const netUsd = (c: StripeCharge) => Math.max(0, (c.amount - (c.amount_refunded || 0)) / 100);
@@ -181,7 +203,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
       totalRevenueAllTime,
       totalRevenueThisMonth,
       totalRevenueLastMonth,
-      activeSubscriptions: subs.length,
+      activeSubscriptions: ourSubs.length,
       recentPayments,
       monthlyRevenue,
       configured: true,
