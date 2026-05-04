@@ -1058,33 +1058,73 @@ async function searchViaApify(
     }
     items = await res.json();
   } else {
-    // apify/instagram-scraper — busca por hashtag (motor de descubrimiento
-    // nativo de IG). Cada hashtag devuelve los TOP posts ordenados por engagement.
+    // Instagram: estrategia DUAL en paralelo:
+    //   A) search-user → encuentra TOP creators del nicho → scrapea sus reels
+    //      (este es el que devuelve videos virales reales — millones de vistas)
+    //   B) hashtag scraping → complementa con posts del hashtag literal
+    //      (típicamente trae menos videos pero más diversidad de creators chicos)
     const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords];
+
+    const userSearchTerms = [tema, ...(esKeywords[1] ? [esKeywords[1]] : []), ...(enKeywords[0] ? [enKeywords[0]] : [])];
     const hashtags = allKeywords.map(k =>
       `https://www.instagram.com/explore/tags/${encodeURIComponent(String(k).replace(/\s+/g,''))}/`,
     );
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
+
+    // A) Search top creators (en serie, una llamada por keyword principal)
+    const userPromises = userSearchTerms.slice(0, 3).map(term =>
+      fetch(
+        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            search: term,
+            searchType: 'user',
+            searchLimit: 8,
+            resultsType: 'posts',
+            resultsLimit: 12,
+            addParentData: false,
+            onlyPostsNewerThan: '2024-01-01',
+          }),
+        }
+      ).then(r => r.ok ? r.json() : []).catch(() => []),
+    );
+
+    // B) Hashtag scraping (1 llamada con muchos hashtags)
+    const hashtagPromise = fetch(
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          directUrls: hashtags,
+          directUrls: hashtags.slice(0, 12), // limitar para no timeout
           resultsType: 'posts',
-          // 150 por hashtag × ~22 hashtags = ~3300 posts crudos.
-          // Después filtramos solo videos (~30% del feed) → ~1000 videos virales.
-          // 150 vs 200 evita timeouts en hashtags muy fotograficos.
-          resultsLimit: 150,
+          resultsLimit: 80,
           addParentData: false,
         }),
       }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(() => String(res.status));
-      throw new Error(`Apify Instagram ${res.status}: ${errText.slice(0, 200)}`);
-    }
-    items = await res.json();
+    ).then(r => r.ok ? r.json() : []).catch(() => []);
+
+    // Esperar ambas en paralelo
+    const [userResults, hashtagResults] = await Promise.all([
+      Promise.all(userPromises).then(results => results.flat()),
+      hashtagPromise,
+    ]);
+
+    // Combinar
+    const combined = [
+      ...(Array.isArray(userResults) ? userResults : []),
+      ...(Array.isArray(hashtagResults) ? hashtagResults : []),
+    ];
+    // Dedup por shortCode (un mismo reel puede aparecer en ambos)
+    const seenShort = new Set<string>();
+    items = combined.filter(item => {
+      const sc = (item as { shortCode?: string }).shortCode;
+      if (!sc || seenShort.has(sc)) return false;
+      seenShort.add(sc);
+      return true;
+    });
+    console.log(`[searchViaApify] IG: user-search=${(userResults as unknown[]).length} + hashtag=${(hashtagResults as unknown[]).length} = ${items.length} unique posts`);
   }
 
   // Si Apify literalmente no devolvió posts (raro), throw para que el caller pruebe fallback
