@@ -37,8 +37,16 @@ function trialDays(): number {
   return Number.isFinite(n) && n > 0 ? n : 5;
 }
 
+// Normaliza email para evitar duplicados por capitalización/espacios.
+// Supabase ya guarda lowercase pero somos defensivos.
+function normalizeEmail(raw: string): string {
+  return String(raw || '').trim().toLowerCase();
+}
+
 export async function POST(req: NextRequest) {
-  const { mode, name, email, phone, password, code, next } = await req.json();
+  const body = await req.json();
+  const { mode, name, phone, password, code, next } = body;
+  const email = normalizeEmail(body.email);
 
   // ── Validación común ───────────────────────────────────────────────────
   if (!email || !email.includes('@')) {

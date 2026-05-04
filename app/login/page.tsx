@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import PasswordInput from '../_components/PasswordInput';
+import { suggestEmailFix } from '../_components/emailTypos';
 
 export default function LoginPage() {
   return (
@@ -29,6 +30,8 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,17 +65,26 @@ function Login() {
       return;
     }
 
+    // Detectar typo de dominio (gmail/hotmail/etc) — defensa contra cuentas
+    // duplicadas con typos. Si hay sugerencia → la mostramos y NO submitimos.
+    const fix = suggestEmailFix(email);
+    if (fix && !emailSuggestion) {
+      setEmailSuggestion(fix);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch('/api/auth/magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, name, email, phone, password, code, next }),
+        body: JSON.stringify({ mode, name, email: email.trim().toLowerCase(), phone, password, code, next }),
       });
       const data = await res.json();
       if (data.error) {
         setError(data.error);
         setLoading(false);
+        if (mode === 'login') setFailedAttempts(n => n + 1);
         return;
       }
       // Éxito → redirigimos a donde diga el server (/precios o /app).
@@ -90,6 +102,8 @@ function Login() {
     setMode(newMode);
     setError('');
     setForgotSent(false);
+    setEmailSuggestion(null);
+    setFailedAttempts(0);
   }
 
   return (
@@ -247,9 +261,42 @@ function Login() {
                 )
               )}
 
+              {/* Sugerencia de typo de dominio (gmaoil → gmail, etc.) */}
+              {emailSuggestion && (
+                <div className="rounded-xl p-3 text-xs"
+                  style={{ background: '#92400e22', border: '1px solid #fbbf2455', color: '#fde68a' }}>
+                  ¿Quisiste decir{' '}
+                  <button type="button"
+                    onClick={() => { setEmail(emailSuggestion); setEmailSuggestion(null); }}
+                    className="font-bold underline">
+                    {emailSuggestion}
+                  </button>
+                  ?
+                  <button type="button"
+                    onClick={() => setEmailSuggestion(null)}
+                    className="ml-2 opacity-60 underline">
+                    No, está bien así
+                  </button>
+                </div>
+              )}
+
               {error && (
                 <div className="rounded-xl p-3 text-xs" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
                   {error}
+                </div>
+              )}
+
+              {/* Ayuda extra después de fallar 1+ veces en login */}
+              {mode === 'login' && failedAttempts >= 1 && (
+                <div className="rounded-xl p-3 text-xs"
+                  style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                  Si no recordás tu contraseña,{' '}
+                  <button type="button"
+                    onClick={() => switchMode('forgot')}
+                    className="font-bold underline">
+                    pedí una nueva acá
+                  </button>
+                  . Si pensás que tu correo puede tener un typo, revisá la sugerencia arriba.
                 </div>
               )}
 
