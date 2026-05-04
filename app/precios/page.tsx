@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import RedeemCode from './RedeemCode';
 
 const FEATURES = [
   '🔥 Búsqueda viral ilimitada en YouTube + TikTok + Instagram',
@@ -215,6 +216,11 @@ function PricingInner() {
           <p className="text-xs text-center mt-4" style={{ color: '#555' }}>
             Pago seguro con Stripe · Cancelás cuando quieras
           </p>
+        </div>
+
+        {/* Redimir código de invitación */}
+        <div className="max-w-md mx-auto px-6">
+          <RedeemCode />
         </div>
 
         {/* FAQ rápido */}
