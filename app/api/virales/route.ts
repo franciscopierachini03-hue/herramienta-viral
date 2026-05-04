@@ -1071,7 +1071,9 @@ async function searchViaApify(
     );
 
     // A) Search top creators (en serie, una llamada por keyword principal)
-    const userPromises = userSearchTerms.slice(0, 3).map(term =>
+    // resultsLimit: 6 por creator — solo sus 6 posts más recientes para que sean
+    // representativos del nicho (no traer 12 mezclados de news, tutoriales, etc.)
+    const userPromises = userSearchTerms.slice(0, 4).map(term =>
       fetch(
         `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
         {
@@ -1080,9 +1082,9 @@ async function searchViaApify(
           body: JSON.stringify({
             search: term,
             searchType: 'user',
-            searchLimit: 8,
+            searchLimit: 10,
             resultsType: 'posts',
-            resultsLimit: 12,
+            resultsLimit: 6,
             addParentData: false,
             onlyPostsNewerThan: '2024-01-01',
           }),
@@ -1188,6 +1190,11 @@ async function searchViaApify(
       // Descartar reels sin engagement reportado (Apify a veces devuelve posts vacíos)
       if (views === 0 && likes === 0) return null;
 
+      // Detectar si vino de hashtag scraping (inputUrl contiene /tags/) o
+      // de user-search (inputUrl contiene /username/ sin /tags/).
+      const inputUrl = String((v as Record<string, unknown>).inputUrl || '');
+      const camefromHashtag = inputUrl.includes('/tags/');
+
       return {
         id:          shortCode || owner,
         title:       (v.caption as string)?.slice(0, 120) || `Reel de @${owner}`,
@@ -1199,7 +1206,7 @@ async function searchViaApify(
         url:         shortCode ? `https://www.instagram.com/reel/${shortCode}/` : `https://www.instagram.com/${owner}/`,
         platform, flag, langLabel: label, audioLang: '',
         enriched:    true, // Apify ya nos dio los datos completos
-        fromHashtag: true, // ya vino de scrapeo de hashtag en IG nativo
+        fromHashtag: camefromHashtag, // solo true si vino del hashtag scrape
       };
     }
   });
@@ -1477,11 +1484,18 @@ EJEMPLOS DE CALIBRACIÓN
 ═══════════════════════════════════════
 REGLAS NO NEGOCIABLES
 ═══════════════════════════════════════
-1. **RELEVANCIA AL TEMA del usuario:** prioridad alta pero no excluyente.
-2. **Adyacencia se evalúa así:**
-   - Habla DIRECTAMENTE de "${tema}" → 7+ (siempre que tenga calidad)
-   - Habla de un nicho cercano y útil para el creador del tema (ej: para "negocios" → emprendimiento, escalar, ventas, marketing) → 5-7
-   - Tema completamente diferente (ej: para "negocios" → salud, gym, recetas) → 0-3
+1. **RELEVANCIA AL TEMA "${tema}" ES OBLIGATORIA.** Si el caption/título NO menciona el tema buscado o conceptos NÚCLEO del tema, score MÁXIMO 4 — descartado.
+2. **Para "${tema}" qué cuenta como tema núcleo:**
+   - Sinónimos directos
+   - Frases típicas del nicho que un experto del tema usaría
+   - Frameworks, ejemplos, casos de éxito específicos del tema
+3. **Off-topic NO se rescata.** Si el reel habla de:
+   - Tutoriales de la propia red social (cómo hacer ads en IG, etc.)
+   - Noticias generales (política, economía global, celebrities)
+   - Productos / lifestyle no conectados (food trends, fashion, etc.)
+   - "POV" / memes / humor sin enseñanza del tema
+   → score 0-3 INMEDIATAMENTE.
+4. **Adyacencia ESTRICTA:** un reel de un creator de motivación que habla de "trends de caviar" NO califica para "motivación". Solo cuenta como adyacente si el contenido TRANSFIERE al tema buscado (ej: para "motivación" → disciplina, hábitos, mindset SI demuestran cómo motivarse).
 3. Sé ULTRA ESTRICTO con la relevancia al tema. Ante la duda, baja el score 2 puntos.
 4. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
 5. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
