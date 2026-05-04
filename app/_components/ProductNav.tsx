@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 // Header común a las 3 herramientas (ViralADN, TOPCUT, Guiones).
 // Usar siempre en /app, /editor, /guiones para que la nav quede idéntica.
@@ -33,6 +34,16 @@ const TITLES: Record<Active, { title: string; sub: string }> = {
 
 export default function ProductNav({ active }: { active: Active }) {
   const meta = TITLES[active];
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/is-admin', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { isAdmin: false })
+      .then(d => { if (!cancelled) setIsAdmin(!!d.isAdmin); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="flex items-center justify-between mb-10 gap-4 flex-wrap">
@@ -99,10 +110,28 @@ export default function ProductNav({ active }: { active: Active }) {
         })}
       </div>
 
-      {/* Status */}
-      <div className="flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }}></span>
-        <span className="text-xs" style={{ color: '#555' }}>En vivo</span>
+      {/* Status + Admin */}
+      <div className="flex items-center gap-3">
+        {isAdmin && (
+          <Link href="/admin"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+            title="Panel de admin"
+            style={{ background: '#0f0f0f', border: '1px solid #7c3aed44', color: '#c4b5fd' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = '#1a1a1a';
+              (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed99';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = '#0f0f0f';
+              (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed44';
+            }}>
+            🛡️ Admin
+          </Link>
+        )}
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#22c55e' }}></span>
+          <span className="text-xs" style={{ color: '#555' }}>En vivo</span>
+        </div>
       </div>
     </div>
   );
