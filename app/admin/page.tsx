@@ -20,13 +20,19 @@ type SearchParams = Promise<{ q?: string; status?: string; wrong?: string }>;
 
 const PIN_COOKIE = 'admin_pin_ok';
 
+// Owners hardcodeados — siempre tienen acceso aunque la env var falle.
+// Backup definitivo para evitar quedarte trabado fuera de tu propio panel.
+const HARDCODED_OWNERS = ['franciscopierachini03@gmail.com'];
+
 function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
+  const e = email.toLowerCase().trim();
+  if (HARDCODED_OWNERS.includes(e)) return true;
   const list = (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map(s => s.trim().toLowerCase())
     .filter(Boolean);
-  return list.includes(email.toLowerCase());
+  return list.includes(e);
 }
 
 type Profile = {
