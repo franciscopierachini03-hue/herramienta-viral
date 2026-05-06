@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
 
@@ -133,11 +133,33 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     );
   }
 
-  // 3. PIN gate. Si no hay cookie válida, pedimos el PIN.
+  // 3. PIN gate. Pedimos PIN SIEMPRE que el usuario llegue a /admin desde
+  // afuera (referer no incluye /admin). Una vez adentro, las acciones
+  // internas (filtros, csv, etc.) no piden de nuevo porque su referer ES /admin.
+  // Esto permite navegar dentro del panel pero exige PIN al re-entrar.
   const cookieStore = await cookies();
   const hasPin = cookieStore.get(PIN_COOKIE)?.value === '1';
 
-  if (!hasPin) {
+  const headersList = await headers();
+  const refererRaw = headersList.get('referer') || '';
+  let cameFromAdmin = false;
+  try {
+    if (refererRaw) {
+      const refUrl = new URL(refererRaw);
+      const p = refUrl.pathname;
+      // Aceptamos navegación interna del panel (/admin/*) y vuelta desde
+      // el endpoint de PIN (/api/admin/pin) tras un login fresco.
+      cameFromAdmin = p === '/admin'
+        || p.startsWith('/admin/')
+        || p === '/api/admin/pin';
+    }
+  } catch { /* invalid referer */ }
+
+  // Si NO viene de /admin → siempre pide PIN, aunque tenga cookie.
+  // Si SÍ viene de /admin (filtros, etc.) → permite con cookie válida.
+  const requirePin = !hasPin || !cameFromAdmin;
+
+  if (requirePin) {
     return (
       <main className="min-h-screen text-white flex items-center justify-center p-8"
         style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
