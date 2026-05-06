@@ -84,15 +84,41 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
 
   // 2. Email allowlist.
   if (!isAdminEmail(user.email)) {
+    // Debug: contar cuántos emails hay en ADMIN_EMAILS y mostrar primeros chars
+    // para ayudar al admin a diagnosticar typos sin exponer la lista completa.
+    const rawEnv = process.env.ADMIN_EMAILS || '';
+    const adminCount = rawEnv.split(',').map(s => s.trim()).filter(Boolean).length;
+    const preview = rawEnv.length > 0
+      ? rawEnv.split(',').map(s => {
+          const e = s.trim();
+          if (!e) return '';
+          const at = e.indexOf('@');
+          if (at < 0) return e.slice(0, 4) + '...';
+          return e.slice(0, Math.min(4, at)) + '***' + e.slice(at);
+        }).filter(Boolean).join(', ')
+      : '(vacío)';
+
     return (
       <main className="min-h-screen text-white flex items-center justify-center p-8"
         style={{ background: '#080808' }}>
-        <div className="max-w-md text-center">
+        <div className="max-w-lg text-center">
           <div className="text-5xl mb-3">🔒</div>
           <h1 className="text-xl font-bold mb-2">Acceso restringido</h1>
-          <p className="text-sm mb-6" style={{ color: '#888' }}>
-            Tu cuenta ({user.email}) no está autorizada para ver este panel.
+          <p className="text-sm mb-4" style={{ color: '#888' }}>
+            Tu cuenta (<span className="font-mono">{user.email}</span>) no está autorizada para ver este panel.
           </p>
+          <div className="rounded-xl p-4 mb-6 text-left text-xs"
+            style={{ background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}>
+            <div className="font-bold mb-2" style={{ color: '#aaa' }}>🐛 Diagnóstico</div>
+            <div>Tu email: <span className="font-mono" style={{ color: '#fff' }}>{user.email.toLowerCase()}</span></div>
+            <div>Emails configurados en ADMIN_EMAILS: <span className="font-mono" style={{ color: '#fff' }}>{adminCount}</span></div>
+            <div>Lista (parcial): <span className="font-mono" style={{ color: '#c4b5fd' }}>{preview}</span></div>
+            <div className="mt-2" style={{ color: '#666' }}>
+              {adminCount === 0
+                ? 'La variable ADMIN_EMAILS está vacía o no existe en Vercel.'
+                : 'Si tu email no aparece arriba (mismo dominio), agregalo a ADMIN_EMAILS y redeployá.'}
+            </div>
+          </div>
           <Link href="/app" className="text-sm underline" style={{ color: '#c4b5fd' }}>
             ← Volver a la app
           </Link>
