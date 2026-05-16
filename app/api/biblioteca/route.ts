@@ -25,7 +25,7 @@ export async function GET() {
   const admin = createServiceClient();
   const { data, error } = await admin
     .from('guiones')
-    .select('id, name, url, platform, transcript, saved_at')
+    .select('id, name, url, platform, transcript, saved_at, folder_id')
     .eq('user_email', email)
     .order('saved_at', { ascending: false });
 
@@ -42,6 +42,7 @@ export async function GET() {
     platform: g.platform,
     transcript: g.transcript,
     savedAt: g.saved_at,
+    folderId: g.folder_id,
   }));
   return Response.json({ guiones });
 }
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       platform: String(g.platform || 'unknown'),
       transcript: String(g.transcript),
       saved_at: g.savedAt ? new Date(String(g.savedAt)).toISOString() : new Date().toISOString(),
+      folder_id: g.folderId ? String(g.folderId) : null,
     }));
 
   if (rows.length === 0) {
@@ -86,21 +88,33 @@ export async function PATCH(req: NextRequest) {
   const email = await getUserEmail();
   if (!email) return Response.json({ error: 'No autenticado' }, { status: 401 });
 
-  const { id, name } = await req.json();
-  if (!id || !name) {
-    return Response.json({ error: 'Falta id o name' }, { status: 400 });
+  const body = await req.json();
+  const { id } = body;
+  if (!id) return Response.json({ error: 'Falta id' }, { status: 400 });
+
+  // Acepta { name } para renombrar y/o { folderId } para mover.
+  // folderId puede ser null para sacar de toda carpeta.
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === 'string' && body.name.trim()) {
+    patch.name = body.name.trim();
+  }
+  if ('folderId' in body) {
+    patch.folder_id = body.folderId ? String(body.folderId) : null;
+  }
+  if (Object.keys(patch).length === 0) {
+    return Response.json({ error: 'Nada para actualizar' }, { status: 400 });
   }
 
   const admin = createServiceClient();
   const { error } = await admin
     .from('guiones')
-    .update({ name: String(name) })
+    .update(patch)
     .eq('id', String(id))
     .eq('user_email', email); // Defensa: solo puede editar los suyos
 
   if (error) {
     console.error('[biblioteca/patch]', error);
-    return Response.json({ error: 'Error al renombrar' }, { status: 500 });
+    return Response.json({ error: 'Error al actualizar' }, { status: 500 });
   }
   return Response.json({ ok: true });
 }

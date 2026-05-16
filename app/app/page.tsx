@@ -58,6 +58,13 @@ type Guion = {
   platform: string;
   transcript: string;
   savedAt: string;
+  folderId?: string | null;
+};
+
+type Folder = {
+  id: string;
+  name: string;
+  createdAt: string;
 };
 
 const PLATFORM_INFO = {
@@ -479,6 +486,14 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
+  // Carpetas para organizar guiones
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null | 'all'>('all');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [movePickerForId, setMovePickerForId] = useState<string | null>(null);
+
   // Cargar biblioteca desde el servidor + migrar localStorage si quedó del legacy
   useEffect(() => {
     let cancelled = false;
@@ -513,6 +528,11 @@ export default function Home() {
         const fresh = await fetch('/api/biblioteca', { cache: 'no-store' }).then(r => r.json()).catch(() => null);
         if (!cancelled && fresh?.guiones) setGuiones(fresh.guiones);
         else if (!cancelled) setGuiones([...remoteGuiones, ...toMigrate]);
+
+        // Cargar carpetas del usuario
+        const foldersRes = await fetch('/api/biblioteca/folders', { cache: 'no-store' })
+          .then(r => r.json()).catch(() => null);
+        if (!cancelled && foldersRes?.folders) setFolders(foldersRes.folders);
       } catch (e) {
         console.warn('[biblioteca] error cargando', e);
         // Fallback al localStorage si la API falla
@@ -588,6 +608,7 @@ export default function Home() {
   async function guardarGuion(idx: number) {
     const r = results[idx];
     if (!r?.transcript || r.transcript.startsWith('❌')) return;
+    const folderId = selectedFolderId && selectedFolderId !== 'all' ? selectedFolderId : null;
     const guion: Guion = {
       id: Date.now().toString(),
       name: autoName(r.url, r.transcript),
@@ -595,6 +616,7 @@ export default function Home() {
       platform: r.platform ?? 'unknown',
       transcript: r.transcript,
       savedAt: new Date().toISOString(),
+      folderId,
     };
     setGuiones([guion, ...guiones]);
     setSavedIdx(prev => new Set([...prev, idx]));
@@ -613,6 +635,7 @@ export default function Home() {
       });
       const data = await res.json();
       const textoEs = data.traduccion || r.transcript;
+      const folderId = selectedFolderId && selectedFolderId !== 'all' ? selectedFolderId : null;
       const guion: Guion = {
         id: Date.now().toString(),
         name: autoName(r.url, textoEs),
@@ -620,6 +643,7 @@ export default function Home() {
         platform: r.platform ?? 'unknown',
         transcript: textoEs,
         savedAt: new Date().toISOString(),
+        folderId,
       };
       setGuiones([guion, ...guiones]);
       setSavedIdx(prev => new Set([...prev, idx]));
@@ -673,6 +697,63 @@ export default function Home() {
     setConfirmDeleteAll(false);
     try {
       await fetch('/api/biblioteca?all=1', { method: 'DELETE' });
+    } catch {}
+  }
+
+  // ── Carpetas ─────────────────────────────────────────────
+  async function crearFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setCreatingFolder(true);
+    try {
+      const res = await fetch('/api/biblioteca/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (data.folder) {
+        setFolders(prev => [...prev, data.folder]);
+        setSelectedFolderId(data.folder.id);
+        setNewFolderName('');
+      }
+    } catch {}
+    setCreatingFolder(false);
+  }
+
+  async function renombrarFolder(id: string, name: string) {
+    const clean = name.trim();
+    if (!clean) return;
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name: clean } : f));
+    setRenamingFolderId(null);
+    try {
+      await fetch('/api/biblioteca/folders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name: clean }),
+      });
+    } catch {}
+  }
+
+  async function borrarFolder(id: string) {
+    setFolders(prev => prev.filter(f => f.id !== id));
+    // Los guiones de esa folder pasan a "Sin carpeta" (folderId = null).
+    setGuiones(prev => prev.map(g => g.folderId === id ? { ...g, folderId: null } : g));
+    if (selectedFolderId === id) setSelectedFolderId('all');
+    try {
+      await fetch(`/api/biblioteca/folders?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {}
+  }
+
+  async function moverGuion(guionId: string, folderId: string | null) {
+    setGuiones(prev => prev.map(g => g.id === guionId ? { ...g, folderId } : g));
+    setMovePickerForId(null);
+    try {
+      await fetch('/api/biblioteca', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: guionId, folderId }),
+      });
     } catch {}
   }
 
@@ -1058,13 +1139,23 @@ export default function Home() {
       )}
 
       {/* ══ BIBLIOTECA ═══════════════════════════════════════ */}
-      {tab === 'biblioteca' && (
+      {tab === 'biblioteca' && (() => {
+        // Filtrar guiones por la carpeta seleccionada
+        const visibleGuiones =
+          selectedFolderId === 'all' ? guiones
+          : selectedFolderId === null ? guiones.filter(g => !g.folderId)
+          : guiones.filter(g => g.folderId === selectedFolderId);
+
+        const uncategorizedCount = guiones.filter(g => !g.folderId).length;
+        const selectedFolder = folders.find(f => f.id === selectedFolderId);
+
+        return (
         <div>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-sm font-medium">Mis guiones</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                {guiones.length === 0 ? 'Vacía' : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} guardado${guiones.length !== 1 ? 's' : ''}`}
+                {guiones.length === 0 ? 'Vacía' : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} · ${folders.length} carpeta${folders.length !== 1 ? 's' : ''}`}
               </p>
             </div>
             {guiones.length > 0 && (
@@ -1082,6 +1173,110 @@ export default function Home() {
             )}
           </div>
 
+          {/* ── Pills de carpetas ─────────────────────────────────────── */}
+          <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+            <button
+              onClick={() => setSelectedFolderId('all')}
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              style={selectedFolderId === 'all'
+                ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
+                : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}>
+              📚 Todas · {guiones.length}
+            </button>
+            <button
+              onClick={() => setSelectedFolderId(null)}
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              style={selectedFolderId === null
+                ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
+                : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}>
+              📄 Sin carpeta · {uncategorizedCount}
+            </button>
+
+            {folders.map(f => {
+              const count = guiones.filter(g => g.folderId === f.id).length;
+              const isActive = selectedFolderId === f.id;
+              const isRenaming = renamingFolderId === f.id;
+              return (
+                <div key={f.id} className="shrink-0 flex items-center">
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      defaultValue={f.name}
+                      onBlur={e => renombrarFolder(f.id, e.target.value || f.name)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') renombrarFolder(f.id, (e.target as HTMLInputElement).value || f.name);
+                        if (e.key === 'Escape') setRenamingFolderId(null);
+                      }}
+                      maxLength={80}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium outline-none"
+                      style={{ background: '#0f0f0f', border: '1px solid #7c3aed55', color: '#fff', width: '160px' }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setSelectedFolderId(f.id)}
+                      onDoubleClick={() => setRenamingFolderId(f.id)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                      style={isActive
+                        ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
+                        : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}
+                      title="Doble clic para renombrar">
+                      📁 {f.name} · {count}
+                    </button>
+                  )}
+                  {isActive && !isRenaming && (
+                    <>
+                      <button
+                        onClick={() => setRenamingFolderId(f.id)}
+                        className="ml-1 text-xs text-gray-500 hover:text-white"
+                        title="Renombrar">
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`¿Borrar la carpeta "${f.name}"? Los guiones que tiene adentro pasarán a "Sin carpeta".`)) {
+                            borrarFolder(f.id);
+                          }
+                        }}
+                        className="ml-1 text-xs text-gray-500 hover:text-red-400"
+                        title="Borrar carpeta">
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Crear nueva carpeta */}
+            <div className="shrink-0 flex items-center gap-1">
+              <input
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') crearFolder(); }}
+                placeholder="+ Nueva carpeta"
+                maxLength={80}
+                className="px-3 py-1.5 rounded-full text-xs outline-none transition-all"
+                style={{ background: '#0a0a0a', border: '1px dashed #2a2a2a', color: '#aaa', width: '160px' }}
+              />
+              {newFolderName.trim() && (
+                <button
+                  onClick={crearFolder}
+                  disabled={creatingFolder}
+                  className="px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
+                  Crear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Contexto de la carpeta activa */}
+          {selectedFolder && (
+            <p className="text-xs mb-3" style={{ color: '#555' }}>
+              Viendo <span style={{ color: '#c4b5fd' }}>{selectedFolder.name}</span> · {visibleGuiones.length} guion{visibleGuiones.length !== 1 ? 'es' : ''}
+            </p>
+          )}
+
           {guiones.length === 0 ? (
             <div className="text-center py-16 text-gray-600">
               <p className="text-5xl mb-4">📚</p>
@@ -1093,9 +1288,17 @@ export default function Home() {
                 Ir a Transcribir →
               </button>
             </div>
+          ) : visibleGuiones.length === 0 ? (
+            <div className="text-center py-16 text-gray-600">
+              <p className="text-4xl mb-4">📁</p>
+              <p className="text-sm text-gray-500">Esta carpeta está vacía</p>
+              <p className="text-xs text-gray-600 mt-2 max-w-xs mx-auto leading-relaxed">
+                Movete a otra carpeta o usá el botón <strong className="text-gray-500">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo acá
+              </p>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {guiones.map(g => {
+              {visibleGuiones.map(g => {
                 const isExpanded = expandedId === g.id;
                 const isEditing = editingId === g.id;
                 const info = PLATFORM_INFO[g.platform as keyof typeof PLATFORM_INFO];
@@ -1156,7 +1359,7 @@ export default function Home() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : g.id)}
                         className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
@@ -1173,6 +1376,41 @@ export default function Home() {
                           Ver video ↗
                         </a>
                       )}
+
+                      {/* Mover a carpeta */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setMovePickerForId(movePickerForId === g.id ? null : g.id)}
+                          className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
+                          📁 Mover a ▾
+                        </button>
+                        {movePickerForId === g.id && (
+                          <div className="absolute z-10 mt-1 right-0 min-w-[180px] rounded-xl py-1 shadow-xl"
+                            style={{ background: '#0f0f0f', border: '1px solid #2a2a2a' }}>
+                            <button
+                              onClick={() => moverGuion(g.id, null)}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
+                              style={{ color: !g.folderId ? '#c4b5fd' : '#aaa' }}>
+                              📄 Sin carpeta {!g.folderId && '✓'}
+                            </button>
+                            {folders.length > 0 && <div className="h-px my-1" style={{ background: '#1a1a1a' }} />}
+                            {folders.map(f => (
+                              <button
+                                key={f.id}
+                                onClick={() => moverGuion(g.id, f.id)}
+                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors truncate"
+                                style={{ color: g.folderId === f.id ? '#c4b5fd' : '#aaa' }}>
+                                📁 {f.name} {g.folderId === f.id && '✓'}
+                              </button>
+                            ))}
+                            {folders.length === 0 && (
+                              <p className="px-3 py-1.5 text-xs" style={{ color: '#555' }}>
+                                No tenés carpetas todavía
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1180,7 +1418,8 @@ export default function Home() {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       </div>
 
