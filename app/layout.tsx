@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.franpierachini.com";
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://viraladn.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

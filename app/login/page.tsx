@@ -14,44 +14,107 @@ export default function LoginPage() {
   );
 }
 
+// 'login' | 'signup' | 'signup-verify' | 'forgot' | 'forgot-verify'
+type Mode = 'login' | 'signup' | 'signup-verify' | 'forgot' | 'forgot-verify';
+
 function Login() {
   const params = useSearchParams();
   const next = params.get('next') || '';
   const reason = params.get('reason') || '';
   const wantsSignup = params.get('signup') === '1';
 
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(wantsSignup ? 'signup' : 'login');
+  const [mode, setMode] = useState<Mode>(wantsSignup ? 'signup' : 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [verifyCode, setVerifyCode] = useState('');
   const [showCodeField, setShowCodeField] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [forgotSent, setForgotSent] = useState(false);
+  const [info, setInfo] = useState('');
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+
+  function switchMode(newMode: Mode) {
+    setMode(newMode);
+    setError('');
+    setInfo('');
+    setVerifyCode('');
+    setEmailSuggestion(null);
+    setFailedAttempts(0);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
     setError('');
 
-    // ── FORGOT PASSWORD ──────────────────────────────────
-    if (mode === 'forgot') {
-      if (!email.includes('@')) {
-        setError('Correo inválido.');
+    // ── LOGIN ──────────────────────────────────────────
+    if (mode === 'login') {
+      if (password.length < 8) {
+        setError('La contraseña tiene que tener al menos 8 caracteres.');
         return;
       }
       setLoading(true);
       try {
-        await fetch('/api/auth/forgot-password', {
+        const res = await fetch('/api/auth/magic-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ mode: 'login', email: email.trim().toLowerCase(), password, next }),
         });
-        setForgotSent(true);
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+          setFailedAttempts(n => n + 1);
+          setLoading(false);
+          return;
+        }
+        const target = data.redirect || '/app';
+        const sep = target.includes('?') ? '&' : '?';
+        window.location.href = `${target}${sep}session=new`;
+      } catch {
+        setError('Error de conexión. Probá de nuevo.');
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── SIGNUP (paso 1: pedir código) ──────────────────
+    if (mode === 'signup') {
+      if (password.length < 8) {
+        setError('La contraseña tiene que tener al menos 8 caracteres.');
+        return;
+      }
+      const fix = suggestEmailFix(email);
+      if (fix && !emailSuggestion) {
+        setEmailSuggestion(fix);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch('/api/auth/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'signup',
+            email: email.trim().toLowerCase(),
+            password,
+            name,
+            phone,
+            code: inviteCode,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+          setLoading(false);
+          return;
+        }
+        setInfo(`Te enviamos un código de 6 dígitos a ${email}. Revisá también spam.`);
+        setMode('signup-verify');
       } catch {
         setError('Error de conexión. Probá de nuevo.');
       }
@@ -59,56 +122,128 @@ function Login() {
       return;
     }
 
-    // ── SIGNUP / LOGIN ───────────────────────────────────
-    if (password.length < 8) {
-      setError('La contraseña tiene que tener al menos 8 caracteres.');
-      return;
-    }
-
-    // Detectar typo de dominio (gmail/hotmail/etc) — defensa contra cuentas
-    // duplicadas con typos. Si hay sugerencia → la mostramos y NO submitimos.
-    const fix = suggestEmailFix(email);
-    if (fix && !emailSuggestion) {
-      setEmailSuggestion(fix);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, name, email: email.trim().toLowerCase(), phone, password, code, next }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        if (mode === 'login') setFailedAttempts(n => n + 1);
+    // ── SIGNUP (paso 2: verificar código) ──────────────
+    if (mode === 'signup-verify') {
+      if (verifyCode.trim().length !== 6) {
+        setError('El código tiene 6 dígitos.');
         return;
       }
-      // Éxito → redirigimos a donde diga el server (/precios o /app).
-      // Le pegamos ?session=new para que SessionGuard marque la pestaña.
-      const target = data.redirect || '/app';
-      const sep = target.includes('?') ? '&' : '?';
-      window.location.href = `${target}${sep}session=new`;
-    } catch {
-      setError('Error de conexión. Intentá de nuevo.');
+      setLoading(true);
+      try {
+        const res = await fetch('/api/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'signup',
+            email: email.trim().toLowerCase(),
+            code: verifyCode.trim(),
+            password,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+          setLoading(false);
+          return;
+        }
+        const target = data.redirect || '/app';
+        const sep = target.includes('?') ? '&' : '?';
+        window.location.href = `${target}${sep}session=new`;
+      } catch {
+        setError('Error de conexión. Probá de nuevo.');
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── FORGOT (paso 1: pedir código) ──────────────────
+    if (mode === 'forgot') {
+      if (!email.includes('@')) {
+        setError('Correo inválido.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await fetch('/api/auth/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'reset', email: email.trim().toLowerCase() }),
+        });
+        setInfo(`Si ${email} está registrado, te enviamos un código.`);
+        setMode('forgot-verify');
+      } catch {
+        setError('Error de conexión. Probá de nuevo.');
+      }
       setLoading(false);
+      return;
+    }
+
+    // ── FORGOT (paso 2: verificar + nueva password) ────
+    if (mode === 'forgot-verify') {
+      if (verifyCode.trim().length !== 6) {
+        setError('El código tiene 6 dígitos.');
+        return;
+      }
+      if (newPassword.length < 8) {
+        setError('La nueva contraseña tiene que tener al menos 8 caracteres.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch('/api/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'reset',
+            email: email.trim().toLowerCase(),
+            code: verifyCode.trim(),
+            newPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+          setLoading(false);
+          return;
+        }
+        const target = data.redirect || '/app';
+        const sep = target.includes('?') ? '&' : '?';
+        window.location.href = `${target}${sep}session=new`;
+      } catch {
+        setError('Error de conexión. Probá de nuevo.');
+        setLoading(false);
+      }
+      return;
     }
   }
 
-  function switchMode(newMode: 'login' | 'signup' | 'forgot') {
-    setMode(newMode);
+  async function resendCode() {
     setError('');
-    setForgotSent(false);
-    setEmailSuggestion(null);
-    setFailedAttempts(0);
+    setLoading(true);
+    try {
+      const isReset = mode === 'forgot-verify';
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isReset
+            ? { mode: 'reset', email: email.trim().toLowerCase() }
+            : { mode: 'signup', email: email.trim().toLowerCase(), password, name, phone, code: inviteCode },
+        ),
+      });
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else setInfo('Listo, te reenviamos el código.');
+    } catch {
+      setError('Error al reenviar el código.');
+    }
+    setLoading(false);
   }
+
+  const inVerify = mode === 'signup-verify' || mode === 'forgot-verify';
 
   return (
     <main className="min-h-screen text-white flex flex-col" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
-      {/* NAV */}
       <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -121,13 +256,12 @@ function Login() {
         </Link>
       </nav>
 
-      {/* FORM */}
       <section className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           <div className="rounded-3xl p-8"
             style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
 
-            {(reason === 'idle' || reason === 'tab') && mode !== 'forgot' && (
+            {(reason === 'idle' || reason === 'tab') && mode === 'login' && (
               <div className="rounded-xl p-3 text-xs mb-4"
                 style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
                 {reason === 'idle'
@@ -138,146 +272,146 @@ function Login() {
 
             <h2 className="text-2xl font-bold mb-2">
               {mode === 'signup' ? 'Empezá tu prueba'
+                : mode === 'signup-verify' ? 'Confirmá tu correo'
                 : mode === 'login' ? 'Bienvenido de vuelta'
-                : 'Recuperar contraseña'}
+                : mode === 'forgot' ? 'Recuperar contraseña'
+                : 'Ingresá el código'}
             </h2>
             <p className="text-sm mb-6" style={{ color: '#888' }}>
               {mode === 'signup'
-                ? 'Completá tus datos y elegí una contraseña. Te llevamos a pagar.'
+                ? 'Completá tus datos. Te mandamos un código para confirmar.'
+                : mode === 'signup-verify'
+                ? `Te enviamos un código a ${email}. Tiene 6 dígitos y vence en 15 min.`
                 : mode === 'login'
                 ? 'Ingresá con tu correo y contraseña.'
-                : 'Te mandamos un correo con un link para crear una contraseña nueva.'}
+                : mode === 'forgot'
+                ? 'Te mandamos un código por correo para cambiar tu contraseña.'
+                : `Pegá el código que te enviamos a ${email} y elegí una nueva contraseña.`}
             </p>
 
-            {mode === 'forgot' && forgotSent ? (
-              <div className="text-center py-4">
-                <div className="text-5xl mb-3">📬</div>
-                <p className="text-sm mb-4" style={{ color: '#aaa' }}>
-                  Si <span style={{ color: '#fff' }}>{email}</span> está registrado,
-                  te llegó un correo con el link para cambiar tu contraseña.
-                  Revisá también tu carpeta de spam.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="text-xs underline" style={{ color: '#888' }}>
-                  ← Volver a iniciar sesión
-                </button>
-              </div>
-            ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              {mode === 'signup' && (
+              {/* ───────── VERIFY STEP ───────── */}
+              {inVerify ? (
                 <>
                   <div>
-                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Nombre completo</label>
+                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Código de 6 dígitos</label>
                     <input
-                      value={name}
-                      onChange={e => setName(e.target.value)}
+                      value={verifyCode}
+                      onChange={e => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       required
-                      placeholder="Tu nombre"
-                      className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                      style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="000000"
+                      className="w-full px-4 py-3 rounded-xl text-lg outline-none transition-colors text-center"
+                      style={{ background: '#0a0a0a', border: '1px solid #7c3aed55', color: '#fff', letterSpacing: '0.4em', fontFamily: 'monospace' }}
                     />
                   </div>
-                  <div>
-                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Teléfono (con código de país)</label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      required
-                      placeholder="+52 55 1234 5678"
-                      className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                      style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
-                    />
-                  </div>
-                </>
-              )}
 
-              <div>
-                <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Correo electrónico</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  placeholder="tu@correo.com"
-                  autoComplete="email"
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                  style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
-                />
-              </div>
-
-              {mode !== 'forgot' && (
-                <div>
-                  <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
-                    Contraseña {mode === 'signup' && <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>}
-                  </label>
-                  <PasswordInput
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    minLength={8}
-                    placeholder="••••••••"
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                    className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                    style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
-                  />
-                  {mode === 'login' && (
-                    <button
-                      type="button"
-                      onClick={() => switchMode('forgot')}
-                      className="text-xs mt-2 underline"
-                      style={{ color: '#888' }}>
-                      ¿Olvidaste tu contraseña?
-                    </button>
+                  {mode === 'forgot-verify' && (
+                    <div>
+                      <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
+                        Nueva contraseña <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>
+                      </label>
+                      <PasswordInput
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                        style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }}
+                      />
+                    </div>
                   )}
-                </div>
-              )}
 
-              {/* Código de invitación (solo en signup, oculto por default) */}
-              {mode === 'signup' && (
-                showCodeField ? (
+                  {info && (
+                    <div className="rounded-xl p-3 text-xs"
+                      style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                      {info}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {mode === 'signup' && (
+                    <>
+                      <div>
+                        <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Nombre completo</label>
+                        <input value={name} onChange={e => setName(e.target.value)} required placeholder="Tu nombre"
+                          className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                          style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }} />
+                      </div>
+                      <div>
+                        <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Teléfono (con código de país)</label>
+                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required placeholder="+52 55 1234 5678"
+                          className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                          style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }} />
+                      </div>
+                    </>
+                  )}
+
                   <div>
-                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
-                      Código de invitación <span style={{ color: '#555' }}>(activa 5 días gratis)</span>
-                    </label>
-                    <input
-                      value={code}
-                      onChange={e => setCode(e.target.value.toUpperCase())}
-                      placeholder="EJ: BETA2026"
-                      autoCapitalize="characters"
+                    <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>Correo electrónico</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="tu@correo.com" autoComplete="email"
                       className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                      style={{ background: '#0a0a0a', border: '1px solid #c4b5fd55', color: '#fff', letterSpacing: '0.05em' }}
-                    />
+                      style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }} />
                   </div>
-                ) : (
-                  <button type="button"
-                    onClick={() => setShowCodeField(true)}
-                    className="text-xs underline self-start"
-                    style={{ color: '#888' }}>
-                    ¿Tenés un código de invitación? +
-                  </button>
-                )
-              )}
 
-              {/* Sugerencia de typo de dominio (gmaoil → gmail, etc.) */}
-              {emailSuggestion && (
-                <div className="rounded-xl p-3 text-xs"
-                  style={{ background: '#92400e22', border: '1px solid #fbbf2455', color: '#fde68a' }}>
-                  ¿Quisiste decir{' '}
-                  <button type="button"
-                    onClick={() => { setEmail(emailSuggestion); setEmailSuggestion(null); }}
-                    className="font-bold underline">
-                    {emailSuggestion}
-                  </button>
-                  ?
-                  <button type="button"
-                    onClick={() => setEmailSuggestion(null)}
-                    className="ml-2 opacity-60 underline">
-                    No, está bien así
-                  </button>
-                </div>
+                  {(mode === 'login' || mode === 'signup') && (
+                    <div>
+                      <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
+                        Contraseña {mode === 'signup' && <span style={{ color: '#555' }}>(mínimo 8 caracteres)</span>}
+                      </label>
+                      <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
+                        placeholder="••••••••"
+                        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                        className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                        style={{ background: '#0a0a0a', border: '1px solid #1f1f1f', color: '#fff' }} />
+                      {mode === 'login' && (
+                        <button type="button" onClick={() => switchMode('forgot')}
+                          className="text-xs mt-2 underline" style={{ color: '#888' }}>
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {mode === 'signup' && (
+                    showCodeField ? (
+                      <div>
+                        <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
+                          Código de invitación <span style={{ color: '#555' }}>(activa días gratis)</span>
+                        </label>
+                        <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
+                          placeholder="EJ: BETA2026" autoCapitalize="characters"
+                          className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
+                          style={{ background: '#0a0a0a', border: '1px solid #c4b5fd55', color: '#fff', letterSpacing: '0.05em' }} />
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setShowCodeField(true)}
+                        className="text-xs underline self-start" style={{ color: '#888' }}>
+                        ¿Tenés un código de invitación? +
+                      </button>
+                    )
+                  )}
+
+                  {emailSuggestion && (
+                    <div className="rounded-xl p-3 text-xs"
+                      style={{ background: '#92400e22', border: '1px solid #fbbf2455', color: '#fde68a' }}>
+                      ¿Quisiste decir{' '}
+                      <button type="button"
+                        onClick={() => { setEmail(emailSuggestion); setEmailSuggestion(null); }}
+                        className="font-bold underline">
+                        {emailSuggestion}
+                      </button>?
+                      <button type="button" onClick={() => setEmailSuggestion(null)} className="ml-2 opacity-60 underline">
+                        No, está bien así
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
               {error && (
@@ -286,53 +420,57 @@ function Login() {
                 </div>
               )}
 
-              {/* Ayuda extra después de fallar 1+ veces en login */}
               {mode === 'login' && failedAttempts >= 1 && (
                 <div className="rounded-xl p-3 text-xs"
                   style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
                   Si no recordás tu contraseña,{' '}
-                  <button type="button"
-                    onClick={() => switchMode('forgot')}
-                    className="font-bold underline">
+                  <button type="button" onClick={() => switchMode('forgot')} className="font-bold underline">
                     pedí una nueva acá
-                  </button>
-                  . Si pensás que tu correo puede tener un typo, revisá la sugerencia arriba.
+                  </button>.
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
+              <button type="submit" disabled={loading}
                 className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 mt-2"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
-                {loading
-                  ? 'Procesando...'
-                  : mode === 'signup' ? (code.trim() ? 'Empezar prueba gratis →' : 'Crear cuenta y pagar →')
+                {loading ? 'Procesando...'
+                  : mode === 'signup' ? 'Enviarme el código →'
+                  : mode === 'signup-verify' ? 'Confirmar y entrar →'
                   : mode === 'login' ? 'Entrar →'
-                  : 'Mandame el link →'}
+                  : mode === 'forgot' ? 'Enviarme el código →'
+                  : 'Cambiar contraseña →'}
               </button>
 
+              {inVerify && (
+                <div className="flex items-center justify-between mt-1 text-xs">
+                  <button type="button" disabled={loading} onClick={resendCode}
+                    className="underline" style={{ color: '#888' }}>
+                    Reenviar código
+                  </button>
+                  <button type="button"
+                    onClick={() => switchMode(mode === 'signup-verify' ? 'signup' : 'forgot')}
+                    className="underline" style={{ color: '#888' }}>
+                    ← Cambiar datos
+                  </button>
+                </div>
+              )}
+
               {mode === 'forgot' && (
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="text-xs underline mt-2 self-center"
-                  style={{ color: '#888' }}>
+                <button type="button" onClick={() => switchMode('login')}
+                  className="text-xs underline mt-2 self-center" style={{ color: '#888' }}>
                   ← Volver
                 </button>
               )}
             </form>
-            )}
 
-            {mode !== 'forgot' && (
+            {(mode === 'login' || mode === 'signup') && (
               <div className="mt-6 pt-6 text-center text-sm"
                 style={{ borderTop: '1px solid #1f1f1f', color: '#888' }}>
                 {mode === 'login' ? (
                   <>
                     ¿Todavía no tenés cuenta?{' '}
                     <button type="button" onClick={() => switchMode('signup')}
-                      className="font-semibold underline"
-                      style={{ color: '#c4b5fd' }}>
+                      className="font-semibold underline" style={{ color: '#c4b5fd' }}>
                       Crear cuenta →
                     </button>
                   </>
@@ -340,8 +478,7 @@ function Login() {
                   <>
                     ¿Ya tenés cuenta?{' '}
                     <button type="button" onClick={() => switchMode('login')}
-                      className="font-semibold underline"
-                      style={{ color: '#c4b5fd' }}>
+                      className="font-semibold underline" style={{ color: '#c4b5fd' }}>
                       Iniciar sesión →
                     </button>
                   </>
