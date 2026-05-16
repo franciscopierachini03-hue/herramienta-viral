@@ -213,7 +213,10 @@ function preferredTerm(tema: string, mappedTerm: string | undefined): string {
 }
 
 // ── IA: expandir cualquier tema con GPT-4o-mini ──────────────────────────────
-interface AIKeywords { es: string[]; en: string[]; pt: string[]; ru?: string[]; de?: string[] }
+interface AIKeywords {
+  es: string[]; en: string[]; pt: string[];
+  ru?: string[]; de?: string[]; fr?: string[]; it?: string[]; ja?: string[];
+}
 
 // Detectar el idioma del término buscado por el usuario.
 // Heurística simple: caracteres especiales + palabras frecuentes.
@@ -254,7 +257,7 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
           content: `Eres un experto en hashtags virales que usan creators GRANDES (1M+ followers). Dado un tema, generás 4 grupos de hashtags para construir un pool de búsqueda profundo.
 
 Formato ESTRICTO JSON:
-{"es":["k1","k2","k3","k4","k5","k6","k7","k8"],"en":["k1","k2","k3","k4","k5","k6"],"pt":["k1","k2","k3","k4"],"ru":["k1","k2"],"de":["k1","k2"]}
+{"es":["k1","k2","k3","k4","k5","k6","k7","k8"],"en":["k1","k2","k3","k4","k5","k6"],"pt":["k1","k2","k3","k4"],"ru":["k1","k2"],"de":["k1","k2"],"fr":["k1","k2"],"it":["k1","k2"],"ja":["k1","k2"]}
 
 ESTRUCTURA — 4 grupos por idioma, en este orden:
 1. **Tema literal + sinónimos directos** (2 keywords): la palabra exacta + traducciones cortas
@@ -268,10 +271,11 @@ REGLAS NO NEGOCIABLES:
 - TODOS los keywords deben ser de la MISMA familia conceptual del tema. Si el tema es "dinero", NO pongas "5amroutine" o "gymmotivation" aunque se cruce a veces — eso lo filtramos diferente.
 - Excluí explícitamente nichos técnicos especializados (trading técnico, análisis bursátil, criptos detalladas) salvo que el tema los pida directamente
 - Excluí lifestyle desconectado (5amroutine, gymworkout, fooddiet) salvo que el tema sea ese
-- RU en cirílico nativo, DE con palabras alemanas reales
+- RU en cirílico nativo, DE/FR/IT con palabras reales del idioma. JA en hiragana/katakana/kanji
+- Si el tema es muy nicho regional, igual completar todos los idiomas con la mejor traducción que exista
 
 EJEMPLO tema "dinero":
-{"es":["dinero","plata","riqueza","libertadfinanciera","mentalidadrica","educacionfinanciera","emprendimiento","ahorro"],"en":["money","wealth","financialfreedom","richmindset","passiveincome","savings","finance","entrepreneurship"],"pt":["dinheiro","riqueza","liberdadefinanceira","mentalidaderica"],"ru":["деньги","богатство"],"de":["geld","reichtum"]}
+{"es":["dinero","plata","riqueza","libertadfinanciera","mentalidadrica","educacionfinanciera","emprendimiento","ahorro"],"en":["money","wealth","financialfreedom","richmindset","passiveincome","savings","finance","entrepreneurship"],"pt":["dinheiro","riqueza","liberdadefinanceira","mentalidaderica"],"ru":["деньги","богатство"],"de":["geld","reichtum"],"fr":["argent","richesse"],"it":["soldi","ricchezza"],"ja":["お金","資産"]}
 
 EJEMPLO tema "fitness":
 {"es":["fitness","entrenamiento","transformacion","mentefuerte","disciplina","rutinaentreno","nutricion","comidasaludable"],"en":["fitness","workout","transformation","strongmindset","discipline","training","nutrition","healthyfood"],"pt":["fitness","treino","transformacao","disciplina"],"ru":["фитнес","тренировка"],"de":["fitness","training"]}
@@ -1029,6 +1033,9 @@ async function searchViaApify(
   ])).filter(Boolean).slice(0, 4);
   const ruKeywords = (ai?.ru || []).slice(0, 2);
   const deKeywords = (ai?.de || []).slice(0, 2);
+  const frKeywords = (ai?.fr || []).slice(0, 2);
+  const itKeywords = (ai?.it || []).slice(0, 2);
+  const jaKeywords = (ai?.ja || []).slice(0, 2);
 
   let items: unknown[] = [];
 
@@ -1036,7 +1043,7 @@ async function searchViaApify(
     // clockworks/tiktok-scraper — usa el motor de búsqueda nativo de TikTok.
     // Returns posts ordered by TikTok's own virality ranking — exactamente
     // lo que se ve si abrís la app y buscás.
-    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords];
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords, ...frKeywords, ...itKeywords, ...jaKeywords];
     const res = await fetch(
       `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
       {
@@ -1063,7 +1070,7 @@ async function searchViaApify(
     //      (este es el que devuelve videos virales reales — millones de vistas)
     //   B) hashtag scraping → complementa con posts del hashtag literal
     //      (típicamente trae menos videos pero más diversidad de creators chicos)
-    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords];
+    const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords, ...frKeywords, ...itKeywords, ...jaKeywords];
 
     const userSearchTerms = [tema, ...(esKeywords[1] ? [esKeywords[1]] : []), ...(enKeywords[0] ? [enKeywords[0]] : [])];
     const hashtags = allKeywords.map(k =>
@@ -1674,34 +1681,51 @@ REGLAS NO NEGOCIABLES
     Array.from(scoredByLang.entries()).map(([k,v]) => `${k}:${v.length}`).join(', ')
   }`);
 
-  // Cantidad objetivo: 25 resultados de calidad consistente.
-  const TARGET_MIN = 25;
-  // Floor para fillers: 30K vistas / 1.5K likes — videos de creators medianos
-  // con engagement real (no mediocre, no spam).
-  const QUALITY_FLOOR_VIEWS = 30_000;
-  const QUALITY_FLOOR_LIKES = 1_500;
-
-  if (finalOrdered.length >= TARGET_MIN) return finalOrdered;
-
-  // Pasada 2: rellenar SOLO con candidatos que cumplen el quality floor.
+  // ── Sistema adaptativo: NUNCA menos de TARGET_MIN resultados ──────────────
+  // Si la pasada estricta no llega al objetivo, vamos relajando thresholds
+  // hasta llegar al mínimo. Mejor 15 buenos que 4 perfectos.
+  const TARGET_MIN = 20;
   const fillerSet = new Set(finalOrdered.map(v => v.url));
   const candidatesByEngagement = [...candidates].sort(
     (a, b) => (b.viewsRaw + b.likesRaw * 8) - (a.viewsRaw + a.likesRaw * 8),
   );
-  for (const c of candidatesByEngagement) {
+
+  // Pasadas escalonadas (cada una más permisiva que la anterior)
+  const passes = [
+    { views: 30_000, likes: 1_500, allowPromo: false, label: 'medio' },
+    { views: 10_000, likes:   500, allowPromo: false, label: 'suave' },
+    { views:  3_000, likes:   100, allowPromo: false, label: 'muyúsave' },
+    { views:      0, likes:     0, allowPromo: false, label: 'sólo no-promo' },
+    { views:      0, likes:     0, allowPromo: true,  label: 'lo que haya' },
+  ];
+
+  for (const pass of passes) {
     if (finalOrdered.length >= TARGET_MIN) break;
-    if (fillerSet.has(c.url)) continue;
-    if (looksLikePromo(c.title)) continue;
-    // Si tiene stats, exigir el floor de calidad
-    if (c.viewsRaw > 0 && c.viewsRaw < QUALITY_FLOOR_VIEWS) continue;
-    if (c.likesRaw > 0 && c.likesRaw < QUALITY_FLOOR_LIKES) continue;
-    finalOrdered.push(c);
-    fillerSet.add(c.url);
+    for (const c of candidatesByEngagement) {
+      if (finalOrdered.length >= TARGET_MIN) break;
+      if (fillerSet.has(c.url)) continue;
+      if (!pass.allowPromo && looksLikePromo(c.title)) continue;
+      if (c.viewsRaw > 0 && c.viewsRaw < pass.views) continue;
+      if (c.likesRaw > 0 && c.likesRaw < pass.likes) continue;
+      finalOrdered.push(c);
+      fillerSet.add(c.url);
+    }
+    if (finalOrdered.length > 0) {
+      console.log(`[adaptive] pasada "${pass.label}" → ${finalOrdered.length}/${TARGET_MIN}`);
+    }
   }
 
-  // No hay pasada 3 con relax total. Si después del floor no llegamos a 6,
-  // devolvemos lo que haya (ej. 4 resultados PERFECTOS) en vez de inflar
-  // con junk. Mejor menos cantidad que peor calidad.
+  // Si AÚN no llegamos (caso raro: pool muy chico), devolvemos
+  // simplemente el top-N por engagement sin filtrar.
+  if (finalOrdered.length < TARGET_MIN) {
+    for (const c of candidatesByEngagement) {
+      if (finalOrdered.length >= TARGET_MIN) break;
+      if (fillerSet.has(c.url)) continue;
+      finalOrdered.push(c);
+      fillerSet.add(c.url);
+    }
+  }
+
   return finalOrdered.slice(0, topOutput);
 }
 
