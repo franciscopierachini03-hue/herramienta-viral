@@ -6,12 +6,9 @@ import { createClient } from '@/lib/supabase/server';
 // Solo responde a usuarios admin (ADMIN_EMAILS o hardcoded owners).
 // No revela los valores completos — solo si están configuradas y un preview.
 
-const HARDCODED_OWNERS = ['franciscopierachini03@gmail.com'];
-
 function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.toLowerCase().trim();
-  if (HARDCODED_OWNERS.includes(e)) return true;
   const list = (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map(s => s.trim().toLowerCase())
