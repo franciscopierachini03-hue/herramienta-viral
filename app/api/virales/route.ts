@@ -240,6 +240,32 @@ function detectQueryLanguage(tema: string): 'es' | 'en' | 'pt' | 'de' | 'ru' {
   return 'en';
 }
 
+// Google Autocomplete (sin auth) — devuelve las búsquedas más populares que
+// empiezan con o están relacionadas a `tema`. Es señal en vivo de qué está
+// buscando la gente HOY. Mucho más reactivo a tendencias que la lista que
+// genera la IA. Usamos esto para expandir el pool de keywords.
+async function expandWithGoogleSuggest(tema: string): Promise<string[]> {
+  const queries = [tema, `${tema} tiktok`, `${tema} viral`, `como ${tema}`];
+  const all = new Set<string>();
+  await Promise.all(queries.map(async q => {
+    try {
+      const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(q)}&hl=es`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
+      if (!res.ok) return;
+      const data = await res.json();
+      // Formato: [originalQuery, [suggestion1, suggestion2, ...]]
+      const suggestions: string[] = Array.isArray(data?.[1]) ? data[1] : [];
+      for (const s of suggestions.slice(0, 10)) {
+        const clean = String(s).trim().toLowerCase();
+        if (clean && clean.length < 50 && clean !== tema.toLowerCase()) {
+          all.add(clean);
+        }
+      }
+    } catch { /* ignore */ }
+  }));
+  return Array.from(all).slice(0, 14);
+}
+
 async function expandWithAI(tema: string): Promise<AIKeywords | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -1041,29 +1067,95 @@ async function searchViaApify(
 
   if (platform === 'tiktok') {
     // clockworks/tiktok-scraper — usa el motor de búsqueda nativo de TikTok.
-    // Returns posts ordered by TikTok's own virality ranking — exactamente
-    // lo que se ve si abrís la app y buscás.
+    // Lanzamos DOS pasadas en paralelo para maximizar cobertura:
+    //   A) searchQueries — búsqueda de texto (lo que ve la gente al tipear)
+    //   B) hashtags     — feed de hashtag (cazá los virales que crecen
+    //                     dentro de un tag, no necesariamente con la
+    //                     palabra exacta en el caption)
     const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords, ...frKeywords, ...itKeywords, ...jaKeywords];
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          searchSection: '',  // Vacío = búsqueda general (incluye videos)
-          searchQueries: allKeywords,
-          maxItems: 200, // 200 totales, distribuidos entre las queries para más cobertura
-          shouldDownloadVideos: false,
-          shouldDownloadCovers: false,
-          shouldDownloadSubtitles: false,
-        }),
-      }
-    );
-    if (!res.ok) {
-      const errText = await res.text().catch(() => String(res.status));
-      throw new Error(`Apify TikTok ${res.status}: ${errText.slice(0, 200)}`);
+
+    // Hashtags: limpiar (sin espacios, sin #), priorizar los más concretos.
+    // TikTok hashtag feed se satura rápido, 8 hashtags top es suficiente.
+    const hashtagPool = Array.from(new Set([
+      ...(ai?.es || []).slice(0, 4),
+      ...(ai?.en || []).slice(0, 3),
+      ...(ai?.pt || []).slice(0, 2),
+    ]))
+      .map(k => String(k).replace(/^#/, '').replace(/\s+/g, '').toLowerCase())
+      .filter(k => k && k.length >= 3 && k.length <= 40)
+      .slice(0, 8);
+
+    const [searchRes, hashtagRes] = await Promise.all([
+      // A) Búsqueda por texto
+      fetch(
+        `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            searchSection: '',
+            searchQueries: allKeywords,
+            maxItems: 200,
+            shouldDownloadVideos: false,
+            shouldDownloadCovers: false,
+            shouldDownloadSubtitles: false,
+          }),
+        }
+      ).then(async r => {
+        if (!r.ok) {
+          const t = await r.text().catch(() => String(r.status));
+          console.warn(`[apify TT search] ${r.status}: ${t.slice(0, 160)}`);
+          return [];
+        }
+        return r.json() as Promise<unknown[]>;
+      }).catch(e => { console.warn('[apify TT search] err', e); return [] as unknown[]; }),
+
+      // B) Feed de hashtag (sólo si hay hashtags armados)
+      hashtagPool.length > 0
+        ? fetch(
+            `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                hashtags: hashtagPool,
+                resultsPerPage: 30,    // por hashtag
+                maxItems: 200,         // tope global
+                shouldDownloadVideos: false,
+                shouldDownloadCovers: false,
+                shouldDownloadSubtitles: false,
+              }),
+            }
+          ).then(async r => {
+            if (!r.ok) {
+              const t = await r.text().catch(() => String(r.status));
+              console.warn(`[apify TT hashtag] ${r.status}: ${t.slice(0, 160)}`);
+              return [];
+            }
+            return r.json() as Promise<unknown[]>;
+          }).catch(e => { console.warn('[apify TT hashtag] err', e); return [] as unknown[]; })
+        : Promise.resolve([] as unknown[]),
+    ]);
+
+    // Dedupe por id de video (Apify devuelve el mismo video si aparece en
+    // varios feeds — buscábamos por keyword Y estaba en un hashtag).
+    const merged: unknown[] = [];
+    const seen = new Set<string>();
+    for (const it of [...(searchRes as unknown[]), ...(hashtagRes as unknown[])]) {
+      const id = (it as { id?: string; webVideoUrl?: string })?.id
+              || (it as { webVideoUrl?: string })?.webVideoUrl
+              || JSON.stringify(it).slice(0, 60);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      merged.push(it);
     }
-    items = await res.json();
+    console.log(`[apify TT] search=${(searchRes as unknown[]).length} + hashtag=${(hashtagRes as unknown[]).length} → ${merged.length} únicos`);
+    items = merged;
+
+    if (items.length === 0) {
+      // Defensa: si ambas pasadas vinieron vacías, propagar un error claro
+      throw new Error('Apify TikTok devolvió 0 resultados en ambas pasadas');
+    }
   } else {
     // Instagram: estrategia DUAL en paralelo:
     //   A) search-user → encuentra TOP creators del nicho → scrapea sus reels
@@ -1918,10 +2010,30 @@ export async function POST(req: NextRequest) {
     return Response.json({ videos: cached, cached: true });
   }
 
-  // ── Expansión de keywords con IA (SIEMPRE, también para temas conocidos) ─────
-  // La IA enriquece con variantes nativas que el mapa no tiene
+  // ── Expansión de keywords: IA + Google Suggest en paralelo ────────────────
+  // - expandWithAI: 8 idiomas, hashtags conceptuales del nicho
+  // - expandWithGoogleSuggest: keywords trending HOY según Google (en vivo,
+  //   reactivo a lo que está buscando la gente)
+  // Las suggestions se fusionan al pool ES porque son la señal de demanda
+  // real en castellano/inglés mezclado que devuelve Google.
   const enMapa = findMapEntry(tema) !== null;
-  const aiKeys: AIKeywords | null = await expandWithAI(tema);
+  const [aiKeysRaw, googleSuggest] = await Promise.all([
+    expandWithAI(tema),
+    expandWithGoogleSuggest(tema),
+  ]);
+
+  let aiKeys: AIKeywords | null = aiKeysRaw;
+  if (googleSuggest.length > 0) {
+    // Sumar suggestions al pool ES (con dedupe simple)
+    const baseEs = aiKeys?.es || [];
+    const merged = Array.from(new Set([...baseEs, ...googleSuggest]));
+    aiKeys = {
+      es: merged,
+      en: aiKeys?.en || [],
+      pt: aiKeys?.pt || [],
+      ru: aiKeys?.ru, de: aiKeys?.de, fr: aiKeys?.fr, it: aiKeys?.it, ja: aiKeys?.ja,
+    };
+  }
 
   // Helper: tema enriquecido por IA o el original
   function temaES(): string { return aiKeys?.es?.[0] || tema; }
@@ -1936,7 +2048,7 @@ export async function POST(req: NextRequest) {
     };
   }
 
-  console.log(`[virales] tema="${tema}" enMapa=${enMapa} aiKeys=${JSON.stringify(aiKeys)}`);
+  console.log(`[virales] tema="${tema}" enMapa=${enMapa} googleSuggest=${googleSuggest.length} aiKeys=${JSON.stringify(aiKeys)}`);
 
   if (platform==='youtube') {
     const serperKey = process.env.SERPER_API_KEY;
