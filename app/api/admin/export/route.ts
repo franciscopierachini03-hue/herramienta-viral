@@ -5,9 +5,12 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 // GET /api/admin/export — descarga la tabla profiles como CSV.
 // Solo accesible para: email en ADMIN_EMAILS + cookie admin_pin_ok válida.
 
+const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
+
 function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.toLowerCase().trim();
+  if (PERMANENT_OWNERS.includes(e)) return true;
   const list = (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map(s => s.trim().toLowerCase())
