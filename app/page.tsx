@@ -100,20 +100,74 @@ export default function Landing() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { plat: '#FF0000', icon: '▶', views: '4.2M', eng: '6.3%' },
-                { plat: '#69C9D0', icon: '◆', views: '3.8M', eng: '4.1%' },
-                { plat: '#C13584', icon: '◉', views: '2.1M', eng: '5.8%' },
+                {
+                  plat: '#FF0000', platLabel: 'YT', views: '4.2M', eng: '6.3%',
+                  cover: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=711&fit=crop&q=85&auto=format',
+                  caption: 'Esto cambia todo el gym',
+                  handle: '@coachfit',
+                  gradientFallback: 'linear-gradient(135deg, #7f1d1d, #1a0a0a)',
+                },
+                {
+                  plat: '#69C9D0', platLabel: 'TT', views: '3.8M', eng: '4.1%',
+                  cover: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&h=711&fit=crop&q=85&auto=format',
+                  caption: '3 reglas para tu primer $10K',
+                  handle: '@dinerorapido',
+                  gradientFallback: 'linear-gradient(135deg, #164e63, #0a1a1f)',
+                },
+                {
+                  plat: '#C13584', platLabel: 'IG', views: '2.1M', eng: '5.8%',
+                  cover: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=711&fit=crop&q=85&auto=format',
+                  caption: 'El error que mata tu mindset',
+                  handle: '@mentalidadpro',
+                  gradientFallback: 'linear-gradient(135deg, #831843, #1a0a14)',
+                },
               ].map((v, i) => (
-                <div key={i} className="rounded-xl overflow-hidden relative" style={{ aspectRatio: '9/16', background: '#0a0a0a', border: `1px solid ${v.plat}33` }}>
-                  <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-30">{v.icon}</div>
-                  <div className="absolute top-2 left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                <div key={i} className="rounded-xl overflow-hidden relative" style={{ aspectRatio: '9/16', background: v.gradientFallback, border: `1px solid ${v.plat}44`, boxShadow: `0 0 18px ${v.plat}22` }}>
+                  {/* Cover image */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={v.cover}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+
+                  {/* Gradient overlay para legibilidad de overlays */}
+                  <div className="absolute inset-0"
+                    style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.85) 100%)' }} />
+
+                  {/* Rank badge */}
+                  <div className="absolute top-2 left-2 px-1.5 h-5 min-w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}>
                     {i + 1}
                   </div>
-                  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: '#22c55e22', color: '#4ade80', border: '1px solid #22c55e44' }}>
+
+                  {/* Platform pill */}
+                  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white flex items-center gap-1"
+                    style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: v.plat }} />
+                    {v.platLabel}
+                  </div>
+
+                  {/* Engagement badge */}
+                  <div className="absolute top-9 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: '#22c55e33', color: '#4ade80', border: '1px solid #22c55e66', backdropFilter: 'blur(4px)' }}>
                     ⚡ {v.eng}
                   </div>
-                  <div className="absolute bottom-2 left-2 right-2 text-[10px] font-bold text-white">
-                    👁 {v.views}
+
+                  {/* Caption + stats overlay bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 p-2 flex flex-col gap-0.5">
+                    <p className="text-[10px] font-semibold text-white leading-tight line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                      {v.caption}
+                    </p>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="text-[9px] text-white/70 font-medium truncate" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                        {v.handle}
+                      </span>
+                      <span className="text-[10px] font-bold text-white flex items-center gap-0.5" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                        👁 {v.views}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
