@@ -33,8 +33,9 @@ function ContextBanner() {
           <div className="text-3xl mb-2">⏰</div>
           <h3 className="text-lg font-bold mb-1">Tu prueba gratuita terminó</h3>
           <p className="text-sm" style={{ color: '#c4b5fd' }}>
-            Esperamos que la hayas aprovechado. Si te gustó la app,
-            suscribite por <strong>$47/mes</strong> y seguí encontrando
+            Esperamos que la hayas aprovechado. Aprovechá la oferta de
+            lanzamiento: en vez de <span className="line-through opacity-60">$397/mes</span>,
+            entrás por <strong>$47/mes</strong> y seguí encontrando
             contenido viral todos los días.
           </p>
         </div>
@@ -110,6 +111,10 @@ function PricingInner() {
 
   const price = plan === 'monthly' ? 47 : 470;
   const period = plan === 'monthly' ? '/mes' : '/año';
+  // Precio ancla (sin descuento) y % off para mostrar el deal
+  const originalPrice = plan === 'monthly' ? 397 : 4764;     // $397/mes × 12
+  const percentOff = Math.round((1 - price / originalPrice) * 100);
+  const savedAmount = originalPrice - price;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -179,22 +184,34 @@ function PricingInner() {
             ✨ Acceso completo
           </div>
 
-          <p className="text-sm mb-2 mt-2" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
+          <div className="flex items-center gap-2 mb-2 mt-2">
+            <p className="text-sm" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
+              style={{ background: '#22c55e22', border: '1px solid #22c55e55', color: '#4ade80' }}>
+              -{percentOff}% lanzamiento
+            </span>
+          </div>
 
+          {/* Precio tachado (ancla) */}
+          <div className="flex items-baseline gap-2 mb-1" style={{ color: '#555' }}>
+            <span className="text-lg line-through">${originalPrice.toLocaleString('en-US')}</span>
+            <span className="text-xs">USD{period}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider"
+              style={{ color: '#22c55e' }}>
+              Antes
+            </span>
+          </div>
+
+          {/* Precio actual */}
           <div className="flex items-baseline gap-2 mb-1">
             <span className="text-6xl font-bold">${price}</span>
             <span className="text-base" style={{ color: '#888' }}>USD{period}</span>
           </div>
 
-          {plan === 'yearly' ? (
-            <p className="text-xs mb-6" style={{ color: '#22c55e' }}>
-              Ahorrás $94 al año vs mensual
-            </p>
-          ) : (
-            <p className="text-xs mb-6" style={{ color: '#666' }}>
-              Cancelá cuando quieras, sin compromiso
-            </p>
-          )}
+          <p className="text-xs mb-6" style={{ color: '#22c55e' }}>
+            🎉 Te ahorrás ${savedAmount.toLocaleString('en-US')} {plan === 'monthly' ? 'al mes' : 'al año'} —
+            <span style={{ color: '#888' }}> {plan === 'monthly' ? 'cancelás cuando quieras' : 'pago único anual'}</span>
+          </p>
 
           <ul className="flex flex-col gap-3 mb-8">
             {FEATURES.map((f, i) => (
@@ -227,7 +244,8 @@ function PricingInner() {
         <div className="mt-12 flex flex-col gap-3">
           {[
             { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. Cancelás desde tu cuenta en un click, sin preguntas. El acceso sigue activo hasta el final del período pagado.' },
-            { q: '¿Cómo funciona la facturación anual?', a: 'Pagás los $470 una vez y tenés acceso 12 meses. Te ahorrás $94 vs pagar mensual.' },
+            { q: '¿Por qué tan barato si vale $397?', a: 'Estamos en oferta de lanzamiento para conseguir los primeros casos de éxito. Una vez que llenamos el cupo de fundadores, el precio sube al precio normal de $397/mes. Si entrás ahora, tu precio queda bloqueado mientras mantengas la suscripción activa.' },
+            { q: '¿Cómo funciona la facturación anual?', a: 'Pagás los $470 una vez y tenés acceso 12 meses. Equivale a $39/mes — el descuento más grande sobre el precio normal.' },
             { q: '¿Cuántas búsquedas puedo hacer?', a: 'Ilimitadas. No hay tope de búsquedas, transcripciones, ni traducciones.' },
           ].map((f, i) => (
             <details key={i} className="rounded-2xl p-4 cursor-pointer"

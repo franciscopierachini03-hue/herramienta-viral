@@ -68,7 +68,7 @@ export default function Landing() {
           <Link href="/login?signup=1"
             className="px-7 py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 30px #7c3aed44' }}>
-            Empezar ahora — $47/mes →
+            Empezar por $47/mes <span className="line-through opacity-60 ml-1">$397</span> →
           </Link>
           <Link href="#features"
             className="px-7 py-3.5 rounded-2xl text-sm font-semibold transition-colors"
@@ -160,12 +160,25 @@ export default function Landing() {
         <p className="text-sm mb-10" style={{ color: '#666' }}>Sin tiers confusos. Sin features escondidas. Todo desbloqueado.</p>
 
         <div className="rounded-3xl p-8 max-w-md mx-auto" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44', boxShadow: '0 0 40px #7c3aed22' }}>
-          <p className="text-sm mb-2" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <p className="text-sm" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
+              style={{ background: '#22c55e22', border: '1px solid #22c55e55', color: '#4ade80' }}>
+              -88% lanzamiento
+            </span>
+          </div>
+
+          <div className="flex items-baseline justify-center gap-2 mb-0.5" style={{ color: '#555' }}>
+            <span className="text-base line-through">$397</span>
+            <span className="text-xs">/mes</span>
+          </div>
           <div className="flex items-baseline justify-center gap-2 mb-1">
             <span className="text-6xl font-bold">$47</span>
             <span className="text-sm" style={{ color: '#888' }}>/mes</span>
           </div>
-          <p className="text-xs mb-6" style={{ color: '#666' }}>o $470 al año <span style={{ color: '#22c55e' }}>(20% off)</span></p>
+          <p className="text-xs mb-6" style={{ color: '#22c55e' }}>
+            🎉 Te ahorrás $350 cada mes · <span style={{ color: '#666' }}>o $470 al año</span>
+          </p>
 
           <Link href="/login?signup=1" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
