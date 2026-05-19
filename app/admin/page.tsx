@@ -258,6 +258,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
       } else if (statusFilter === 'trial-expired') {
         const days = trialDaysLeft(p.trial_ends_at);
         if (status !== 'trialing' || days === null || days > 0) return false;
+      } else if (statusFilter === 'courtesy') {
+        // Cortesías: cuentas que activamos a mano (código COURTESY_*)
+        if (!(p.redeemed_code || '').toUpperCase().startsWith('COURTESY')) return false;
       } else if (status !== statusFilter) {
         return false;
       }
@@ -275,6 +278,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     }).length,
     pending: all.filter(p => !p.subscription_status || p.subscription_status === 'pending').length,
     cancelled: all.filter(p => p.subscription_status === 'cancelled').length,
+    courtesy: all.filter(p => (p.redeemed_code || '').toUpperCase().startsWith('COURTESY')).length,
   };
 
   return (
@@ -304,20 +308,26 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: 'Total', value: stats.total, color: '#fff' },
-            { label: 'Pagaron', value: stats.active, color: '#86efac' },
-            { label: 'En trial', value: stats.trialing, color: '#c4b5fd' },
-            { label: 'Sin pagar', value: stats.pending, color: '#9ca3af' },
-            { label: 'Cancelados', value: stats.cancelled, color: '#fda4af' },
+            { label: 'Total', value: stats.total, color: '#fff', filter: '' },
+            { label: 'Pagaron', value: stats.active, color: '#86efac', filter: 'active' },
+            { label: 'En trial', value: stats.trialing, color: '#c4b5fd', filter: 'trial-active' },
+            { label: 'Sin pagar', value: stats.pending, color: '#9ca3af', filter: 'pending' },
+            { label: 'Cancelados', value: stats.cancelled, color: '#fda4af', filter: 'cancelled' },
+            { label: '🎁 Cortesía', value: stats.courtesy, color: '#fcd34d', filter: 'courtesy' },
           ].map(s => (
-            <div key={s.label}
-              className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+            <Link
+              key={s.label}
+              href={s.filter ? `/admin?status=${s.filter}` : '/admin'}
+              className="rounded-2xl p-4 transition-all hover:scale-[1.02]"
+              style={{
+                background: 'linear-gradient(145deg, #141414, #0d0d0d)',
+                border: statusFilter === s.filter ? `1px solid ${s.color}55` : '1px solid #1f1f1f',
+              }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>{s.label}</div>
               <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -464,6 +474,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <option value="trial-expired">Trial vencido</option>
             <option value="pending">Sin pagar</option>
             <option value="cancelled">Cancelados</option>
+            <option value="courtesy">🎁 Cortesía</option>
           </select>
           <button type="submit"
             className="px-5 py-2.5 rounded-xl text-sm font-semibold"
@@ -509,9 +520,21 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               ) : (
                 filtered.map((p) => {
                   const pill = statusPill(p);
+                  const isCourtesy = (p.redeemed_code || '').toUpperCase().startsWith('COURTESY');
                   return (
                     <tr key={p.email} style={{ borderBottom: '1px solid #141414' }}>
-                      <td className="px-4 py-3" style={{ color: '#eee' }}>{p.email}</td>
+                      <td className="px-4 py-3" style={{ color: '#eee' }}>
+                        <div className="flex items-center gap-2">
+                          {p.email}
+                          {isCourtesy && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                              style={{ background: '#fcd34d22', color: '#fcd34d', border: '1px solid #fcd34d44' }}
+                              title="Cuenta cortesía (activada manualmente)">
+                              🎁 CORTESÍA
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3" style={{ color: '#aaa' }}>{p.name || '—'}</td>
                       <td className="px-4 py-3 text-xs font-mono" style={{ color: '#888' }}>{p.phone || '—'}</td>
                       <td className="px-4 py-3">
@@ -520,7 +543,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                           {pill.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs font-mono" style={{ color: '#a78bfa' }}>
+                      <td className="px-4 py-3 text-xs font-mono" style={{ color: isCourtesy ? '#fcd34d' : '#a78bfa' }}>
                         {p.redeemed_code || '—'}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#666' }}>{fmtDate(p.created_at)}</td>
