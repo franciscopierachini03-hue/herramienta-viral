@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RedeemCode from './RedeemCode';
+import FoundersCounter from '../_components/FoundersCounter';
 
 const FEATURES = [
   '🔥 Búsqueda viral ilimitada en YouTube + TikTok + Instagram',
@@ -208,10 +209,15 @@ function PricingInner() {
             <span className="text-base" style={{ color: '#888' }}>USD{period}</span>
           </div>
 
-          <p className="text-xs mb-6" style={{ color: '#22c55e' }}>
+          <p className="text-xs mb-4" style={{ color: '#22c55e' }}>
             🎉 Te ahorrás ${savedAmount.toLocaleString('en-US')} {plan === 'monthly' ? 'al mes' : 'al año'} —
             <span style={{ color: '#888' }}> {plan === 'monthly' ? 'cancelás cuando quieras' : 'pago único anual'}</span>
           </p>
+
+          {/* Cupos de fundadores */}
+          <div className="mb-6">
+            <FoundersCounter variant="banner" />
+          </div>
 
           <ul className="flex flex-col gap-3 mb-8">
             {FEATURES.map((f, i) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import FoundersCounter from './_components/FoundersCounter';
 
 const FEATURES = [
   { icon: '⚡', title: 'Transcripción instantánea', desc: 'Pegá el link de cualquier video y obtené el guión en segundos. YouTube, TikTok e Instagram.' },
@@ -160,6 +161,11 @@ export default function Landing() {
         <p className="text-sm mb-10" style={{ color: '#666' }}>Sin tiers confusos. Sin features escondidas. Todo desbloqueado.</p>
 
         <div className="rounded-3xl p-8 max-w-md mx-auto" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44', boxShadow: '0 0 40px #7c3aed22' }}>
+          {/* Contador de cupos arriba */}
+          <div className="flex justify-center mb-4">
+            <FoundersCounter variant="pill" />
+          </div>
+
           <div className="flex items-center justify-center gap-2 mb-2">
             <p className="text-sm" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
