@@ -94,6 +94,13 @@ function friendlyError(raw: string): string {
   if (e.includes('falta') && e.includes('key')) {
     return 'Error de configuración del servidor. Contactá al soporte.';
   }
+  // Errores específicos por causa raíz (más útiles que "probá con otro")
+  if (e.includes('cuota mensual') || e.includes('saturad')) {
+    return raw; // El server ya devolvió un mensaje bueno, pasalo tal cual
+  }
+  if (e.includes('subtítulos disponibles') || e.includes('cc habilitado')) {
+    return raw;
+  }
   if (e.includes('youtube')) return 'No pudimos obtener este video de YouTube. Probá con otro.';
   if (e.includes('tiktok')) return 'No pudimos obtener este video de TikTok. Probá con otro.';
   if (e.includes('instagram')) return 'No pudimos obtener este reel de Instagram. Probá con otro.';

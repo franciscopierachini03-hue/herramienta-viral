@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
       error: 'URL de YouTube no válida. Pega el link completo del video.'
     }, { status: 400 });
 
+    // Tracker de qué pasó en cada fallback para dar un error específico al final
+    let supadataExhausted = false;
+
     // 1️⃣ Supadata — funciona desde servidores en la nube sin bloqueos
     const supadata = process.env.SUPADATA_API_KEY;
     if (supadata) {
@@ -82,20 +85,71 @@ export async function POST(req: NextRequest) {
           const data = await res.json();
           const texto = (data.content as string || '').replace(/\s+/g, ' ').trim();
           if (texto) return Response.json({ texto });
+          // Si trajo OK pero sin contenido, podría ser que no tenga captions o cuota agotada
+          if (data.error === 'limit-exceeded' || data.message === 'limit-exceeded') {
+            supadataExhausted = true;
+            console.warn('[transcribir/youtube] Supadata limit-exceeded');
+          }
+        } else {
+          // Error HTTP — leer el body para ver si es limit-exceeded
+          const errBody = await res.text().catch(() => '');
+          if (errBody.includes('limit-exceeded')) {
+            supadataExhausted = true;
+            console.warn('[transcribir/youtube] Supadata limit-exceeded (HTTP)');
+          }
         }
       } catch { /* fallback */ }
     }
 
-    // 2️⃣ Fallback: youtube-transcript
+    // 2️⃣ Fallback: youtube-transcript (suele estar bloqueado en Vercel)
     try {
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'es' }).catch(
         () => YoutubeTranscript.fetchTranscript(videoId)
       );
       const texto = transcript.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
       if (texto) return Response.json({ texto });
-    } catch { /* fallback a Whisper */ }
+    } catch { /* fallback */ }
 
-    // 3️⃣ Sin subtítulos → descargar audio con ytdl-core + Groq Whisper
+    // 3️⃣ RapidAPI fallback (si el user se suscribió a alguna de las APIs de transcripts)
+    const rapidKey = process.env.RAPIDAPI_KEY;
+    if (rapidKey) {
+      // Probamos múltiples hosts; el primero que responda gana.
+      // Si no te suscribiste a ninguno → todos devuelven "not subscribed" y caemos al next fallback.
+      const rapidHosts = [
+        { host: 'youtube-transcript3.p.rapidapi.com',  path: `/api/transcript?videoId=${videoId}`,   extract: (d: Record<string, unknown>) => {
+          const tr = d.transcript;
+          if (Array.isArray(tr)) return (tr as Array<{ text?: string }>).map(t => t.text || '').join(' ');
+          return '';
+        }},
+        { host: 'youtube-transcriptor.p.rapidapi.com', path: `/transcript?video_id=${videoId}&lang=es`, extract: (d: unknown) => {
+          if (Array.isArray(d) && d[0]) {
+            const entry = d[0] as Record<string, unknown>;
+            const t = entry.transcription || entry.transcript;
+            if (Array.isArray(t)) return (t as Array<{ subtitle?: string }>).map(x => x.subtitle || '').join(' ');
+            if (typeof t === 'string') return t;
+          }
+          return '';
+        }},
+      ];
+      for (const r of rapidHosts) {
+        try {
+          const res = await fetch(`https://${r.host}${r.path}`, {
+            headers: { 'x-rapidapi-host': r.host, 'x-rapidapi-key': rapidKey },
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (typeof data === 'object' && data?.message === 'You are not subscribed to this API.') continue;
+          const texto = (r.extract(data) || '').replace(/\s+/g, ' ').trim();
+          if (texto.length > 20) {
+            console.log(`[transcribir/youtube] RapidAPI fallback OK via ${r.host}`);
+            return Response.json({ texto });
+          }
+        } catch { /* try next */ }
+      }
+    }
+
+    // 4️⃣ Sin subtítulos → descargar audio con ytdl-core + Groq Whisper
+    // (Generalmente bloqueado en Vercel pero lo dejamos como último intento)
     try {
       const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
       const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
@@ -108,8 +162,14 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* ytdl también bloqueado */ }
 
+    // Error específico según qué falló:
+    if (supadataExhausted) {
+      return Response.json({
+        error: 'El servicio de transcripción agotó su cuota mensual. Probá con TikTok o Instagram, o esperá al reset del próximo mes.'
+      }, { status: 503 });
+    }
     return Response.json({
-      error: 'Este video no tiene subtítulos y YouTube bloquea la descarga de audio desde servidores. Probá con un Short que tenga CC habilitados (la mayoría los tiene).'
+      error: 'Este video no tiene subtítulos disponibles. Probá con un Short que tenga CC habilitado, o con TikTok/Instagram.'
     }, { status: 422 });
   }
 
