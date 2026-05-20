@@ -1157,33 +1157,46 @@ async function searchViaApify(
       throw new Error('Apify TikTok devolvió 0 resultados en ambas pasadas');
     }
   } else {
-    // Instagram: estrategia DUAL en paralelo:
-    //   A) search-user → encuentra TOP creators del nicho → scrapea sus reels
-    //      (este es el que devuelve videos virales reales — millones de vistas)
-    //   B) hashtag scraping → complementa con posts del hashtag literal
-    //      (típicamente trae menos videos pero más diversidad de creators chicos)
+    // Instagram: estrategia TRIPLE en paralelo con ACTORES DEDICADOS.
+    //
+    //   A) Discovery (apify/instagram-scraper modo `user`)
+    //      → encuentra TOP creators del nicho. Solo extraemos usernames.
+    //
+    //   B) Reels by creator (apify/instagram-reel-scraper, dedicado)
+    //      → con los usernames de A, scrapea sus reels (no posts ni fotos).
+    //      Mejor que el scraper genérico porque el actor está optimizado
+    //      para reels: devuelve más reels por creator + stats correctas
+    //      (videoViewCount, playCount, sin contaminación de carruseles).
+    //
+    //   C) Hashtag feed (apify/instagram-hashtag-scraper, dedicado)
+    //      → con 18 hashtags. Cada hashtag rinde ~25 posts (vs 6-7 antes).
+    //
+    // Bucket potencial: ~450 candidatos brutos (vs ~100 del dual pass viejo).
     const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords, ...frKeywords, ...itKeywords, ...jaKeywords];
 
     const userSearchTerms = [tema, ...(esKeywords[1] ? [esKeywords[1]] : []), ...(enKeywords[0] ? [enKeywords[0]] : [])];
-    const hashtags = allKeywords.map(k =>
-      `https://www.instagram.com/explore/tags/${encodeURIComponent(String(k).replace(/\s+/g,''))}/`,
-    );
 
-    // A) Search top creators (en serie, una llamada por keyword principal)
-    // resultsLimit: 6 por creator — solo sus 6 posts más recientes para que sean
-    // representativos del nicho (no traer 12 mezclados de news, tutoriales, etc.)
-    const userPromises = userSearchTerms.slice(0, 4).map(term =>
+    // Hashtags limpios (sin #, sin espacios, lowercase, longitud razonable)
+    const igHashtags = Array.from(new Set(
+      allKeywords.map(k => String(k).replace(/^#/, '').replace(/\s+/g, '').toLowerCase())
+    ))
+      .filter(k => k && k.length >= 3 && k.length <= 50)
+      .slice(0, 18);
+
+    // ── A) Discovery: top creators del nicho ──────────────────────────
+    // Solo necesitamos los usernames. resultsLimit chico para velocidad.
+    const discoveryPromises = userSearchTerms.slice(0, 3).map(term =>
       fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
+        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=120`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             search: term,
             searchType: 'user',
-            searchLimit: 10,
+            searchLimit: 12,        // hasta 12 creators por término
             resultsType: 'posts',
-            resultsLimit: 6,
+            resultsLimit: 4,         // solo 4 posts cada uno → confirmar nicho
             addParentData: false,
             onlyPostsNewerThan: '2024-01-01',
           }),
@@ -1191,33 +1204,71 @@ async function searchViaApify(
       ).then(r => r.ok ? r.json() : []).catch(() => []),
     );
 
-    // B) Hashtag scraping (1 llamada con muchos hashtags)
-    const hashtagPromise = fetch(
-      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          directUrls: hashtags.slice(0, 12), // limitar para no timeout
-          resultsType: 'posts',
-          resultsLimit: 80,
-          addParentData: false,
-        }),
-      }
-    ).then(r => r.ok ? r.json() : []).catch(() => []);
+    // Esperar discovery primero — necesitamos los usernames para Pass B
+    const discoveryResults = await Promise.all(discoveryPromises).then(results => results.flat());
 
-    // Esperar ambas en paralelo
-    const [userResults, hashtagResults] = await Promise.all([
-      Promise.all(userPromises).then(results => results.flat()),
-      hashtagPromise,
+    // Extraer usernames únicos del resultado de discovery
+    const discoveredUsernames = Array.from(new Set(
+      (discoveryResults as Array<Record<string, unknown>>)
+        .map(p => (p.ownerUsername as string) || '')
+        .filter(u => u && u.length > 1)
+    )).slice(0, 12); // top 12 creators
+
+    // ── B y C) Reels by creator + Hashtag feed en paralelo ─────────────
+    const [reelByCreatorResults, hashtagResults] = await Promise.all([
+      // B) Reels de cada creator (actor dedicado a reels)
+      discoveredUsernames.length > 0
+        ? fetch(
+            `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=180`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                username: discoveredUsernames,
+                resultsLimit: 8,              // 8 reels recientes por creator
+              }),
+            }
+          ).then(async r => {
+            if (!r.ok) {
+              const t = await r.text().catch(() => String(r.status));
+              console.warn(`[apify IG reels] ${r.status}: ${t.slice(0, 160)}`);
+              return [];
+            }
+            return r.json() as Promise<unknown[]>;
+          }).catch(e => { console.warn('[apify IG reels] err', e); return [] as unknown[]; })
+        : Promise.resolve([] as unknown[]),
+
+      // C) Hashtag feed (actor dedicado a hashtags)
+      igHashtags.length > 0
+        ? fetch(
+            `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${apifyToken}&memory=1024&timeout=240`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                hashtags: igHashtags,
+                resultsLimit: 25,             // ~25 por hashtag → 450 brutos potenciales
+              }),
+            }
+          ).then(async r => {
+            if (!r.ok) {
+              const t = await r.text().catch(() => String(r.status));
+              console.warn(`[apify IG hashtag] ${r.status}: ${t.slice(0, 160)}`);
+              return [];
+            }
+            return r.json() as Promise<unknown[]>;
+          }).catch(e => { console.warn('[apify IG hashtag] err', e); return [] as unknown[]; })
+        : Promise.resolve([] as unknown[]),
     ]);
 
-    // Combinar
+    // Combinar las 3 fuentes
     const combined = [
-      ...(Array.isArray(userResults) ? userResults : []),
+      ...discoveryResults,
+      ...(Array.isArray(reelByCreatorResults) ? reelByCreatorResults : []),
       ...(Array.isArray(hashtagResults) ? hashtagResults : []),
     ];
-    // Dedup por shortCode (un mismo reel puede aparecer en ambos)
+
+    // Dedup por shortCode (un mismo reel puede aparecer en varias fuentes)
     const seenShort = new Set<string>();
     items = combined.filter(item => {
       const sc = (item as { shortCode?: string }).shortCode;
@@ -1225,7 +1276,7 @@ async function searchViaApify(
       seenShort.add(sc);
       return true;
     });
-    console.log(`[searchViaApify] IG: user-search=${(userResults as unknown[]).length} + hashtag=${(hashtagResults as unknown[]).length} = ${items.length} unique posts`);
+    console.log(`[apify IG] discovery=${discoveryResults.length} (creators=${discoveredUsernames.length}) + reels-by-creator=${(reelByCreatorResults as unknown[]).length} + hashtag=${(hashtagResults as unknown[]).length} → ${items.length} únicos`);
   }
 
   // Si Apify literalmente no devolvió posts (raro), throw para que el caller pruebe fallback
@@ -1277,15 +1328,24 @@ async function searchViaApify(
       // Instagram: SOLO videos/reels, descartar Images y Sidecars (fotos)
       const type = String(v.type || '');
       const productType = String(v.productType || '');
-      const isVideoLike = type === 'Video' || productType === 'clips';
+      // El reel-scraper a veces marca type undefined pero igual son reels.
+      // Si tiene videoUrl o videoDuration → casi seguro es reel.
+      const hasVideoSignal = !!(v.videoUrl || v.videoDuration || v.videoViewCount || v.videoPlayCount || v.playCount);
+      const isVideoLike = type === 'Video' || productType === 'clips' || hasVideoSignal;
       if (!isVideoLike) return null;
 
       const shortCode = (v.shortCode as string) || '';
       const owner     = (v.ownerUsername as string) || '';
-      // Engagement: views vienen de videoViewCount/videoPlayCount, NO confundir con likes
-      const views = (v.videoViewCount as number) || (v.videoPlayCount as number) || 0;
-      const likes = (v.likesCount as number) || 0;
-      const comments = (v.commentsCount as number) || 0;
+      // Views: el reel-scraper devuelve playCount/videoPlayCount, el general
+      // devuelve videoViewCount. Probamos todos los fields conocidos.
+      const views =
+        (v.videoViewCount as number) ||
+        (v.videoPlayCount as number) ||
+        (v.playCount as number) ||
+        (v.viewCount as number) ||
+        0;
+      const likes = (v.likesCount as number) || (v.likeCount as number) || 0;
+      const comments = (v.commentsCount as number) || (v.commentCount as number) || 0;
       // Descartar reels sin engagement reportado (Apify a veces devuelve posts vacíos)
       if (views === 0 && likes === 0) return null;
 
