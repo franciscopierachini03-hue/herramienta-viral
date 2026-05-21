@@ -1,8 +1,101 @@
 import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 import ytdl from '@distube/ytdl-core';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const maxDuration = 120;
+
+// Cache + rate limit configurables por env
+const RATE_LIMIT_PER_DAY = parseInt(process.env.TRANSCRIBE_RATE_LIMIT_PER_DAY || '30', 10);
+
+// Cache key estable por plataforma + ID del video. Si la URL cambia (parámetros
+// de tracking, etc.) pero el ID es el mismo → mismo cache hit.
+function cacheKeyFor(platform: string, url: string): string | null {
+  if (platform === 'youtube') {
+    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return m ? `yt:${m[1]}` : null;
+  }
+  if (platform === 'tiktok') {
+    const m = url.match(/video\/(\d+)/);
+    return m ? `tt:${m[1]}` : null;
+  }
+  if (platform === 'instagram') {
+    const m = url.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+    return m ? `ig:${m[1]}` : null;
+  }
+  return null;
+}
+
+// Lookup en cache. Si hit → bumpea hits + last_hit_at y devuelve el texto.
+async function getFromCache(cacheKey: string): Promise<string | null> {
+  try {
+    const sb = createServiceClient();
+    const { data } = await sb
+      .from('transcription_cache')
+      .select('transcript')
+      .eq('cache_key', cacheKey)
+      .maybeSingle();
+    if (data?.transcript) {
+      // Incrementar hits async (no bloquea respuesta)
+      sb.rpc('increment_transcription_hits', { p_cache_key: cacheKey }).then(() => {}, () => {});
+      // Fallback si la función RPC no existe: update directo
+      sb.from('transcription_cache')
+        .update({ last_hit_at: new Date().toISOString() })
+        .eq('cache_key', cacheKey)
+        .then(() => {}, () => {});
+      return data.transcript;
+    }
+  } catch (e) {
+    console.warn('[transcribir/cache] read error', e);
+  }
+  return null;
+}
+
+// Guardar transcripción exitosa para reuso futuro
+async function saveToCache(cacheKey: string, platform: string, url: string, transcript: string) {
+  if (!transcript || transcript.length < 20) return; // muy corto = ruido, no cachear
+  try {
+    const sb = createServiceClient();
+    await sb.from('transcription_cache').upsert({
+      cache_key: cacheKey,
+      platform,
+      video_url: url,
+      transcript,
+    }, { onConflict: 'cache_key' });
+  } catch (e) {
+    console.warn('[transcribir/cache] write error', e);
+  }
+}
+
+// Log de la transcripción (para rate limit + analytics)
+async function logTranscription(email: string, platform: string, url: string, cacheHit: boolean) {
+  try {
+    const sb = createServiceClient();
+    await sb.from('transcription_log').insert({
+      user_email: email,
+      platform,
+      video_url: url,
+      cache_hit: cacheHit,
+    });
+  } catch { /* no bloquea */ }
+}
+
+// Cuenta cuántas transcripciones REALES (no cache hits) hizo este user en 24h
+async function countRecentTranscriptions(email: string): Promise<number> {
+  try {
+    const sb = createServiceClient();
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await sb
+      .from('transcription_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_email', email)
+      .eq('cache_hit', false)
+      .gte('created_at', since);
+    return count || 0;
+  } catch {
+    return 0;
+  }
+}
 
 function extractYouTubeId(url: string): string | null {
   const patterns = [
@@ -63,6 +156,42 @@ export async function POST(req: NextRequest) {
   const { url, platform } = await req.json();
   if (!url) return Response.json({ error: 'Falta la URL del video' }, { status: 400 });
 
+  // ── Identificar usuario logueado (para rate limit + log) ──────────────
+  let userEmail: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    userEmail = user?.email || null;
+  } catch { /* anónimo */ }
+
+  // ── Cache lookup (gratis, instantáneo) ────────────────────────────────
+  const cacheKey = cacheKeyFor(platform, url);
+  if (cacheKey) {
+    const cached = await getFromCache(cacheKey);
+    if (cached) {
+      console.log(`[transcribir] CACHE HIT ${cacheKey} (${platform})`);
+      if (userEmail) logTranscription(userEmail, platform, url, true);
+      return Response.json({ texto: cached, cached: true });
+    }
+  }
+
+  // ── Rate limit: máx N transcripciones reales (no cache) por día por user ──
+  if (userEmail && RATE_LIMIT_PER_DAY > 0) {
+    const count = await countRecentTranscriptions(userEmail);
+    if (count >= RATE_LIMIT_PER_DAY) {
+      return Response.json({
+        error: `Llegaste al límite de ${RATE_LIMIT_PER_DAY} transcripciones por día. Volvé mañana o avisá al admin si necesitás más.`
+      }, { status: 429 });
+    }
+  }
+
+  // Helper para responder con transcripción + guardar en cache + log
+  function ok(texto: string) {
+    if (cacheKey) saveToCache(cacheKey, platform, url, texto);
+    if (userEmail) logTranscription(userEmail, platform, url, false);
+    return Response.json({ texto });
+  }
+
   // ── YouTube ────────────────────────────────────────────────────────────────
   if (platform === 'youtube') {
     const videoId = extractYouTubeId(url);
@@ -84,7 +213,7 @@ export async function POST(req: NextRequest) {
         if (res.ok) {
           const data = await res.json();
           const texto = (data.content as string || '').replace(/\s+/g, ' ').trim();
-          if (texto) return Response.json({ texto });
+          if (texto) return ok(texto);
           // Si trajo OK pero sin contenido, podría ser que no tenga captions o cuota agotada
           if (data.error === 'limit-exceeded' || data.message === 'limit-exceeded') {
             supadataExhausted = true;
@@ -107,7 +236,7 @@ export async function POST(req: NextRequest) {
         () => YoutubeTranscript.fetchTranscript(videoId)
       );
       const texto = transcript.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
-      if (texto) return Response.json({ texto });
+      if (texto) return ok(texto);
     } catch { /* fallback */ }
 
     // 3️⃣ RapidAPI fallback (si el user se suscribió a alguna de las APIs de transcripts)
@@ -142,7 +271,7 @@ export async function POST(req: NextRequest) {
           const texto = (r.extract(data) || '').replace(/\s+/g, ' ').trim();
           if (texto.length > 20) {
             console.log(`[transcribir/youtube] RapidAPI fallback OK via ${r.host}`);
-            return Response.json({ texto });
+            return ok(texto);
           }
         } catch { /* try next */ }
       }
@@ -157,7 +286,7 @@ export async function POST(req: NextRequest) {
         const best = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
         if (best.url) {
           const texto = await transcribeWithGroq(best.url);
-          if (texto) return Response.json({ texto });
+          if (texto) return ok(texto);
         }
       }
     } catch { /* ytdl también bloqueado */ }
@@ -204,12 +333,12 @@ export async function POST(req: NextRequest) {
               .split('\n')
               .filter(l => l && !l.includes('-->') && !l.match(/^\d+$/) && !l.startsWith('WEBVTT'))
               .join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-            if (texto) return Response.json({ texto });
+            if (texto) return ok(texto);
           }
         }
         // Sin subtítulos → Groq Whisper
         const texto = await transcribeWithGroq(videoUrl);
-        if (texto) return Response.json({ texto });
+        if (texto) return ok(texto);
       }
     } catch { /* fallback a ScrapTik */ }
 
@@ -249,7 +378,7 @@ export async function POST(req: NextRequest) {
           .split('\n')
           .filter(l => l && !l.includes('-->') && !l.match(/^\d+$/) && !l.startsWith('WEBVTT'))
           .join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-        if (texto) return Response.json({ texto });
+        if (texto) return ok(texto);
       }
 
       // Sin subtítulos → Groq Whisper con el audio del video
@@ -260,7 +389,7 @@ export async function POST(req: NextRequest) {
       if (!videoUrl) throw new Error('No se pudo obtener la URL del video. Puede ser un video privado.');
 
       const texto = await transcribeWithGroq(videoUrl);
-      return Response.json({ texto });
+      return ok(texto);
 
     } catch { /* ScrapTik también falló */ }
     } // fin if(rapidApiKey)
@@ -294,7 +423,7 @@ export async function POST(req: NextRequest) {
           if (videoUrl) {
             try {
               const texto = await transcribeWithGroq(videoUrl);
-              if (texto) return Response.json({ texto });
+              if (texto) return ok(texto);
               debug.push('looter2: video sin audio transcribible');
             } catch (e) { debug.push(`looter2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
           } else debug.push('looter2: respuesta sin URL de video (¿es carrusel sin reel?)');
@@ -317,13 +446,13 @@ export async function POST(req: NextRequest) {
           if (videoUrl) {
             try {
               const texto = await transcribeWithGroq(videoUrl);
-              if (texto) return Response.json({ texto });
+              if (texto) return ok(texto);
               debug.push('fast-reliable: video sin audio transcribible');
             } catch (e) { debug.push(`fast-reliable: groq falló — ${(e as Error).message.slice(0, 60)}`); }
           } else {
             const caption  = data?.caption?.text || '';
             const username = data?.user?.username || '';
-            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}\nCreador: @${username}` });
+            if (caption) return ok(`[Caption del reel — no se pudo extraer audio]\n\n${caption}\nCreador: @${username}`);
             debug.push('fast-reliable: sin video ni caption');
           }
         } else debug.push(`fast-reliable: HTTP ${res.status}`);
@@ -346,12 +475,12 @@ export async function POST(req: NextRequest) {
           if (videoUrl) {
             try {
               const texto = await transcribeWithGroq(videoUrl);
-              if (texto) return Response.json({ texto });
+              if (texto) return ok(texto);
               debug.push('scraper-api2: video sin audio transcribible');
             } catch (e) { debug.push(`scraper-api2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
           } else {
             const caption = item?.caption?.text || item?.caption || '';
-            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}` });
+            if (caption) return ok(`[Caption del reel — no se pudo extraer audio]\n\n${caption}`);
             debug.push('scraper-api2: sin video ni caption');
           }
         } else debug.push(`scraper-api2: HTTP ${res.status}`);
@@ -379,12 +508,12 @@ export async function POST(req: NextRequest) {
           if (videoUrl) {
             try {
               const texto = await transcribeWithGroq(videoUrl);
-              if (texto) return Response.json({ texto });
+              if (texto) return ok(texto);
               debug.push('apify: video sin audio transcribible');
             } catch (e) { debug.push(`apify: groq falló — ${(e as Error).message.slice(0, 60)}`); }
           } else {
             const caption = item?.caption || '';
-            if (caption) return Response.json({ texto: `[Caption del reel — no se pudo extraer audio]\n\n${caption}` });
+            if (caption) return ok(`[Caption del reel — no se pudo extraer audio]\n\n${caption}`);
             debug.push('apify: sin video ni caption');
           }
         } else debug.push(`apify: HTTP ${res.status}`);

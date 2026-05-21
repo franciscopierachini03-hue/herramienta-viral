@@ -1095,7 +1095,7 @@ async function searchViaApify(
           body: JSON.stringify({
             searchSection: '',
             searchQueries: allKeywords,
-            maxItems: 200,
+            maxItems: 100,  // bajamos 200→100 (top 30 final no necesita más pool)
             shouldDownloadVideos: false,
             shouldDownloadCovers: false,
             shouldDownloadSubtitles: false,
@@ -1119,8 +1119,8 @@ async function searchViaApify(
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 hashtags: hashtagPool,
-                resultsPerPage: 30,    // por hashtag
-                maxItems: 200,         // tope global
+                resultsPerPage: 18,    // por hashtag (era 30)
+                maxItems: 100,         // tope global (era 200)
                 shouldDownloadVideos: false,
                 shouldDownloadCovers: false,
                 shouldDownloadSubtitles: false,
@@ -1177,11 +1177,12 @@ async function searchViaApify(
     const userSearchTerms = [tema, ...(esKeywords[1] ? [esKeywords[1]] : []), ...(enKeywords[0] ? [enKeywords[0]] : [])];
 
     // Hashtags limpios (sin #, sin espacios, lowercase, longitud razonable)
+    // 12 hashtags es sweet spot: cubre el nicho sin gastar de más en Apify
     const igHashtags = Array.from(new Set(
       allKeywords.map(k => String(k).replace(/^#/, '').replace(/\s+/g, '').toLowerCase())
     ))
       .filter(k => k && k.length >= 3 && k.length <= 50)
-      .slice(0, 18);
+      .slice(0, 12);
 
     // ── A) Discovery: top creators del nicho ──────────────────────────
     // Solo necesitamos los usernames. resultsLimit chico para velocidad.
@@ -1224,8 +1225,8 @@ async function searchViaApify(
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                username: discoveredUsernames,
-                resultsLimit: 8,              // 8 reels recientes por creator
+                username: discoveredUsernames.slice(0, 8), // bajamos 12→8 creators
+                resultsLimit: 5,              // bajamos 8→5 reels por creator
               }),
             }
           ).then(async r => {
@@ -1247,7 +1248,7 @@ async function searchViaApify(
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 hashtags: igHashtags,
-                resultsLimit: 25,             // ~25 por hashtag → 450 brutos potenciales
+                resultsLimit: 15,             // bajamos 25→15 por hashtag (12×15=180 brutos potenciales)
               }),
             }
           ).then(async r => {
@@ -2006,7 +2007,7 @@ async function enrichInstagramReels(
 // TTL: 24 horas. Si una búsqueda (tema+platform) se hizo en las últimas 24h,
 // devolvemos lo cacheado en lugar de re-correr todo el pipeline.
 // Tabla: public.viral_cache (cache_key PK, tema, platform, videos, fetched_at)
-const CACHE_TTL_HOURS = 24;
+const CACHE_TTL_HOURS = 72; // 24→72: virales no cambian tanto en 3 días, ahorra ~30% Apify
 
 function cacheKey(tema: string, platform: string): string {
   return `${tema.trim().toLowerCase()}|${platform}`;
