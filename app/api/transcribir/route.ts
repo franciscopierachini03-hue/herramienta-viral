@@ -391,9 +391,22 @@ export async function POST(req: NextRequest) {
       } catch (e) { debug.push(`apify: ${(e as Error).message.slice(0, 60)}`); }
     }
 
-    // Mensaje final más amigable (sin jerga técnica de "cupo agotado").
-    // El log queda en server logs por si necesitamos diagnosticar.
+    // Detectar si TODOS los proveedores fallaron por cupo agotado para dar
+    // un mensaje específico (en vez de "probá con otro reel" que confunde
+    // cuando el problema es facturación, no el reel).
+    const allQuotaExhausted = quotaCount >= 2 ||
+      debug.some(d => d.includes('hard limit') || d.includes('cupo agotado'));
+
+    // Tambien detectar si Apify devolvió monthly hard limit
+    const apifyExhausted = debug.some(d => d.toLowerCase().includes('hard limit'));
+
     console.warn('[transcribir/instagram] todos los proveedores fallaron:', debug.join(' · '));
+
+    if (allQuotaExhausted || apifyExhausted) {
+      return Response.json({
+        error: 'Los servicios de transcripción de Instagram agotaron su cuota mensual. Avisá al admin para renovar el plan.'
+      }, { status: 503 });
+    }
     if (debug.some(d => d.includes('groq'))) {
       return Response.json({
         error: 'No pudimos transcribir este reel ahora. Puede que el audio sea muy corto o no tenga voz. Probá con otro.'
