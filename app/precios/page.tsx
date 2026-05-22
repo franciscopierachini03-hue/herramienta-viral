@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RedeemCode from './RedeemCode';
 import FoundersCounter from '../_components/FoundersCounter';
@@ -79,6 +79,14 @@ export default function Pricing() {
 
 function PricingInner() {
   const [loading, setLoading] = useState<'monthly' | 'yearly' | null>(null);
+
+  // Resetear loading si el usuario vuelve con el botón "atrás" del navegador.
+  // El bfcache congela el estado React — pageshow con persisted=true lo detecta.
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => { if (e.persisted) setLoading(null); };
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
 
   async function handleCheckout(plan: 'monthly' | 'yearly') {
     setLoading(plan);
