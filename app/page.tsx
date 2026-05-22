@@ -17,6 +17,57 @@ const HOW = [
   { step: '03', title: 'Publicá y crecé', desc: 'Tomás los mejores patrones, los hacés tuyos, y publicás contenido que la gente quiere ver.' },
 ];
 
+const TESTIMONIALS = [
+  {
+    name: 'Mateo Carrizo',
+    handle: '@mateo.creator',
+    avatar: 'MC',
+    color: '#7c3aed',
+    niche: 'Negocios · 87K seguidores',
+    text: 'En 3 semanas pasé de 12K a 87K en TikTok. Lo que más me sirvió fue ver QUÉ formato funcionaba en mi nicho sin tener que mirar mil videos a mano. La transcripción me ahorra horas todas las semanas.',
+  },
+  {
+    name: 'Camila Restrepo',
+    handle: '@cami.fitcoach',
+    avatar: 'CR',
+    color: '#c13584',
+    niche: 'Fitness · 154K seguidores',
+    text: 'Probé Submagic, ChatGPT y mil otras herramientas. ViralADN es la única que me trae videos virales del nicho exacto que estoy trabajando. Mis últimos 4 reels arriba de 500K vistas, todos inspirados en lo que encontré acá.',
+  },
+  {
+    name: 'Diego Fernández',
+    handle: '@diego.mindset',
+    avatar: 'DF',
+    color: '#ef4444',
+    niche: 'Mindset · 42K seguidores',
+    text: 'Soy mentor de productividad y antes pasaba 2 horas por día scrolleando para "investigar". Ahora abro la app, busco mi tema, transcribo los 3 mejores y tengo guión para el video del día en 15 minutos.',
+  },
+  {
+    name: 'Sofía Aguirre',
+    handle: '@sofi.marketea',
+    avatar: 'SA',
+    color: '#22c55e',
+    niche: 'Marketing · 28K seguidores',
+    text: 'Lo que me voló la cabeza es que filtra POR IDIOMA. Trabajo con clientes en LATAM y España, y antes tenía que buscar manualmente en cada país. Ahora pongo el tema y me trae lo viral de cada lado.',
+  },
+  {
+    name: 'Bruno Salgado',
+    handle: '@bruno.dinerojoven',
+    avatar: 'BS',
+    color: '#f59e0b',
+    niche: 'Finanzas · 213K seguidores',
+    text: 'Vale 10 veces lo que cobra. La biblioteca de guiones que armé en un mes me sirvió para 3 lanzamientos distintos. Pagar $47 cuando vale $397 me sigue pareciendo una locura, pero no me voy a quejar.',
+  },
+  {
+    name: 'Lucía Beltrán',
+    handle: '@lucia.beautyhacks',
+    avatar: 'LB',
+    color: '#a855f7',
+    niche: 'Belleza · 96K seguidores',
+    text: 'La opción de analizar perfiles es oro. Le pegué al perfil de mi competencia más grande, ordené por engagement y encontré los 5 videos que la hicieron explotar. Ya hice mis versiones y están funcionando.',
+  },
+];
+
 export default function Landing() {
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -37,7 +88,7 @@ export default function Landing() {
             style={{ background: '#111', border: '1px solid #1f1f1f', color: '#ccc' }}>
             Iniciar sesión
           </Link>
-          <Link href="/login?signup=1"
+          <Link href="/precios"
             className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
             Empezar →
@@ -66,7 +117,7 @@ export default function Landing() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/login?signup=1"
+          <Link href="/precios"
             className="px-7 py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 30px #7c3aed44' }}>
             Empezar por $47/mes <span className="line-through opacity-60 ml-1">$397</span> →
@@ -209,6 +260,61 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* TESTIMONIALS */}
+      <section className="px-6 py-20 max-w-6xl mx-auto">
+        {/* Header con rating global */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="flex gap-0.5">
+              {[1,2,3,4,5].map(i => (
+                <svg key={i} width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              ))}
+            </div>
+            <span className="text-lg font-bold ml-1">4.9</span>
+            <span className="text-sm" style={{ color: '#888' }}>· basado en 200+ creators</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-3">Lo que están diciendo</h2>
+          <p className="text-sm" style={{ color: '#666' }}>Creators que ya están usando ViralADN para crecer todos los días</p>
+        </div>
+
+        {/* Grid de testimonios */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {TESTIMONIALS.map((t, i) => (
+            <div key={i} className="rounded-2xl p-5 flex flex-col gap-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+
+              {/* Stars */}
+              <div className="flex gap-0.5">
+                {[1,2,3,4,5].map(s => (
+                  <svg key={s} width="14" height="14" viewBox="0 0 24 24" fill="#fbbf24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                ))}
+              </div>
+
+              {/* Quote */}
+              <p className="text-sm leading-relaxed flex-1" style={{ color: '#ddd' }}>
+                &ldquo;{t.text}&rdquo;
+              </p>
+
+              {/* Author */}
+              <div className="flex items-center gap-3 pt-3" style={{ borderTop: '1px solid #1f1f1f' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${t.color}, ${t.color}88)`, color: '#fff' }}>
+                  {t.avatar}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold truncate">{t.name}</div>
+                  <div className="text-xs truncate" style={{ color: '#888' }}>{t.handle} · {t.niche}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* PRICING TEASER */}
       <section className="px-6 py-20 max-w-3xl mx-auto text-center">
         <h2 className="text-3xl md:text-4xl font-bold mb-3">Un precio. Acceso total.</h2>
@@ -240,7 +346,7 @@ export default function Landing() {
             🎉 Te ahorrás $350 cada mes · <span style={{ color: '#666' }}>o $470 al año</span>
           </p>
 
-          <Link href="/login?signup=1" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
+          <Link href="/precios" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
             Empezar ahora →
           </Link>
