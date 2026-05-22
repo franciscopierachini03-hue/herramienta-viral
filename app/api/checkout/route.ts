@@ -29,16 +29,10 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
-  // Necesitamos el email del usuario logueado para vincular el pago.
+  // Si el usuario ya está logueado usamos su email. Si no, Stripe lo va a
+  // pedir durante el checkout — no forzamos el registro antes del pago.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return Response.json({
-      error: 'Tenés que iniciar sesión antes de pagar.',
-      redirect: '/login?next=/precios',
-    }, { status: 401 });
-  }
 
   // Stripe rechaza `mode=subscription` con prices de tipo `one_time` y viceversa.
   // Consultamos el price para elegir el mode correcto y soportar ambos casos.
@@ -60,8 +54,8 @@ export async function POST(req: NextRequest) {
   params.append('mode', mode);
   params.append('line_items[0][price]', priceId);
   params.append('line_items[0][quantity]', '1');
-  params.append('customer_email', user.email);
-  params.append('client_reference_id', user.id);
+  if (user?.email) params.append('customer_email', user.email);
+  if (user?.id) params.append('client_reference_id', user.id);
   // Tags para identificar pagos de ViralADN cuando la cuenta de Stripe se
   // comparte con otros productos. El admin panel filtra por estos.
   params.append('metadata[app]', 'viraladn');

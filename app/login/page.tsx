@@ -23,9 +23,11 @@ function Login() {
   const reason = params.get('reason') || '';
   const wantsSignup = params.get('signup') === '1';
 
+  const hintEmail = params.get('email') || '';
+
   const [mode, setMode] = useState<Mode>(wantsSignup ? 'signup' : 'login');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(hintEmail);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');

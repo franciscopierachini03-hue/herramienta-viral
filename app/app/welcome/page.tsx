@@ -35,12 +35,9 @@ export default async function Welcome({
     redirect('/precios');
   }
 
-  // 1. Ver quién está logueado.
+  // 1. Ver quién está logueado (puede ser nadie — flujo pay-first).
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) {
-    redirect('/login?next=/precios');
-  }
 
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) {
@@ -101,7 +98,7 @@ export default async function Welcome({
     );
   }
 
-  // 3. Validar que la sesión está pagada y es del usuario correcto.
+  // 3. Validar que la sesión está pagada.
   const isPaid = session.payment_status === 'paid' || session.status === 'complete';
   const sessionEmail =
     session.customer_email || session.customer_details?.email || '';
@@ -110,9 +107,17 @@ export default async function Welcome({
     redirect('/precios?cancelled=1');
   }
 
+  // Si no está logueado → mandarlo a crear cuenta con el email de Stripe
+  // pre-cargado. El session_id se preserva en el `next` para volver acá.
+  if (!user?.email) {
+    const next = encodeURIComponent(`/app/welcome?session_id=${session_id}`);
+    const hint = encodeURIComponent(sessionEmail);
+    redirect(`/login?signup=1&next=${next}&email=${hint}`);
+  }
+
   // Defensa contra session_id manipulado: el email de la sesión tiene que
   // coincidir con el email del usuario logueado.
-  if (sessionEmail.toLowerCase() !== user.email.toLowerCase()) {
+  if (sessionEmail && sessionEmail.toLowerCase() !== user.email.toLowerCase()) {
     console.warn('[welcome] email mismatch', { session: sessionEmail, user: user.email });
     redirect('/login');
   }
