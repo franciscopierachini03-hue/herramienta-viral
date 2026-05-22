@@ -216,8 +216,8 @@ function PricingInner() {
             {/* Bloque de ahorro destacado */}
             <div className="rounded-2xl p-4 mb-6 text-center"
               style={{ background: '#22c55e11', border: '1px solid #22c55e33' }}>
-              <p className="text-xs mb-1" style={{ color: '#86efac' }}>Te ahorrás</p>
-              <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>$94</p>
+              <p className="text-xs mb-1" style={{ color: '#86efac' }}>Ahorrás</p>
+              <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>20% off</p>
               <p className="text-xs" style={{ color: '#666' }}>vs pagar mensual todo el año</p>
             </div>
 
