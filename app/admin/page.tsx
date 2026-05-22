@@ -212,10 +212,52 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     );
   }
 
-  // 2. Cargar perfiles primero — necesitamos los stripe_customer_id para filtrar
+  // 2. Cargar perfiles + logs de uso en paralelo.
+  const admin = createServiceClient();
+
+  // Tarifas estimadas (USD por acción no cacheada)
+  const RATES = {
+    viral_ig: 0.10, viral_tt: 0.05, viral_yt: 0.03,
+    transcribe_ig: 0.02, transcribe_yt: 0.005, transcribe_tt: 0.005,
+  };
+
+  type CostRow = { email: string; searches_ig: number; searches_tt: number; searches_yt: number; transcripts_ig: number; transcripts_yt: number; transcripts_tt: number; total_usd: number };
+  const costMap = new Map<string, CostRow>();
+  const getCost = (email: string) => {
+    if (!costMap.has(email)) costMap.set(email, { email, searches_ig: 0, searches_tt: 0, searches_yt: 0, transcripts_ig: 0, transcripts_yt: 0, transcripts_tt: 0, total_usd: 0 });
+    return costMap.get(email)!;
+  };
+
+  const [searchLogs, transcriptLogs] = await Promise.all([
+    admin.from('viral_search_log').select('user_email, platform, cache_hit').eq('cache_hit', false).not('user_email', 'is', null),
+    admin.from('transcription_log').select('user_email, platform, cache_hit').eq('cache_hit', false).not('user_email', 'is', null),
+  ]);
+
+  for (const row of (searchLogs.data || [])) {
+    if (!row.user_email) continue;
+    const c = getCost(row.user_email);
+    const p = (row.platform || '').toLowerCase();
+    if (p === 'instagram') { c.searches_ig++; c.total_usd += RATES.viral_ig; }
+    else if (p === 'tiktok') { c.searches_tt++; c.total_usd += RATES.viral_tt; }
+    else if (p === 'youtube') { c.searches_yt++; c.total_usd += RATES.viral_yt; }
+  }
+  for (const row of (transcriptLogs.data || [])) {
+    if (!row.user_email) continue;
+    const c = getCost(row.user_email);
+    const p = (row.platform || '').toLowerCase();
+    if (p === 'instagram') { c.transcripts_ig++; c.total_usd += RATES.transcribe_ig; }
+    else if (p === 'youtube') { c.transcripts_yt++; c.total_usd += RATES.transcribe_yt; }
+    else if (p === 'tiktok') { c.transcripts_tt++; c.total_usd += RATES.transcribe_tt; }
+  }
+
+  const userCosts = Array.from(costMap.values())
+    .map(c => ({ ...c, total_usd: Math.round(c.total_usd * 100) / 100 }))
+    .sort((a, b) => b.total_usd - a.total_usd);
+  const totalCostUsd = Math.round(userCosts.reduce((s, c) => s + c.total_usd, 0) * 100) / 100;
+
+  // Cargar perfiles — necesitamos los stripe_customer_id para filtrar
   // charges de Stripe a SOLO los de ViralADN (evita mezcla con otros productos
   // que comparten la misma cuenta Stripe).
-  const admin = createServiceClient();
   const { data: profiles, error } = await admin
     .from('profiles')
     .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
@@ -451,6 +493,102 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                 </table>
               </div>
             </details>
+          )}
+        </div>
+
+        {/* ── COSTO POR USUARIO ─────────────────────────────────────────── */}
+        <div className="mb-6">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            💸 Costo estimado por usuario
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: '#7c3aed22', color: '#c4b5fd' }}>
+              API costs · no cacheados
+            </span>
+          </h2>
+
+          {/* Resumen total */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #ef444444' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Costo total estimado</div>
+              <div className="text-2xl font-bold" style={{ color: '#fca5a5' }}>{fmtUSD(totalCostUsd)}</div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Usuarios con actividad</div>
+              <div className="text-2xl font-bold" style={{ color: '#fff' }}>{userCosts.length}</div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Búsquedas virales (total)</div>
+              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>
+                {userCosts.reduce((s, c) => s + c.searches_ig + c.searches_tt + c.searches_yt, 0)}
+              </div>
+            </div>
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Transcripciones (total)</div>
+              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>
+                {userCosts.reduce((s, c) => s + c.transcripts_ig + c.transcripts_yt + c.transcripts_tt, 0)}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla detallada por usuario */}
+          {userCosts.length > 0 ? (
+            <details className="rounded-2xl overflow-hidden"
+              style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+              <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center justify-between"
+                style={{ color: '#aaa' }}>
+                <span>Detalle por usuario ({userCosts.length})</span>
+                <span className="text-xs" style={{ color: '#666' }}>Click para expandir ↓</span>
+              </summary>
+              <div className="overflow-x-auto" style={{ borderTop: '1px solid #1a1a1a' }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs" style={{ color: '#666', borderBottom: '1px solid #1a1a1a' }}>
+                      <th className="px-4 py-3 font-semibold">Email</th>
+                      <th className="px-4 py-3 font-semibold text-right">🔍 Búsquedas<br/><span style={{color:'#C13584'}}>IG</span> · <span style={{color:'#69C9D0'}}>TT</span> · <span style={{color:'#FF0000'}}>YT</span></th>
+                      <th className="px-4 py-3 font-semibold text-right">📝 Transcrip.<br/><span style={{color:'#C13584'}}>IG</span> · <span style={{color:'#69C9D0'}}>TT</span> · <span style={{color:'#FF0000'}}>YT</span></th>
+                      <th className="px-4 py-3 font-semibold text-right">Costo est.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userCosts.map(c => (
+                      <tr key={c.email} style={{ borderBottom: '1px solid #141414' }}>
+                        <td className="px-4 py-3" style={{ color: '#eee' }}>{c.email}</td>
+                        <td className="px-4 py-3 text-right text-xs font-mono" style={{ color: '#aaa' }}>
+                          <span style={{ color: '#C13584' }}>{c.searches_ig}</span>
+                          {' · '}
+                          <span style={{ color: '#69C9D0' }}>{c.searches_tt}</span>
+                          {' · '}
+                          <span style={{ color: '#FF6666' }}>{c.searches_yt}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-xs font-mono" style={{ color: '#aaa' }}>
+                          <span style={{ color: '#C13584' }}>{c.transcripts_ig}</span>
+                          {' · '}
+                          <span style={{ color: '#69C9D0' }}>{c.transcripts_tt}</span>
+                          {' · '}
+                          <span style={{ color: '#FF6666' }}>{c.transcripts_yt}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold"
+                          style={{ color: c.total_usd > 1 ? '#fca5a5' : c.total_usd > 0.5 ? '#fde68a' : '#86efac' }}>
+                          {fmtUSD(c.total_usd)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-4 py-3 text-xs" style={{ color: '#555', borderTop: '1px solid #141414' }}>
+                  Tarifas: IG search ${(0.10).toFixed(2)} · TT search ${(0.05).toFixed(2)} · YT search ${(0.03).toFixed(2)} · IG transcrip. ${(0.02).toFixed(2)} · TT/YT transcrip. ${(0.005).toFixed(3)} · Solo acciones no cacheadas.
+                </div>
+              </div>
+            </details>
+          ) : (
+            <div className="rounded-2xl p-6 text-center text-sm"
+              style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', color: '#555' }}>
+              Sin datos de uso todavía. Los logs se generan con cada búsqueda viral o transcripción.
+            </div>
           )}
         </div>
 

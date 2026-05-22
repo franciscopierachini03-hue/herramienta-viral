@@ -2053,10 +2053,27 @@ async function writeCache(tema: string, platform: string, videos: unknown[]): Pr
 // Usar en lugar de `return Response.json({ videos })` en handlers que
 // resuelven búsquedas exitosas para que las próximas requests las tengan
 // instantáneas.
-function respondAndCache(tema: string, platform: string, videos: unknown[]) {
+function respondAndCache(tema: string, platform: string, videos: unknown[], userEmail?: string | null) {
   // No bloqueamos la respuesta esperando el write — best-effort.
   void writeCache(tema, platform, videos);
+  // Log de búsqueda real (no cache) para tracking de costo por user
+  if (userEmail !== undefined) void logViralSearch(userEmail, tema, platform, false);
   return Response.json({ videos });
+}
+
+// Log de búsqueda viral para cálculo de costo por usuario.
+// Fire-and-forget — no bloquea la respuesta.
+async function logViralSearch(email: string | null, tema: string, platform: string, cacheHit: boolean) {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const sb = createServiceClient();
+    await sb.from('viral_search_log').insert({
+      user_email: email,
+      tema: String(tema).trim().toLowerCase().slice(0, 200),
+      platform,
+      cache_hit: cacheHit,
+    });
+  } catch { /* no bloquea */ }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -2064,10 +2081,20 @@ export async function POST(req: NextRequest) {
   const { tema, platform } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
+  // Identificar usuario (no bloqueante)
+  let userEmail: string | null = null;
+  try {
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    userEmail = user?.email || null;
+  } catch { /* anónimo */ }
+
   // ── Cache hit? — devolver instantáneo si la búsqueda está fresca ────────
   const cached = await readCache(tema, platform);
   if (cached && cached.length > 0) {
     console.log(`[cache] HIT ${tema}|${platform} (${cached.length} videos)`);
+    void logViralSearch(userEmail, tema, platform, true);
     return Response.json({ videos: cached, cached: true });
   }
 
@@ -2151,7 +2178,7 @@ export async function POST(req: NextRequest) {
           // IA es muy estricta sin ellas), caemos al YouTube Data API que sí
           // devuelve videos con vistas/likes verificadas.
           if (final.length > 0) {
-            return respondAndCache(tema, platform, final);
+            return respondAndCache(tema, platform, final, userEmail);
           }
           console.warn(`[virales] Serper devolvió ${unique.length} pero filtro IA dejó 0. Fallback a YouTube API.`);
         }
@@ -2166,7 +2193,7 @@ export async function POST(req: NextRequest) {
       const termToSearch = aiKeys ? temaES() : tema;
       try {
         const ytVideos = await searchYouTube(termToSearch, ytKey);
-        if (ytVideos.length > 0) return respondAndCache(tema, platform, ytVideos);
+        if (ytVideos.length > 0) return respondAndCache(tema, platform, ytVideos, userEmail);
       }
       catch(e) { console.warn('YouTube API falló:', (e as Error).message); }
     }
@@ -2188,13 +2215,13 @@ export async function POST(req: NextRequest) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(videos, allTerms, 200);
           const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return respondAndCache(tema, platform, final);
+          if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
           // Si el filtro IA descarta todo pero Apify devolvió contenido,
           // devolvemos top 20 por views (Apify ya viene ordenado por trending)
           const topByViewsRaw = [...videos]
             .sort((a, b) => b.viewsRaw - a.viewsRaw)
             .slice(0, 20);
-          if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw);
+          if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw, userEmail);
         }
       } catch(e) {
         console.warn('Apify TikTok falló:', (e as Error).message);
@@ -2257,7 +2284,7 @@ export async function POST(req: NextRequest) {
         // 2) IA cura los 250 → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
         // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos al fallback.
-        if (final.length > 0) return respondAndCache(tema, platform, final);
+        if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
         console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Serper/Rapid.`);
       }
     } catch(e) {
@@ -2301,12 +2328,12 @@ export async function POST(req: NextRequest) {
           const allTerms = getAllTerms(tema);
           const preFiltered = topByViews(videos, allTerms, 200);
           const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return respondAndCache(tema, platform, final);
+          if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
           // Fallback: si IA descarta todo, devolver top 20 por views/likes
           const topByEngagement = [...videos]
             .sort((a, b) => (b.viewsRaw + b.likesRaw * 10) - (a.viewsRaw + a.likesRaw * 10))
             .slice(0, 20);
-          if (topByEngagement.length > 0) return respondAndCache(tema, platform, topByEngagement);
+          if (topByEngagement.length > 0) return respondAndCache(tema, platform, topByEngagement, userEmail);
         } else {
           // Apify funcionó pero devolvió 0 videos = tema sin contenido viral en IG.
           // No tiene sentido caer a RapidAPI (que va a fallar igual). Mensaje claro.
@@ -2378,7 +2405,7 @@ export async function POST(req: NextRequest) {
         const preFiltered = topByViews(unique, allTerms, 200);
         // 2) IA evalúa relevancia + valor → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-        if (final.length > 0) return respondAndCache(tema, platform, final);
+        if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
       } catch(e) {
         console.warn('Serper Instagram falló:', (e as Error).message);
       }
