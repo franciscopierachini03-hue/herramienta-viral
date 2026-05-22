@@ -78,11 +78,10 @@ export default function Pricing() {
 }
 
 function PricingInner() {
-  const [plan, setPlan] = useState<'monthly' | 'yearly'>('monthly');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<'monthly' | 'yearly' | null>(null);
 
-  async function handleCheckout() {
-    setLoading(true);
+  async function handleCheckout(plan: 'monthly' | 'yearly') {
+    setLoading(plan);
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -90,32 +89,21 @@ function PricingInner() {
         body: JSON.stringify({ plan }),
       });
       const data = await res.json();
-
-      // Si no está logueado, /api/checkout devuelve 401 con un redirect.
-      // Lo mandamos a /login en modo signup para que cree cuenta y vuelva a pagar.
       if (res.status === 401) {
         window.location.href = '/login?signup=1&next=/precios';
         return;
       }
-
       if (data.url) {
         window.location.href = data.url;
       } else {
         alert(data.error || 'No se pudo crear la sesión de pago. Probá de nuevo.');
-        setLoading(false);
+        setLoading(null);
       }
     } catch {
       alert('Error de conexión. Intentá de nuevo.');
-      setLoading(false);
+      setLoading(null);
     }
   }
-
-  const price = plan === 'monthly' ? 47 : 470;
-  const period = plan === 'monthly' ? '/mes' : '/año';
-  // Precio ancla (sin descuento) y % off para mostrar el deal
-  const originalPrice = plan === 'monthly' ? 397 : 4764;     // $397/mes × 12
-  const percentOff = Math.round((1 - price / originalPrice) * 100);
-  const savedAmount = originalPrice - price;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -137,7 +125,7 @@ function PricingInner() {
       </div>
 
       {/* HEADER */}
-      <section className="text-center px-6 pt-2 pb-8 max-w-2xl mx-auto">
+      <section className="text-center px-6 pt-2 pb-10 max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           Un precio.<br />
           <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #7c3aed, #c13584)' }}>
@@ -145,113 +133,127 @@ function PricingInner() {
           </span>
         </h1>
         <p className="text-base" style={{ color: '#888' }}>
-          Sin tiers, sin trucos. Pagás una vez y desbloqueás todo.
+          Sin tiers, sin trucos. Todo incluido desde el primer día.
         </p>
       </section>
 
-      {/* TOGGLE Mensual / Anual */}
-      <div className="flex justify-center mb-8">
-        <div className="inline-flex p-1 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1f1f1f' }}>
-          <button
-            onClick={() => setPlan('monthly')}
-            className="px-5 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={plan === 'monthly'
-              ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-              : { color: '#666' }}>
-            Mensual
-          </button>
-          <button
-            onClick={() => setPlan('yearly')}
-            className="px-5 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2"
-            style={plan === 'yearly'
-              ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-              : { color: '#666' }}>
-            Anual
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-              style={{ background: plan === 'yearly' ? 'rgba(255,255,255,0.25)' : '#22c55e22', color: plan === 'yearly' ? '#fff' : '#4ade80' }}>
-              -20%
-            </span>
-          </button>
-        </div>
-      </div>
+      {/* DOS CARDS LADO A LADO */}
+      <section className="px-6 pb-12 max-w-3xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-5 items-start">
 
-      {/* PRICING CARD */}
-      <section className="px-6 pb-20 max-w-md mx-auto">
-        <div className="rounded-3xl p-8 relative"
-          style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed55', boxShadow: '0 0 60px #7c3aed33' }}>
+          {/* CARD MENSUAL */}
+          <div className="rounded-3xl p-7 relative"
+            style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed55', boxShadow: '0 0 50px #7c3aed22' }}>
 
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
-            ✨ Acceso completo
-          </div>
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
+              ✨ Más popular
+            </div>
 
-          <div className="flex items-center gap-2 mb-2 mt-2">
-            <p className="text-sm" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
-              style={{ background: '#22c55e22', border: '1px solid #22c55e55', color: '#4ade80' }}>
-              -{percentOff}% lanzamiento
-            </span>
-          </div>
+            <p className="text-sm mt-2 mb-1" style={{ color: '#a78bfa' }}>Mensual</p>
 
-          {/* Precio tachado (ancla) */}
-          <div className="flex items-baseline gap-2 mb-1" style={{ color: '#555' }}>
-            <span className="text-lg line-through">${originalPrice.toLocaleString('en-US')}</span>
-            <span className="text-xs">USD{period}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider"
-              style={{ color: '#22c55e' }}>
-              Antes
-            </span>
-          </div>
+            <div className="flex items-baseline gap-1 mb-0.5" style={{ color: '#555' }}>
+              <span className="text-sm line-through">$397</span>
+              <span className="text-xs">/mes</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-5xl font-bold">$47</span>
+              <span className="text-sm" style={{ color: '#888' }}>/mes</span>
+            </div>
+            <p className="text-xs mb-5" style={{ color: '#22c55e' }}>
+              🎉 -88% lanzamiento · <span style={{ color: '#666' }}>cancelás cuando quieras</span>
+            </p>
 
-          {/* Precio actual */}
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-6xl font-bold">${price}</span>
-            <span className="text-base" style={{ color: '#888' }}>USD{period}</span>
-          </div>
-
-          <p className="text-xs mb-4" style={{ color: '#22c55e' }}>
-            🎉 Te ahorrás ${savedAmount.toLocaleString('en-US')} {plan === 'monthly' ? 'al mes' : 'al año'} —
-            <span style={{ color: '#888' }}> {plan === 'monthly' ? 'cancelás cuando quieras' : 'pago único anual'}</span>
-          </p>
-
-          {/* Cupos de fundadores */}
-          <div className="mb-6">
             <FoundersCounter variant="banner" />
+
+            <ul className="flex flex-col gap-2.5 my-6">
+              {FEATURES.map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#ddd' }}>
+                  <span className="shrink-0">{f.split(' ')[0]}</span>
+                  <span>{f.split(' ').slice(1).join(' ')}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={() => handleCheckout('monthly')}
+              disabled={loading !== null}
+              className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 24px #7c3aed44' }}>
+              {loading === 'monthly' ? 'Redirigiendo...' : 'Empezar por $47/mes →'}
+            </button>
+            <p className="text-xs text-center mt-3" style={{ color: '#555' }}>
+              Pago seguro con Stripe
+            </p>
           </div>
 
-          <ul className="flex flex-col gap-3 mb-8">
-            {FEATURES.map((f, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#ddd' }}>
-                <span className="shrink-0">{f.split(' ')[0]}</span>
-                <span>{f.split(' ').slice(1).join(' ')}</span>
-              </li>
-            ))}
-          </ul>
+          {/* CARD ANUAL */}
+          <div className="rounded-3xl p-7 relative"
+            style={{ background: 'linear-gradient(145deg, #0f0f0f, #0a0a0a)', border: '1px solid #22c55e44' }}>
 
-          <button
-            onClick={handleCheckout}
-            disabled={loading}
-            className="w-full py-4 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 30px #7c3aed55' }}>
-            {loading ? 'Redirigiendo a Stripe...' : `Pagar ${plan === 'monthly' ? '$47/mes' : '$470/año'} →`}
-          </button>
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
+              style={{ background: '#22c55e', color: '#000' }}>
+              💰 Mayor ahorro
+            </div>
 
-          <p className="text-xs text-center mt-4" style={{ color: '#555' }}>
-            Pago seguro con Stripe · Cancelás cuando quieras
-          </p>
+            <p className="text-sm mt-2 mb-1" style={{ color: '#86efac' }}>Anual</p>
+
+            <div className="flex items-baseline gap-1 mb-0.5" style={{ color: '#555' }}>
+              <span className="text-sm line-through">$4,764</span>
+              <span className="text-xs">/año</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className="text-5xl font-bold">$470</span>
+              <span className="text-sm" style={{ color: '#888' }}>/año</span>
+            </div>
+            <p className="text-xs mb-1" style={{ color: '#86efac' }}>
+              Equivale a <strong>$39/mes</strong>
+            </p>
+            <p className="text-xs mb-5" style={{ color: '#22c55e' }}>
+              🎉 -90% lanzamiento · <span style={{ color: '#666' }}>pago único anual</span>
+            </p>
+
+            {/* Bloque de ahorro destacado */}
+            <div className="rounded-2xl p-4 mb-6 text-center"
+              style={{ background: '#22c55e11', border: '1px solid #22c55e33' }}>
+              <p className="text-xs mb-1" style={{ color: '#86efac' }}>Te ahorrás</p>
+              <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>$94</p>
+              <p className="text-xs" style={{ color: '#666' }}>vs pagar mensual todo el año</p>
+            </div>
+
+            <ul className="flex flex-col gap-2.5 mb-6">
+              {FEATURES.map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#aaa' }}>
+                  <span className="shrink-0">{f.split(' ')[0]}</span>
+                  <span>{f.split(' ').slice(1).join(' ')}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={() => handleCheckout('yearly')}
+              disabled={loading !== null}
+              className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #166534, #15803d)', color: '#fff', boxShadow: '0 0 20px #22c55e22' }}>
+              {loading === 'yearly' ? 'Redirigiendo...' : 'Empezar por $470/año →'}
+            </button>
+            <p className="text-xs text-center mt-3" style={{ color: '#555' }}>
+              Pago seguro con Stripe
+            </p>
+          </div>
         </div>
 
-        {/* Redimir código de invitación */}
-        <div className="max-w-md mx-auto px-6">
+        {/* Redimir código */}
+        <div className="mt-8">
           <RedeemCode />
         </div>
 
-        {/* FAQ rápido */}
-        <div className="mt-12 flex flex-col gap-3">
+        {/* FAQ */}
+        <div className="mt-10 flex flex-col gap-3">
           {[
             { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. Cancelás desde tu cuenta en un click, sin preguntas. El acceso sigue activo hasta el final del período pagado.' },
             { q: '¿Por qué tan barato si vale $397?', a: 'Estamos en oferta de lanzamiento para conseguir los primeros casos de éxito. Una vez que llenamos el cupo de fundadores, el precio sube al precio normal de $397/mes. Si entrás ahora, tu precio queda bloqueado mientras mantengas la suscripción activa.' },
-            { q: '¿Cómo funciona la facturación anual?', a: 'Pagás los $470 una vez y tenés acceso 12 meses. Equivale a $39/mes — el descuento más grande sobre el precio normal.' },
+            { q: '¿Cómo funciona la facturación anual?', a: 'Pagás $470 una vez y tenés acceso 12 meses. Equivale a $39/mes — el mayor descuento disponible.' },
             { q: '¿Cuántas búsquedas puedo hacer?', a: 'Ilimitadas. No hay tope de búsquedas, transcripciones, ni traducciones.' },
           ].map((f, i) => (
             <details key={i} className="rounded-2xl p-4 cursor-pointer"
