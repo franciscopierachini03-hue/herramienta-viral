@@ -267,14 +267,14 @@ async function expandWithGoogleSuggest(tema: string): Promise<string[]> {
 }
 
 async function expandWithAI(tema: string): Promise<AIKeywords | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
         temperature: 0.3,
         max_tokens: 700,
         response_format: { type: 'json_object' },
@@ -1546,7 +1546,7 @@ async function aiScoreRelevance(
   topOutput = 20,
   minScore = 7
 ): Promise<VideoCandidate[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || candidates.length === 0) return candidates.slice(0, topOutput);
 
   // Idioma del query → para boostear contenido en ese idioma
@@ -1671,11 +1671,11 @@ REGLAS NO NEGOCIABLES
   let scoreMap = new Map<number, number>();
 
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
         max_tokens: 2000,
         response_format: { type: 'json_object' },
@@ -2007,7 +2007,7 @@ async function enrichInstagramReels(
 // TTL: 24 horas. Si una búsqueda (tema+platform) se hizo en las últimas 24h,
 // devolvemos lo cacheado en lugar de re-correr todo el pipeline.
 // Tabla: public.viral_cache (cache_key PK, tema, platform, videos, fetched_at)
-const CACHE_TTL_HOURS = 72; // 24→72: virales no cambian tanto en 3 días, ahorra ~30% Apify
+const CACHE_TTL_HOURS = 168; // 72→168: 7 días — virales siguen siendo útiles una semana, ahorra ~70% Apify
 
 function cacheKey(tema: string, platform: string): string {
   return `${tema.trim().toLowerCase()}|${platform}`;
@@ -2076,6 +2076,21 @@ async function logViralSearch(email: string | null, tema: string, platform: stri
   } catch { /* no bloquea */ }
 }
 
+async function countRecentSearches(email: string): Promise<number> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const sb = createServiceClient();
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await sb
+      .from('viral_search_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_email', email)
+      .eq('cache_hit', false)
+      .gte('created_at', since);
+    return count ?? 0;
+  } catch { return 0; }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { tema, platform } = await req.json();
@@ -2096,6 +2111,17 @@ export async function POST(req: NextRequest) {
     console.log(`[cache] HIT ${tema}|${platform} (${cached.length} videos)`);
     void logViralSearch(userEmail, tema, platform, true);
     return Response.json({ videos: cached, cached: true });
+  }
+
+  // ── Rate limit de búsquedas (15/día por usuario) ─────────────────────────
+  const SEARCH_RATE_LIMIT = parseInt(process.env.SEARCH_RATE_LIMIT_PER_DAY || '15', 10);
+  if (userEmail) {
+    const recentSearches = await countRecentSearches(userEmail);
+    if (recentSearches >= SEARCH_RATE_LIMIT) {
+      return Response.json({
+        error: `Límite de ${SEARCH_RATE_LIMIT} búsquedas por día alcanzado. Volvé mañana o aprovechá los resultados que ya tenés guardados.`,
+      }, { status: 429 });
+    }
   }
 
   // ── Expansión de keywords: IA + Google Suggest en paralelo ────────────────
@@ -2206,29 +2232,7 @@ export async function POST(req: NextRequest) {
     const rapidKey  = process.env.RAPIDAPI_KEY;
     const apifyToken = process.env.APIFY_TOKEN;
 
-    // 1. Apify — PRIMARIO: usa el motor de búsqueda nativo de TikTok,
-    // así obtenemos lo mismo que se ve abriendo la app y buscando.
-    if (apifyToken) {
-      try {
-        const videos = await searchViaApify(tema, 'tiktok', apifyToken, aiKeys);
-        if (videos.length > 0) {
-          const allTerms = getAllTerms(tema);
-          const preFiltered = topByViews(videos, allTerms, 200);
-          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
-          if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
-          // Si el filtro IA descarta todo pero Apify devolvió contenido,
-          // devolvemos top 20 por views (Apify ya viene ordenado por trending)
-          const topByViewsRaw = [...videos]
-            .sort((a, b) => b.viewsRaw - a.viewsRaw)
-            .slice(0, 20);
-          if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw, userEmail);
-        }
-      } catch(e) {
-        console.warn('Apify TikTok falló:', (e as Error).message);
-      }
-    }
-
-    // 2. TikWM — fallback (free, rate-limited)
+    // 1. TikWM — PRIMARIO (gratis, sin cuota)
     try {
       // Construir términos por idioma: IA + mapa + tema base
       const entry = findMapEntry(tema);
@@ -2283,12 +2287,38 @@ export async function POST(req: NextRequest) {
         const preFiltered = topByViews(candidates, allTerms, 250);
         // 2) IA cura los 250 → top 100
         const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
-        // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos al fallback.
+        // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos a Apify.
         if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
-        console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Serper/Rapid.`);
+        // Si IA descartó todo pero TikWM devolvió candidatos, también lo consideramos éxito
+        const topByViewsRaw = [...candidates]
+          .sort((a, b) => b.viewsRaw - a.viewsRaw)
+          .slice(0, 20);
+        if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw, userEmail);
+        console.warn(`[virales] TikWM devolvió ${candidates.length} pero filtro IA dejó 0. Fallback a Apify.`);
       }
     } catch(e) {
       console.warn('TikWM falló:', (e as Error).message);
+    }
+
+    // 2. Apify — fallback si TikWM falla
+    if (apifyToken) {
+      try {
+        const videos = await searchViaApify(tema, 'tiktok', apifyToken, aiKeys);
+        if (videos.length > 0) {
+          const allTerms = getAllTerms(tema);
+          const preFiltered = topByViews(videos, allTerms, 200);
+          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+          if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
+          // Si el filtro IA descarta todo pero Apify devolvió contenido,
+          // devolvemos top 20 por views (Apify ya viene ordenado por trending)
+          const topByViewsRaw = [...videos]
+            .sort((a, b) => b.viewsRaw - a.viewsRaw)
+            .slice(0, 20);
+          if (topByViewsRaw.length > 0) return respondAndCache(tema, platform, topByViewsRaw, userEmail);
+        }
+      } catch(e) {
+        console.warn('Apify TikTok falló:', (e as Error).message);
+      }
     }
 
     // 3. Serper — fallback
