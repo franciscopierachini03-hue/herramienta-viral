@@ -89,8 +89,10 @@ async function listAllCharges(limit = 200): Promise<StripeCharge[]> {
   return all.slice(0, limit);
 }
 
-async function listActiveSubscriptions(): Promise<StripeSubscription[]> {
-  const data = await stripeGet<{ data: StripeSubscription[] }>('subscriptions', {
+type StripeSubWithMeta = StripeSubscription & { metadata?: Record<string, string> };
+
+async function listActiveSubscriptions(): Promise<StripeSubWithMeta[]> {
+  const data = await stripeGet<{ data: StripeSubWithMeta[] }>('subscriptions', {
     status: 'active',
     limit: 100,
   });
@@ -99,30 +101,26 @@ async function listActiveSubscriptions(): Promise<StripeSubscription[]> {
 
 /**
  * Filtra los charges para que solo cuenten los de ViralADN.
- * Estrategia triple:
- *   1. Si el charge tiene metadata.app === 'viraladn' → es nuestro
- *   2. Si el customer está en nuestra lista de stripe_customer_id de profiles → es nuestro
- *   3. Si el receipt_email/billing_details.email está en nuestros profiles → es nuestro
  *
- * Esto descarta charges del Stripe que pertenecen a OTROS productos del mismo
- * dueño de la cuenta. Cubre desde pagos viejos sin metadata hasta nuevos sin
- * customer todavía sincronizado.
+ * Estrategia ESTRICTA: solo aceptamos charges que tengan explícitamente
+ * metadata.app === 'viraladn'. Este metadata lo seteamos nosotros en
+ * /api/checkout cuando creamos la sesión de Stripe.
+ *
+ * Antes hacíamos fallback por email/customer pero genera falsos positivos:
+ * si el dueño de la cuenta Stripe vende OTROS productos a la misma persona,
+ * esos pagos también matcheaban. Mejor solo confiar en el metadata propio.
  */
 function isOurCharge(
   c: StripeCharge & { metadata?: Record<string, string> },
-  ourCustomerIds: Set<string>,
-  ourEmails: Set<string>,
 ): boolean {
-  if (c.metadata && c.metadata.app === 'viraladn') return true;
-  if (c.customer && ourCustomerIds.has(c.customer)) return true;
-  const email = (c.receipt_email || c.billing_details?.email || '').toLowerCase().trim();
-  if (email && ourEmails.has(email)) return true;
-  return false;
+  return c.metadata?.app === 'viraladn';
 }
 
 export async function getBillingOverview(
-  ourCustomerIds: string[] = [],
-  ourEmails: string[] = [],
+  // Conservados por compat con callers existentes — el filtro real ahora es
+  // solo por metadata.app === 'viraladn' (estricto). Ver isOurCharge.
+  _ourCustomerIds: string[] = [],
+  _ourEmails: string[] = [],
 ): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) {
     return {
@@ -143,16 +141,15 @@ export async function getBillingOverview(
       listActiveSubscriptions(),
     ]);
 
-    const customerSet = new Set(ourCustomerIds.filter(Boolean));
-    const emailSet = new Set(ourEmails.map(e => e.toLowerCase().trim()).filter(Boolean));
-
     // Solo charges exitosos NUESTROS (descartar OTROS productos en la misma cuenta Stripe)
+    // Filtro estricto: metadata.app === 'viraladn'
     const successCharges = charges
       .filter(c => c.paid && c.status === 'succeeded')
-      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }, customerSet, emailSet));
+      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }));
 
-    // Mismo filtro para subs activas
-    const ourSubs = subs.filter(s => customerSet.has(s.customer));
+    // Suscripciones activas: solo las que tengan metadata.app === 'viraladn'
+    // (lo seteamos via subscription_data[metadata][app] en /api/checkout)
+    const ourSubs = subs.filter(s => s.metadata?.app === 'viraladn');
 
     // Helper: monto neto en USD (cents → USD, descuenta refund)
     const netUsd = (c: StripeCharge) => Math.max(0, (c.amount - (c.amount_refunded || 0)) / 100);
