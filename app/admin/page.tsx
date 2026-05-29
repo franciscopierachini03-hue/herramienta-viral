@@ -43,6 +43,7 @@ type Profile = {
   cancelled_at: string | null;
   redeemed_code: string | null;
   stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   created_at: string | null;
 };
 
@@ -260,7 +261,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // que comparten la misma cuenta Stripe).
   const { data: profiles, error } = await admin
     .from('profiles')
-    .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, created_at')
+    .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, stripe_subscription_id, created_at')
     .order('created_at', { ascending: false });
 
   const ourCustomerIds = (profiles || [])
@@ -282,11 +283,25 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
 
   const all: Profile[] = profiles || [];
 
-  // Set de customer IDs que están en su MES DE PRUEBA (suscripción Stripe con
-  // cupón/trial activo). Lo matcheamos a los perfiles por stripe_customer_id.
+  // ¿Está en su MES DE PRUEBA? Detección dual:
+  //   1) Stripe dice que la sub tiene cupón/trial activo (rápido pero efímero
+  //      cuando el cupón es "una vez" — Stripe lo consume al instante).
+  //   2) Fallback robusto: en /app/welcome guardamos el promo code (redeemed_code)
+  //      y el fin del primer período (trial_ends_at) al momento del pago. Si la
+  //      persona pagó con descuento y todavía no se le acabó ese período → mes prueba.
+  // El COURTESY no cuenta (es activación manual, no mes de prueba pago).
   const trialCustomerSet = new Set(billing.trialCustomerIds || []);
-  const isInTrialMonth = (p: Profile) =>
-    !!p.stripe_customer_id && trialCustomerSet.has(p.stripe_customer_id);
+  const isInTrialMonth = (p: Profile) => {
+    if (!p.stripe_subscription_id) return false; // tiene que ser pago Stripe
+    if ((p.redeemed_code || '').toUpperCase().startsWith('COURTESY')) return false;
+    // Path 1: Stripe lo confirma ahora mismo
+    if (p.stripe_customer_id && trialCustomerSet.has(p.stripe_customer_id)) return true;
+    // Path 2: guardado al pagar (sobrevive aunque Stripe ya consumió el cupón)
+    if (p.redeemed_code && p.trial_ends_at) {
+      return new Date(p.trial_ends_at).getTime() > Date.now();
+    }
+    return false;
+  };
 
   const fmtUSD = (n: number) =>
     n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });

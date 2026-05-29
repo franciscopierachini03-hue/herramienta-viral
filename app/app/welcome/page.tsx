@@ -55,19 +55,41 @@ export default async function Welcome({
   }
 
   // 2. Verificar la sesión contra la API de Stripe.
-  let session: {
+  // Expandimos `total_details.breakdown.discounts.discount.promotion_code` y
+  // `subscription` para capturar:
+  //   - El código de promo usado (ej: "LegacyPanama") → de dónde vino la persona
+  //   - El fin del primer período → cuándo termina su "mes gratis"
+  type StripeSession = {
     id: string;
     payment_status?: string;
     status?: string;
     customer?: string;
-    subscription?: string;
+    subscription?: string | {
+      id: string;
+      current_period_end?: number;
+      trial_end?: number | null;
+    };
     customer_email?: string;
     customer_details?: { email?: string; name?: string; phone?: string };
-  } | null = null;
+    total_details?: {
+      amount_discount?: number;
+      breakdown?: {
+        discounts?: Array<{
+          discount?: {
+            coupon?: { id?: string; name?: string };
+            promotion_code?: string | { id?: string; code?: string };
+          };
+        }>;
+      };
+    };
+  };
+  let session: StripeSession | null = null;
 
   try {
+    const expandParams =
+      'expand[]=subscription&expand[]=total_details.breakdown.discounts.discount.promotion_code';
     const res = await fetch(
-      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(session_id)}`,
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(session_id)}?${expandParams}`,
       {
         headers: { Authorization: `Bearer ${secret}` },
         cache: 'no-store',
@@ -122,22 +144,45 @@ export default async function Welcome({
     redirect('/login');
   }
 
-  // 4. Activar la suscripción en profiles. Usamos service client para bypassear RLS.
+  // 4. Extraer info del descuento (si hubo) y la suscripción.
+  // Si usó un código promocional (ej: "LegacyPanama"), lo capturamos acá —
+  // el cupón de Stripe se consume al instante, así que esta es la única chance
+  // de saber DE DÓNDE vino ese pago.
+  const subscriptionObj = typeof session.subscription === 'object' ? session.subscription : null;
+  const subscriptionId = typeof session.subscription === 'string'
+    ? session.subscription
+    : subscriptionObj?.id ?? null;
+  const periodEnd = subscriptionObj?.current_period_end ?? null;
+
+  const discountInfo = session.total_details?.breakdown?.discounts?.[0]?.discount;
+  const hasDiscount = (session.total_details?.amount_discount ?? 0) > 0;
+  const promoCodeRaw = discountInfo?.promotion_code;
+  const promoCodeName = typeof promoCodeRaw === 'object' ? promoCodeRaw?.code : null;
+  const couponName = discountInfo?.coupon?.name || discountInfo?.coupon?.id || null;
+  // Etiqueta de origen: prio promo code legible, si no coupon name
+  const origin = hasDiscount ? (promoCodeName || couponName) : null;
+
+  // 5. Activar la suscripción en profiles. Usamos service client para bypassear RLS.
   const admin = createServiceClient();
+  const patch: Record<string, unknown> = {
+    email: user.email,
+    name: session.customer_details?.name ?? null,
+    phone: session.customer_details?.phone ?? null,
+    stripe_customer_id: session.customer ?? null,
+    stripe_subscription_id: subscriptionId,
+    subscription_status: 'active',
+    activated_at: new Date().toISOString(),
+  };
+  // Solo guardamos código + trial_end SI hubo descuento — así no pisamos
+  // el redeemed_code de un invite code anterior cuando paga sin promo.
+  if (origin) patch.redeemed_code = origin;
+  if (hasDiscount && periodEnd) {
+    patch.trial_ends_at = new Date(periodEnd * 1000).toISOString();
+  }
+
   const { error } = await admin
     .from('profiles')
-    .upsert(
-      {
-        email: user.email,
-        name: session.customer_details?.name ?? null,
-        phone: session.customer_details?.phone ?? null,
-        stripe_customer_id: session.customer ?? null,
-        stripe_subscription_id: session.subscription ?? null,
-        subscription_status: 'active',
-        activated_at: new Date().toISOString(),
-      },
-      { onConflict: 'email' },
-    );
+    .upsert(patch, { onConflict: 'email' });
 
   if (error) {
     console.error('[welcome] upsert profile error:', error);
