@@ -78,6 +78,12 @@ export default function Pricing() {
 }
 
 function PricingInner() {
+  const params = useSearchParams();
+  // Token del link exclusivo (ej: /precios?vip=<coupon_id>). Si está presente,
+  // lo mandamos al checkout y Stripe aplica el descuento automáticamente.
+  // Sin este token, el checkout normal NO muestra campo de código.
+  const vipToken = params.get('vip') || '';
+
   const [loading, setLoading] = useState<'monthly' | 'yearly' | null>(null);
 
   // Resetear loading si el usuario vuelve con el botón "atrás" del navegador.
@@ -94,7 +100,7 @@ function PricingInner() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, vip: vipToken }),
       });
       const data = await res.json();
       if (res.status === 401) {
