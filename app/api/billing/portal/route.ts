@@ -18,44 +18,32 @@ export async function POST(_req: NextRequest) {
     return Response.json({ error: 'Tenés que iniciar sesión.' }, { status: 401 });
   }
 
-  // Buscar stripe_customer_id en profiles
+  // Buscar el customer + subscription de ViralADN en profiles.
   const admin = createServiceClient();
   const { data: profile } = await admin
     .from('profiles')
-    .select('stripe_customer_id, subscription_status')
+    .select('stripe_customer_id, stripe_subscription_id, subscription_status')
     .eq('email', user.email)
     .maybeSingle();
 
-  let customerId = profile?.stripe_customer_id || null;
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) {
     return Response.json({ error: 'Stripe no está configurado.' }, { status: 500 });
   }
 
-  // Si no hay customer_id en nuestro perfil, intentamos buscarlo en Stripe por email
-  if (!customerId) {
-    try {
-      const search = await fetch(
-        `https://api.stripe.com/v1/customers?email=${encodeURIComponent(user.email)}&limit=1`,
-        { headers: { Authorization: `Bearer ${secret}` }, cache: 'no-store' },
-      );
-      if (search.ok) {
-        const data = await search.json();
-        if (data.data?.[0]?.id) {
-          customerId = data.data[0].id;
-          // Guardar para próxima vez
-          await admin.from('profiles').update({ stripe_customer_id: customerId }).eq('email', user.email);
-        }
-      }
-    } catch (e) {
-      console.warn('[billing/portal] customer lookup failed:', (e as Error).message);
-    }
-  }
+  // IMPORTANTE: solo usamos el customer_id que guardamos cuando la persona PAGÓ
+  // ViralADN (lo setea /app/welcome). NO buscamos por email en Stripe, porque
+  // la cuenta de Stripe es compartida (2CLICKS.COM LLC) y una búsqueda por email
+  // puede devolver el cliente de OTRO producto (ej: una vieja suscripción a
+  // 2Clicks), abriendo el portal equivocado.
+  const customerId = profile?.stripe_customer_id || null;
 
-  if (!customerId) {
+  // Sin customer de ViralADN (ej: activó por código de invitación / cortesía)
+  // → no hay suscripción Stripe que gestionar.
+  if (!customerId || !profile?.stripe_subscription_id) {
     return Response.json({
-      error: 'No encontramos tu cuenta de Stripe. Si todavía no pagaste, suscribite primero en /precios.',
-      redirect: '/precios',
+      error: 'Tu acceso no tiene una suscripción de pago en Stripe (entraste con código o cortesía). No hay nada que gestionar acá.',
+      redirect: '/cuenta',
     }, { status: 404 });
   }
 

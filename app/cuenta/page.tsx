@@ -46,6 +46,10 @@ export default async function Cuenta() {
   const isActive = status === 'active';
   const isTrialing = status === 'trialing';
   const isCancelled = status === 'cancelled';
+  // ¿Tiene una suscripción de pago REAL en Stripe? Solo entonces tiene sentido
+  // abrir el Customer Portal. Los que entraron por código/cortesía no la tienen.
+  const hasStripeSub = !!profile?.stripe_subscription_id;
+  const isCodeAccess = !!profile?.redeemed_code && !hasStripeSub;
   const trialActive = isTrialing && profile?.trial_ends_at && new Date(profile.trial_ends_at).getTime() > Date.now();
 
   let pillLabel = 'Sin pagar';
@@ -127,8 +131,15 @@ export default async function Cuenta() {
 
           {/* Acciones */}
           <div className="mt-6 pt-6 flex flex-wrap gap-3" style={{ borderTop: '1px solid #1f1f1f' }}>
-            {(isActive || isCancelled) && (
+            {/* Portal de Stripe: solo si tiene suscripción de pago real */}
+            {hasStripeSub && (isActive || isCancelled) && (
               <OpenPortalButton />
+            )}
+            {/* Acceso por código/cortesía: no hay nada que gestionar en Stripe */}
+            {isCodeAccess && isActive && (
+              <p className="text-xs" style={{ color: '#666' }}>
+                Tu acceso es por código de invitación. No hay una suscripción de pago que gestionar.
+              </p>
             )}
             {(trialActive || !isActive) && !isCancelled && (
               <Link href="/precios"
