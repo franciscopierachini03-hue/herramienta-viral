@@ -24,6 +24,10 @@ function Login() {
   const wantsSignup = params.get('signup') === '1';
 
   const hintEmail = params.get('email') || '';
+  // Código de invitación pre-cargado desde la URL (ej: /login?signup=1&code=LEGACYPANAMA).
+  // Si viene, abrimos el campo automáticamente y lo dejamos puesto — el usuario
+  // no tiene que buscar dónde ingresarlo.
+  const hintCode = (params.get('code') || '').toUpperCase();
 
   const [mode, setMode] = useState<Mode>(wantsSignup ? 'signup' : 'login');
   const [name, setName] = useState('');
@@ -31,9 +35,9 @@ function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(hintCode);
   const [verifyCode, setVerifyCode] = useState('');
-  const [showCodeField, setShowCodeField] = useState(false);
+  const [showCodeField, setShowCodeField] = useState(!!hintCode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -382,19 +386,29 @@ function Login() {
 
                   {mode === 'signup' && (
                     showCodeField ? (
-                      <div>
-                        <label className="text-xs mb-1.5 block" style={{ color: '#888' }}>
-                          Código de invitación <span style={{ color: '#555' }}>(activa días gratis)</span>
+                      <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #1a0f2e, #120a1f)', border: '1px solid #7c3aed66' }}>
+                        <label className="text-sm font-bold mb-1 flex items-center gap-2" style={{ color: '#c4b5fd' }}>
+                          🎟️ Código de acceso
+                          {hintCode && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide"
+                              style={{ background: '#22c55e22', color: '#4ade80', border: '1px solid #22c55e55' }}>
+                              Pre-cargado ✓
+                            </span>
+                          )}
                         </label>
+                        <p className="text-xs mb-3" style={{ color: '#888' }}>
+                          Activa tus días gratis. {hintCode ? 'Ya lo dejamos puesto por vos 👇' : 'Pegalo acá 👇'}
+                        </p>
                         <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                          placeholder="EJ: BETA2026" autoCapitalize="characters"
-                          className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors"
-                          style={{ background: '#0a0a0a', border: '1px solid #c4b5fd55', color: '#fff', letterSpacing: '0.05em' }} />
+                          placeholder="EJ: LEGACYPANAMA" autoCapitalize="characters"
+                          className="w-full px-4 py-3.5 rounded-xl text-base font-bold text-center outline-none transition-colors"
+                          style={{ background: '#0a0a0a', border: '2px solid #7c3aed', color: '#fff', letterSpacing: '0.15em' }} />
                       </div>
                     ) : (
                       <button type="button" onClick={() => setShowCodeField(true)}
-                        className="text-xs underline self-start" style={{ color: '#888' }}>
-                        ¿Tenés un código de invitación? +
+                        className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                        style={{ background: '#140d24', border: '1px dashed #7c3aed88', color: '#c4b5fd' }}>
+                        🎟️ ¿Tenés un código de acceso? Tocá acá
                       </button>
                     )
                   )}
