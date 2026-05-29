@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server';
 //   2. Que el webhook (o el verify post-pago) pueda matchear el pago al perfil.
 
 export async function POST(req: NextRequest) {
-  const { plan, vip } = await req.json();
+  const { plan } = await req.json();
 
   const secret = process.env.STRIPE_SECRET_KEY;
   const priceMonthly = process.env.STRIPE_PRICE_MONTHLY;
@@ -70,23 +70,10 @@ export async function POST(req: NextRequest) {
   // Tras pagar, /app/welcome verifica el pago y activa la cuenta.
   params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
   params.append('cancel_url', `${appUrl}/precios?cancelled=1`);
-
-  // ── Descuento exclusivo (link VIP) ─────────────────────────────────────
-  // Solo se aplica si la request trae el token `vip` que coincide con el
-  // cupón configurado en STRIPE_VIP_COUPON. Se reparte vía link privado.
-  // IMPORTANTE: Stripe NO permite `discounts` y `allow_promotion_codes`
-  // juntos. Por eso:
-  //   - Con link VIP válido → aplicamos el cupón automáticamente (sin campo).
-  //   - Checkout normal     → ocultamos el campo de código (allow=false), así
-  //     nadie puede aplicar descuentos "naturalmente".
-  const vipCoupon = process.env.STRIPE_VIP_COUPON;
-  const vipValid = !!vip && !!vipCoupon && vip === vipCoupon;
-  if (vipValid) {
-    params.append('discounts[0][coupon]', vipCoupon!);
-  } else {
-    params.append('allow_promotion_codes', 'false');
-  }
-
+  // Campo de código promocional en el checkout de Stripe. El descuento exclusivo
+  // se reparte como un PROMOTION CODE secreto (con límite de canjes) que solo
+  // conoce el grupo — nadie puede aplicarlo sin saber el código exacto.
+  params.append('allow_promotion_codes', 'true');
   params.append('billing_address_collection', 'auto');
   params.append('phone_number_collection[enabled]', 'true');
 
