@@ -390,7 +390,7 @@ function Login() {
                           Activa tus días gratis. Pegalo acá 👇
                         </p>
                         <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                          placeholder="EJ: LEGACYPANAMA" autoCapitalize="characters" autoFocus
+                          placeholder="Escribí tu código acá" autoCapitalize="characters" autoFocus
                           className="w-full px-4 py-3.5 rounded-xl text-base font-bold text-center outline-none transition-colors"
                           style={{ background: '#0a0a0a', border: '2px solid #7c3aed', color: '#fff', letterSpacing: '0.15em' }} />
                       </div>
