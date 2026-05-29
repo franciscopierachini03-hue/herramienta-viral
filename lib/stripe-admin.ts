@@ -25,6 +25,12 @@ export type StripeSubscription = {
   current_period_end: number;
   cancel_at_period_end: boolean;
   items: { data: Array<{ price: { unit_amount: number; currency: string; recurring: { interval: string } | null } }> };
+  // `discount`/`discounts` presentes mientras un cupón sigue activo en la
+  // suscripción. Con un cupón "$47 off una vez", aparece durante el primer mes
+  // (gratis) y Stripe lo quita al facturar el segundo. Lo usamos para detectar
+  // "mes de prueba". `discount` es el campo viejo, `discounts` el nuevo (array).
+  discount?: { coupon?: { id?: string; name?: string } } | null;
+  discounts?: unknown[] | null;
 };
 
 export type BillingOverview = {
@@ -47,6 +53,9 @@ export type BillingOverview = {
   }>;
   // Por mes (últimos 6 meses) para graficar
   monthlyRevenue: Array<{ month: string; revenue: number; count: number }>;
+  // Customer IDs que están en su MES DE PRUEBA (suscripción activa con cupón
+  // de descuento aplicado = primer mes gratis vía promo). El admin los marca.
+  trialCustomerIds: string[];
   // Si Stripe no está configurado
   configured: boolean;
   error?: string;
@@ -130,6 +139,7 @@ export async function getBillingOverview(
       activeSubscriptions: 0,
       recentPayments: [],
       monthlyRevenue: [],
+      trialCustomerIds: [],
       configured: false,
       error: 'STRIPE_SECRET_KEY no configurado',
     };
@@ -150,6 +160,14 @@ export async function getBillingOverview(
     // Suscripciones activas: solo las que tengan metadata.app === 'viraladn'
     // (lo seteamos via subscription_data[metadata][app] en /api/checkout)
     const ourSubs = subs.filter(s => s.metadata?.app === 'viraladn');
+
+    // Mes de prueba: suscripciones nuestras que tienen un cupón aplicado
+    // (descuento activo) o que Stripe marca como `trialing`. Esos son los que
+    // están en su primer mes gratis vía promo.
+    const trialCustomerIds = ourSubs
+      .filter(s => s.status === 'trialing' || !!s.discount?.coupon || (s.discounts?.length ?? 0) > 0)
+      .map(s => s.customer)
+      .filter(Boolean);
 
     // Helper: monto neto en USD (cents → USD, descuenta refund)
     const netUsd = (c: StripeCharge) => Math.max(0, (c.amount - (c.amount_refunded || 0)) / 100);
@@ -215,6 +233,7 @@ export async function getBillingOverview(
       activeSubscriptions: ourSubs.length,
       recentPayments,
       monthlyRevenue,
+      trialCustomerIds,
       configured: true,
     };
   } catch (e) {
@@ -226,6 +245,7 @@ export async function getBillingOverview(
       activeSubscriptions: 0,
       recentPayments: [],
       monthlyRevenue: [],
+      trialCustomerIds: [],
       configured: true,
       error: (e as Error).message,
     };

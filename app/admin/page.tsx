@@ -282,6 +282,12 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
 
   const all: Profile[] = profiles || [];
 
+  // Set de customer IDs que están en su MES DE PRUEBA (suscripción Stripe con
+  // cupón/trial activo). Lo matcheamos a los perfiles por stripe_customer_id.
+  const trialCustomerSet = new Set(billing.trialCustomerIds || []);
+  const isInTrialMonth = (p: Profile) =>
+    !!p.stripe_customer_id && trialCustomerSet.has(p.stripe_customer_id);
+
   const fmtUSD = (n: number) =>
     n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
@@ -303,6 +309,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
       } else if (statusFilter === 'courtesy') {
         // Cortesías: cuentas que activamos a mano (código COURTESY_*)
         if (!(p.redeemed_code || '').toUpperCase().startsWith('COURTESY')) return false;
+      } else if (statusFilter === 'trial-month') {
+        // Mes de prueba: suscripción Stripe con cupón/trial activo
+        if (!isInTrialMonth(p)) return false;
       } else if (status !== statusFilter) {
         return false;
       }
@@ -321,6 +330,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     pending: all.filter(p => !p.subscription_status || p.subscription_status === 'pending').length,
     cancelled: all.filter(p => p.subscription_status === 'cancelled').length,
     courtesy: all.filter(p => (p.redeemed_code || '').toUpperCase().startsWith('COURTESY')).length,
+    trialMonth: all.filter(isInTrialMonth).length,
   };
 
   return (
@@ -350,10 +360,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           {[
             { label: 'Total', value: stats.total, color: '#fff', filter: '' },
             { label: 'Pagaron', value: stats.active, color: '#86efac', filter: 'active' },
+            { label: '🎁 Mes prueba', value: stats.trialMonth, color: '#5eead4', filter: 'trial-month' },
             { label: 'En trial', value: stats.trialing, color: '#c4b5fd', filter: 'trial-active' },
             { label: 'Sin pagar', value: stats.pending, color: '#9ca3af', filter: 'pending' },
             { label: 'Cancelados', value: stats.cancelled, color: '#fda4af', filter: 'cancelled' },
@@ -612,6 +623,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <option value="trial-expired">Trial vencido</option>
             <option value="pending">Sin pagar</option>
             <option value="cancelled">Cancelados</option>
+            <option value="trial-month">🎁 Mes de prueba</option>
             <option value="courtesy">🎁 Cortesía</option>
           </select>
           <button type="submit"
@@ -659,16 +671,24 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                 filtered.map((p) => {
                   const pill = statusPill(p);
                   const isCourtesy = (p.redeemed_code || '').toUpperCase().startsWith('COURTESY');
+                  const inTrialMonth = isInTrialMonth(p);
                   return (
                     <tr key={p.email} style={{ borderBottom: '1px solid #141414' }}>
                       <td className="px-4 py-3" style={{ color: '#eee' }}>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {p.email}
                           {isCourtesy && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                               style={{ background: '#fcd34d22', color: '#fcd34d', border: '1px solid #fcd34d44' }}
                               title="Cuenta cortesía (activada manualmente)">
                               🎁 CORTESÍA
+                            </span>
+                          )}
+                          {inTrialMonth && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                              style={{ background: '#5eead422', color: '#5eead4', border: '1px solid #5eead444' }}
+                              title="Primer mes gratis (cupón Stripe activo) — se le cobra al terminar">
+                              🎁 MES PRUEBA
                             </span>
                           )}
                         </div>

@@ -31,9 +31,7 @@ function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
-  const [showCodeField, setShowCodeField] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -106,7 +104,6 @@ function Login() {
             password,
             name,
             phone,
-            code: inviteCode,
           }),
         });
         const data = await res.json();
@@ -230,7 +227,7 @@ function Login() {
         body: JSON.stringify(
           isReset
             ? { mode: 'reset', email: email.trim().toLowerCase() }
-            : { mode: 'signup', email: email.trim().toLowerCase(), password, name, phone, code: inviteCode },
+            : { mode: 'signup', email: email.trim().toLowerCase(), password, name, phone },
         ),
       });
       const data = await res.json();
@@ -378,29 +375,6 @@ function Login() {
                         </button>
                       )}
                     </div>
-                  )}
-
-                  {mode === 'signup' && (
-                    showCodeField ? (
-                      <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #1a0f2e, #120a1f)', border: '1px solid #7c3aed66' }}>
-                        <label className="text-sm font-bold mb-1 flex items-center gap-2" style={{ color: '#c4b5fd' }}>
-                          🎟️ Código de acceso
-                        </label>
-                        <p className="text-xs mb-3" style={{ color: '#888' }}>
-                          Activa tus días gratis. Pegalo acá 👇
-                        </p>
-                        <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                          placeholder="Escribí tu código acá" autoCapitalize="characters" autoFocus
-                          className="w-full px-4 py-3.5 rounded-xl text-base font-bold text-center outline-none transition-colors"
-                          style={{ background: '#0a0a0a', border: '2px solid #7c3aed', color: '#fff', letterSpacing: '0.15em' }} />
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => setShowCodeField(true)}
-                        className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                        style={{ background: '#140d24', border: '1px dashed #7c3aed88', color: '#c4b5fd' }}>
-                        🎟️ ¿Tenés un código de acceso? Tocá acá
-                      </button>
-                    )
                   )}
 
                   {emailSuggestion && (
