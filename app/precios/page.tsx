@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import RedeemCode from './RedeemCode';
 import FoundersCounter from '../_components/FoundersCounter';
 
 const FEATURES = [
@@ -249,11 +248,6 @@ function PricingInner() {
               Pago seguro con Stripe
             </p>
           </div>
-        </div>
-
-        {/* Redimir código */}
-        <div className="mt-8">
-          <RedeemCode />
         </div>
 
         {/* FAQ */}
