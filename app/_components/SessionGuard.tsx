@@ -2,103 +2,80 @@
 
 import { useEffect, useRef } from 'react';
 
-// Componente cliente que vigila la sesión del usuario en páginas protegidas.
+// Vigila la sesión del usuario en páginas protegidas.
 //
-// Comportamiento:
-//   1. Marca de tab (sessionStorage): cuando el usuario inicia sesión
-//      legítimamente, la página de login/welcome/reset-password redirige con
-//      ?session=new. Acá lo detectamos y guardamos un marker en sessionStorage.
-//   2. sessionStorage muere al cerrar la pestaña. Si el usuario reabre la URL
-//      en una pestaña nueva, no hay marker → cerramos sesión y mandamos a
-//      /login. Esto cubre el caso "cerré pestaña y volví".
-//   3. Idle timeout: 15 min sin actividad → signout + /login?reason=idle.
-//   4. Cierre de pestaña/navegador: best-effort vía navigator.sendBeacon.
+// Reglas (definidas con el usuario):
+//   • NO cerrar sesión al navegar entre páginas.
+//   • NO cerrar sesión al cambiar de pestaña / minimizar.
+//   • Cerrar sesión tras 15 min de INACTIVIDAD real.
+//   • Cerrar sesión al cerrar el navegador → ya lo garantizan las
+//     "session cookies" del middleware (mueren al cerrar el navegador),
+//     así que acá no hacemos nada en pagehide/visibilitychange.
+//
+// Implementación de la inactividad: timestamp de última actividad +
+// chequeo periódico. Es más robusto que un setTimeout único porque
+// sobrevive al throttling de pestañas en segundo plano y re-chequea
+// apenas la pestaña vuelve a estar visible.
 //
 // Render: nada visible. Solo monta listeners.
 
-const IDLE_MS = 15 * 60 * 1000; // 15 minutos
+const IDLE_MS = 15 * 60 * 1000;          // 15 minutos de inactividad
+const CHECK_INTERVAL_MS = 30 * 1000;     // chequeo cada 30s
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-const TAB_MARKER = 'viraladn_tab';
 
 export default function SessionGuard() {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
   const signedOutRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    function signOutAndRedirect(reason: 'idle' | 'tab') {
+    function signOutIdle() {
       if (signedOutRef.current) return;
       signedOutRef.current = true;
-      try { sessionStorage.removeItem(TAB_MARKER); } catch {}
       fetch('/api/auth/signout', { method: 'POST', cache: 'no-store' })
         .catch(() => {})
         .finally(() => {
-          window.location.href = `/login?reason=${reason}`;
+          window.location.href = '/login?reason=idle';
         });
     }
 
-    // ── 1. Marker de tab ──────────────────────────────────────
-    // Si la URL trae ?session=new, venimos de /login o /app/welcome:
-    // guardamos el marker y limpiamos la query para que no quede sucia.
+    // Limpiar el query param ?session=new si viene (de login/welcome/reset).
+    // Ya no lo usamos para nada, pero lo sacamos para que la URL quede limpia.
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has('session')) {
-        sessionStorage.setItem(TAB_MARKER, '1');
         url.searchParams.delete('session');
         const cleaned = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
         window.history.replaceState({}, '', cleaned);
       }
+    } catch { /* navegadores en modo privado pueden fallar — no rompe nada */ }
 
-      // Si NO hay marker en este tab pero estamos en una página protegida,
-      // significa que el usuario reabrió la URL después de cerrar la pestaña.
-      // → cerramos sesión.
-      const hasMarker = sessionStorage.getItem(TAB_MARKER);
-      if (!hasMarker) {
-        signOutAndRedirect('tab');
-        return;
-      }
-    } catch {
-      // Algunos navegadores en privado bloquean sessionStorage. En ese caso
-      // dejamos que el flujo siga normalmente — no rompemos.
+    // ── Inactividad ───────────────────────────────────────────
+    function markActivity() {
+      lastActivityRef.current = Date.now();
     }
-
-    // ── 2. Idle timer ─────────────────────────────────────────
-    function resetIdleTimer() {
+    function checkIdle() {
       if (signedOutRef.current) return;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => signOutAndRedirect('idle'), IDLE_MS);
-    }
-
-    // ── 3. Cierre de pestaña/navegador ────────────────────────
-    function signOutOnExit() {
-      try {
-        const blob = new Blob([''], { type: 'application/json' });
-        navigator.sendBeacon('/api/auth/signout', blob);
-      } catch {
-        fetch('/api/auth/signout', { method: 'POST', keepalive: true }).catch(() => {});
+      if (Date.now() - lastActivityRef.current >= IDLE_MS) {
+        signOutIdle();
       }
     }
-
-    function onVisibilityChange() {
-      if (document.visibilityState === 'hidden') {
-        signOutOnExit();
-      } else {
-        resetIdleTimer();
-      }
+    function onVisible() {
+      // Al volver a la pestaña, chequeamos al toque (los timers en background
+      // están throttleados, así que el chequeo puede haberse atrasado).
+      if (document.visibilityState === 'visible') checkIdle();
     }
 
     ACTIVITY_EVENTS.forEach(ev =>
-      window.addEventListener(ev, resetIdleTimer, { passive: true }),
+      window.addEventListener(ev, markActivity, { passive: true }),
     );
-    window.addEventListener('pagehide', signOutOnExit);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    resetIdleTimer();
+    document.addEventListener('visibilitychange', onVisible);
+    intervalRef.current = setInterval(checkIdle, CHECK_INTERVAL_MS);
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      ACTIVITY_EVENTS.forEach(ev => window.removeEventListener(ev, resetIdleTimer));
-      window.removeEventListener('pagehide', signOutOnExit);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      ACTIVITY_EVENTS.forEach(ev => window.removeEventListener(ev, markActivity));
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
