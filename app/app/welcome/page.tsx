@@ -55,10 +55,11 @@ export default async function Welcome({
   }
 
   // 2. Verificar la sesión contra la API de Stripe.
-  // Expandimos `total_details.breakdown.discounts.discount.promotion_code` y
-  // `subscription` para capturar:
-  //   - El código de promo usado (ej: "LegacyPanama") → de dónde vino la persona
-  //   - El fin del primer período → cuándo termina su "mes gratis"
+  // IMPORTANTE: Stripe solo permite expandir hasta 4 niveles de profundidad.
+  // Expandimos `subscription` (1) y `total_details.breakdown.discounts.discount`
+  // (4 niveles — el máximo permitido). El nombre legible del promotion_code lo
+  // resolvemos DESPUÉS con una llamada aparte, para no romper la confirmación
+  // del pago si esa parte falla.
   type StripeSession = {
     id: string;
     payment_status?: string;
@@ -87,7 +88,7 @@ export default async function Welcome({
 
   try {
     const expandParams =
-      'expand[]=subscription&expand[]=total_details.breakdown.discounts.discount.promotion_code';
+      'expand[]=subscription&expand[]=total_details.breakdown.discounts.discount';
     const res = await fetch(
       `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(session_id)}?${expandParams}`,
       {
@@ -156,9 +157,32 @@ export default async function Welcome({
 
   const discountInfo = session.total_details?.breakdown?.discounts?.[0]?.discount;
   const hasDiscount = (session.total_details?.amount_discount ?? 0) > 0;
-  const promoCodeRaw = discountInfo?.promotion_code;
-  const promoCodeName = typeof promoCodeRaw === 'object' ? promoCodeRaw?.code : null;
   const couponName = discountInfo?.coupon?.name || discountInfo?.coupon?.id || null;
+
+  // El nombre legible del promo code (ej: "LegacyPanama") requiere una llamada
+  // aparte porque no lo pudimos expandir (límite de 4 niveles de Stripe).
+  // Si falla, caemos al nombre del cupón — NUNCA bloquea la activación.
+  let promoCodeName: string | null = null;
+  if (hasDiscount) {
+    const promoRaw = discountInfo?.promotion_code;
+    const promoId = typeof promoRaw === 'string' ? promoRaw : promoRaw?.id ?? null;
+    if (typeof promoRaw === 'object' && promoRaw?.code) {
+      promoCodeName = promoRaw.code;
+    } else if (promoId) {
+      try {
+        const pr = await fetch(
+          `https://api.stripe.com/v1/promotion_codes/${encodeURIComponent(promoId)}`,
+          { headers: { Authorization: `Bearer ${secret}` }, cache: 'no-store' },
+        );
+        if (pr.ok) {
+          const pdata = await pr.json();
+          promoCodeName = pdata?.code ?? null;
+        }
+      } catch (e) {
+        console.warn('[welcome] promo code lookup failed:', (e as Error).message);
+      }
+    }
+  }
   // Etiqueta de origen: prio promo code legible, si no coupon name
   const origin = hasDiscount ? (promoCodeName || couponName) : null;
 
