@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
+import ReconcileButton from './ReconcileButton';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -362,6 +363,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <ReconcileButton />
             <a href="/api/admin/export" download
               className="px-4 py-2 rounded-xl text-xs font-bold"
               style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#eee' }}>
