@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getCheckoutInfo } from '@/lib/stripe-checkout-info';
 
 // Webhook de Stripe. Stripe nos avisa de eventos como:
 // - checkout.session.completed → alguien pagó por primera vez
@@ -68,21 +69,33 @@ export async function POST(req: NextRequest) {
         return Response.json({ received: true });
       }
 
+      // Capturar de qué cupón/promo vino el pago + fin del primer período.
+      // El payload del webhook NO trae la info de descuento expandida, así que
+      // la pedimos a la API. Si falla, igual activamos (origin queda null).
+      const secret = process.env.STRIPE_SECRET_KEY;
+      const info = secret
+        ? await getCheckoutInfo(session.id, secret)
+        : { subscriptionId: session.subscription || null, periodEnd: null, origin: null, hasDiscount: false };
+
       // 1. Upsert del perfil con stripe_customer_id y subscription_status=active
+      const profilePatch: Record<string, unknown> = {
+        email,
+        name,
+        phone,
+        stripe_customer_id: session.customer,
+        stripe_subscription_id: info.subscriptionId || session.subscription || null,
+        subscription_status: 'active',
+        activated_at: new Date().toISOString(),
+      };
+      // Si usó código de descuento → guardamos de dónde vino + cuándo se le cobra
+      if (info.origin) profilePatch.redeemed_code = info.origin;
+      if (info.hasDiscount && info.periodEnd) {
+        profilePatch.trial_ends_at = new Date(info.periodEnd * 1000).toISOString();
+      }
+
       const { error: upsertError } = await supabase
         .from('profiles')
-        .upsert(
-          {
-            email,
-            name,
-            phone,
-            stripe_customer_id: session.customer,
-            stripe_subscription_id: session.subscription || null,
-            subscription_status: 'active',
-            activated_at: new Date().toISOString(),
-          },
-          { onConflict: 'email' },
-        );
+        .upsert(profilePatch, { onConflict: 'email' });
 
       if (upsertError) {
         console.error('[stripe-webhook] upsert error:', upsertError);
