@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
 import ReconcileButton from './ReconcileButton';
+import SendAccessPanel from './SendAccessPanel';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -375,6 +376,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </Link>
           </div>
         </div>
+
+        {/* Envío masivo de accesos Legacy */}
+        <SendAccessPanel />
 
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
