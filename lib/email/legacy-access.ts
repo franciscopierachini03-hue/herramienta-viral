@@ -83,7 +83,36 @@ function stepRow(n: string, title: string, desc: string, dotColor = '#7c3aed'): 
   </td></tr>`;
 }
 
-const SUBJECT = 'Tu acceso a ViralADN — primer mes gratis 🎟️';
+// Asunto sin palabras "gatillo" de spam (sin "gratis", "$0" ni emojis).
+const SUBJECT = 'Tu acceso a ViralADN (comunidad Legacy)';
+
+// Header de baja: Gmail/Yahoo premian fuerte tener List-Unsubscribe.
+const UNSUB_HEADERS = {
+  'List-Unsubscribe': '<mailto:hola@viraladn.com?subject=Baja>',
+};
+
+// Versión texto plano del correo (los correos solo-HTML puntúan peor en spam).
+export function legacyAccessText(code: string): string {
+  const c = (code || '').trim();
+  return [
+    'Tu acceso a ViralADN — comunidad Legacy',
+    '',
+    'Como parte de Legacy, tenés acceso completo a ViralADN: la herramienta para',
+    'encontrar el contenido más viral de YouTube, TikTok e Instagram y convertirlo',
+    'en guiones listos para grabar.',
+    '',
+    'Cómo activarlo:',
+    '1. Entrá a https://www.viraladn.com/precios',
+    '2. Elegí el plan Mensual ($47/mes) y tocá Empezar.',
+    `3. En el checkout, en "Añadir código de promoción", escribí: ${c}`,
+    '4. Completá tus datos y entrás a la herramienta.',
+    '',
+    'Tu primer mes queda sin costo con ese código. Cancelás cuando quieras.',
+    '',
+    'ViralADN · viraladn.com',
+    'Para darte de baja, respondé este correo con "Baja".',
+  ].join('\n');
+}
 
 // Envía el correo de acceso a UN email. Devuelve el resultado de Resend.
 export async function sendLegacyAccessEmail(email: string, code: string) {
@@ -92,6 +121,8 @@ export async function sendLegacyAccessEmail(email: string, code: string) {
     to: email,
     subject: SUBJECT,
     html: legacyAccessHtml(code),
+    text: legacyAccessText(code),
+    headers: UNSUB_HEADERS,
   });
 }
 
@@ -103,6 +134,7 @@ export async function sendLegacyAccessBatch(
   code: string,
 ): Promise<{ sent: number; errors: string[] }> {
   const html = legacyAccessHtml(code);
+  const text = legacyAccessText(code);
   const fromAddr = from();
   const CHUNK = 100;
   let sent = 0;
@@ -112,7 +144,7 @@ export async function sendLegacyAccessBatch(
     const chunk = emails.slice(i, i + CHUNK);
     try {
       const res = await client().batch.send(
-        chunk.map(to => ({ from: fromAddr, to, subject: SUBJECT, html })),
+        chunk.map(to => ({ from: fromAddr, to, subject: SUBJECT, html, text, headers: UNSUB_HEADERS })),
       );
       // Resend devuelve { data, error }. Si error → todo el lote falló.
       if ((res as { error?: { message?: string } | null })?.error) {
