@@ -1,0 +1,29 @@
+{
+  "words": [
+    { "text": "Si", "start": 0.0, "end": 0.28 },
+    { "text": "querés", "start": 0.28, "end": 0.68 },
+    { "text": "que", "start": 0.68, "end": 0.86 },
+    { "text": "tu", "start": 0.86, "end": 1.04 },
+    { "text": "negocio", "start": 1.04, "end": 1.62 },
+    { "text": "explote,", "start": 1.62, "end": 2.25 },
+    { "text": "tenés", "start": 2.4, "end": 2.78 },
+    { "text": "que", "start": 2.78, "end": 2.95 },
+    { "text": "hacer", "start": 2.95, "end": 3.3 },
+    { "text": "ESTO", "start": 3.3, "end": 3.95 },
+    { "text": "antes", "start": 4.1, "end": 4.5 },
+    { "text": "que", "start": 4.5, "end": 4.66 },
+    { "text": "tu", "start": 4.66, "end": 4.84 },
+    { "text": "competencia.", "start": 4.84, "end": 5.7 },
+    { "text": "El", "start": 5.95, "end": 6.15 },
+    { "text": "secreto", "start": 6.15, "end": 6.72 },
+    { "text": "no", "start": 6.72, "end": 6.95 },
+    { "text": "es", "start": 6.95, "end": 7.12 },
+    { "text": "el", "start": 7.12, "end": 7.3 },
+    { "text": "talento.", "start": 7.3, "end": 8.0 },
+    { "text": "Es", "start": 8.2, "end": 8.45 },
+    { "text": "el", "start": 8.45, "end": 8.62 },
+    { "text": "SISTEMA.", "start": 8.62, "end": 9.5 }
+  ],
+  "headline": "3 SECRETOS DE NEGOCIO",
+  "videoSrc": null
+}

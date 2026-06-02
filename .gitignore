@@ -46,3 +46,11 @@ next-env.d.ts
 
 # Large media (host elsewhere, e.g. Vercel Blob / S3)
 public/*.mp4
+
+# Script de Google con token secreto — NO subir al repo
+google-apps-script-acceso.gs
+
+# TOPCUT (proyecto Remotion aislado) — node_modules y renders no van al repo
+/topcut/node_modules
+/topcut/out
+/topcut/public/*.mp4

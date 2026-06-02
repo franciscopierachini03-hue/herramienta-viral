@@ -1,0 +1,22 @@
+{
+  "name": "topcut-render",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TOPCUT — motor de render de video (Remotion) para ViralADN. Aislado del app Next.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Captions out/video.mp4",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.351",
+    "@remotion/google-fonts": "4.0.351",
+    "remotion": "4.0.351",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}
