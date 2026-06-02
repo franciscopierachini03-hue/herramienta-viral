@@ -35,6 +35,17 @@ function stripTags(t: string) {
   return t.replace(/#\S+/g,'').replace(/\s+/g,' ').trim();
 }
 
+// Detecta títulos en alfabetos no-latinos (hindi/devanagari, árabe, chino,
+// japonés, coreano, tailandés, cirílico). El contenido en esos idiomas no le
+// sirve a la audiencia ES/EN/PT (no lo pueden leer ni adaptar), así que lo
+// descartamos antes de que se cuele — incluso en el relleno adaptativo, que
+// no pasa por el scoring de IA.
+function hasNonLatinScript(text: string): boolean {
+  if (!text) return false;
+  // Devanagari, árabe, CJK, hiragana/katakana, hangul, tailandés, cirílico
+  return /[ऀ-ॿ؀-ۿ一-鿿぀-ヿ가-힯฀-๿Ѐ-ӿ]/.test(text);
+}
+
 // ── Blacklist ─────────────────────────────────────────────────────────────────
 const BLACKLIST = [
   // Humor / entretenimiento sin valor replicable
@@ -1756,6 +1767,9 @@ REGLAS NO NEGOCIABLES
     const ai = scoreMap.get(i) ?? 0;
     if (ai < minScore) { dropped.lowAi++; continue; }
 
+    // Idioma no-latino (hindi, árabe, etc.) → fuera, no sirve para ES/EN/PT.
+    if (hasNonLatinScript(v.title)) { dropped.lowAi++; continue; }
+
     // Filtro de promo disfrazada: si el caption suena a venta de
     // curso/mentoría/DM/whatsapp, descartar — no es contenido replicable.
     if (looksLikePromo(v.title)) { dropped.promo++; continue; }
@@ -1857,6 +1871,7 @@ REGLAS NO NEGOCIABLES
     for (const c of candidatesByEngagement) {
       if (finalOrdered.length >= TARGET_MIN) break;
       if (fillerSet.has(c.url)) continue;
+      if (hasNonLatinScript(c.title)) continue; // no colar hindi/árabe/etc.
       if (!pass.allowPromo && looksLikePromo(c.title)) continue;
       if (c.viewsRaw > 0 && c.viewsRaw < pass.views) continue;
       if (c.likesRaw > 0 && c.likesRaw < pass.likes) continue;
