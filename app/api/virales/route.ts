@@ -1677,7 +1677,7 @@ REGLAS NO NEGOCIABLES
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
-        max_tokens: 2000,
+        max_tokens: 4000,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },
@@ -2198,8 +2198,8 @@ export async function POST(req: NextRequest) {
           }
 
           const allTerms = getAllTerms(tema);
-          const preFiltered = topByViews(unique, allTerms, 250);
-          const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
+          const preFiltered = topByViews(unique, allTerms, 300);
+          const final = await aiScoreRelevance(preFiltered, tema, 280, 150, 6);
           // Si el filtro de IA descartó todo (porque Serper no trae stats y la
           // IA es muy estricta sin ellas), caemos al YouTube Data API que sí
           // devuelve videos con vistas/likes verificadas.
@@ -2283,10 +2283,10 @@ export async function POST(req: NextRequest) {
 
       if (candidates.length > 0) {
         const allTerms = getAllTerms(tema);
-        // 1) Filtros tradicionales (tema, likes, blacklist) — top 250
-        const preFiltered = topByViews(candidates, allTerms, 250);
-        // 2) IA cura los 250 → top 100
-        const final = await aiScoreRelevance(preFiltered, tema, 250, 100, 6);
+        // 1) Filtros tradicionales (tema, likes, blacklist) — top 300
+        const preFiltered = topByViews(candidates, allTerms, 300);
+        // 2) IA cura los 300 → top 150
+        const final = await aiScoreRelevance(preFiltered, tema, 280, 150, 6);
         // Si el filtro IA dejó algo, lo devolvemos. Si no, caemos a Apify.
         if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
         // Si IA descartó todo pero TikWM devolvió candidatos, también lo consideramos éxito
@@ -2306,8 +2306,8 @@ export async function POST(req: NextRequest) {
         const videos = await searchViaApify(tema, 'tiktok', apifyToken, aiKeys);
         if (videos.length > 0) {
           const allTerms = getAllTerms(tema);
-          const preFiltered = topByViews(videos, allTerms, 200);
-          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+          const preFiltered = topByViews(videos, allTerms, 300);
+          const final = await aiScoreRelevance(preFiltered, tema, 280, 150, 6);
           if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
           // Si el filtro IA descarta todo pero Apify devolvió contenido,
           // devolvemos top 20 por views (Apify ya viene ordenado por trending)
@@ -2356,8 +2356,8 @@ export async function POST(req: NextRequest) {
         const videos = await searchViaApify(tema, 'instagram', apifyToken, aiKeys);
         if (videos.length > 0) {
           const allTerms = getAllTerms(tema);
-          const preFiltered = topByViews(videos, allTerms, 200);
-          const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+          const preFiltered = topByViews(videos, allTerms, 300);
+          const final = await aiScoreRelevance(preFiltered, tema, 280, 150, 6);
           if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
           // Fallback: si IA descarta todo, devolver top 20 por views/likes
           const topByEngagement = [...videos]
@@ -2432,9 +2432,9 @@ export async function POST(req: NextRequest) {
 
         const allTerms = getAllTerms(tema);
         // 1) Filtros tradicionales (tema en caption, blacklist, likes solo si verified)
-        const preFiltered = topByViews(unique, allTerms, 200);
-        // 2) IA evalúa relevancia + valor → top 100
-        const final = await aiScoreRelevance(preFiltered, tema, 200, 100, 6);
+        const preFiltered = topByViews(unique, allTerms, 300);
+        // 2) IA evalúa relevancia + valor → top 150
+        const final = await aiScoreRelevance(preFiltered, tema, 280, 150, 6);
         if (final.length > 0) return respondAndCache(tema, platform, final, userEmail);
       } catch(e) {
         console.warn('Serper Instagram falló:', (e as Error).message);
