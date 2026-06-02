@@ -1755,8 +1755,12 @@ REGLAS NO NEGOCIABLES
   //   - Estricto (HARD_MIN) = 40K vistas / 2K likes — sigue descartando contenido
   //     mediocre, pero permite que más videos virales medianos pasen.
   //   - Sin stats verificables → AI debe estar muy convencida (>=8).
-  const HARD_MIN_VIEWS = 40_000;
-  const HARD_MIN_LIKES = 2_000;
+  // Pisos de vistas/likes para considerar un video "viral". Bajados de
+  // 40K/2K a 20K/1K para aumentar el rendimiento en nichos donde el contenido
+  // viral en español es más escaso (ej: "negocios"). La relevancia (minScore)
+  // y el filtro de idioma no-latino siguen cuidando la calidad.
+  const HARD_MIN_VIEWS = 20_000;
+  const HARD_MIN_LIKES = 1_000;
   const NO_STATS_MIN_AI = 8;
 
   const scoredByLang = new Map<string, Scored[]>();
