@@ -4,7 +4,9 @@
 //
 // Flujo (lo que pidió el usuario):
 //   1. Subir video
-//   2. Recortar (elegir el pedazo que sirve) — client-side, manda inicio/fin
+//   2. Recortar por TROZOS — la persona corta en cualquier punto y elimina los
+//      pedazos que no sirven (errores en el medio, principio o final). El video
+//      final = los trozos que quedan, concatenados en orden.
 //   3. Contexto ("de qué va tu video") + instrucciones de animación
 //   4. PREVIO: el cerebro arma un PLAN (hook, subtítulos, animación, b-roll,
 //      música) SIN renderizar todavía → se muestra como storyboard
@@ -18,10 +20,14 @@
 // CONTRATO con el backend (lo que hay que exponer en api.viraladn.com):
 //
 //   POST /api/plan                         (multipart/form-data)
-//     campos: file, trimStart, trimEnd, context, instructions
+//     campos: file, segments (JSON [{start,end}] en segundos — trozos a
+//             conservar, en orden), context, instructions
+//             (también manda trimStart/trimEnd = límites globales por si el
+//              backend solo soporta recorte simple)
 //     → 200 { planId, plan:{hook, subtitleStyle, subtitleSize, animation,
 //                            brollCount, music, summary, ...}, reply? }
-//     (NO renderiza: solo arma el plan. Esto es el "previo".)
+//     (El backend recorta cada trozo y los CONCATENA, después arma el plan.
+//      NO renderiza: solo arma el plan. Esto es el "previo".)
 //
 //   POST /api/plan/{planId}/chat           (application/json)
 //     body: { message }
@@ -35,11 +41,11 @@
 //     → { status:'queued'|'processing'|'done'|'error', stage, result, error }
 //
 // MIENTRAS el backend no tenga /api/plan|/api/render (responde 404/501), el
-// front cae solo al flujo actual: POST /api/jobs?style=default (+trim/context
-// como best-effort) → poll → descargar. Así TOPCUT nunca queda roto.
+// front cae solo al flujo actual: POST /api/jobs?style=default (+segments
+// best-effort) → poll → descargar. Así TOPCUT nunca queda roto.
 // ───────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type MouseEvent } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 
@@ -47,13 +53,15 @@ const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
 type Step =
   | 'upload'     // dropzone
-  | 'trim'       // recortar
+  | 'trim'       // recortar por trozos
   | 'brief'      // contexto + instrucciones
   | 'planning'   // generando el previo (POST /api/plan)
   | 'studio'     // previo (storyboard) + chat
   | 'rendering'  // render + poll
   | 'done'
   | 'error';
+
+type Seg = { start: number; end: number };
 
 type Plan = {
   hook?: string; title?: string; intro?: string;
@@ -103,13 +111,21 @@ function brollLabel(p: Plan): string | undefined {
   return undefined;
 }
 
+function r3(n: number) { return Math.round(n * 1000) / 1000; }
+
 export default function Topcut() {
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
   const [duration, setDuration] = useState(0);
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(0);
+
+  // recorte por trozos
+  const [segments, setSegments] = useState<Seg[]>([]);
+  const [history, setHistory] = useState<Seg[][]>([]);
+  const [selSeg, setSelSeg] = useState<number | null>(null);
+  const [playhead, setPlayhead] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
+
   const [context, setContext] = useState('');
   const [instructions, setInstructions] = useState('');
   const [planId, setPlanId] = useState('');
@@ -126,10 +142,10 @@ export default function Topcut() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // limpieza: object URL + poll pendiente
   useEffect(() => {
     return () => {
       if (videoUrl) URL.revokeObjectURL(videoUrl);
@@ -154,18 +170,72 @@ export default function Topcut() {
   function onMeta() {
     const d = videoRef.current?.duration || 0;
     setDuration(d);
-    setTrimStart(0);
-    setTrimEnd(d);
+    setSegments([{ start: 0, end: d }]);
+    setHistory([]);
+    setSelSeg(null);
+    setPlayhead(0);
   }
 
-  function playSelection() {
+  // ── Recorte por trozos ──────────────────────────────
+  function seekTo(t: number) {
     const v = videoRef.current; if (!v) return;
-    v.currentTime = trimStart;
+    const clamped = Math.max(0, Math.min(t, duration));
+    v.currentTime = clamped;
+    setPlayhead(clamped);
+  }
+
+  function onBarClick(e: MouseEvent<HTMLDivElement>) {
+    const el = barRef.current; if (!el || !duration) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    setPreviewing(false);
+    seekTo(ratio * duration);
+  }
+
+  function splitAtPlayhead() {
+    const t = playhead;
+    const i = segments.findIndex((s) => t > s.start + 0.15 && t < s.end - 0.15);
+    if (i < 0) return; // el cursor no está dentro de un trozo divisible
+    setHistory((h) => [...h, segments]);
+    const s = segments[i];
+    setSegments([...segments.slice(0, i), { start: s.start, end: t }, { start: t, end: s.end }, ...segments.slice(i + 1)]);
+    setSelSeg(null);
+  }
+
+  function deleteSeg(i: number) {
+    if (segments.length <= 1) return;
+    setHistory((h) => [...h, segments]);
+    setSegments(segments.filter((_, k) => k !== i));
+    setSelSeg(null);
+  }
+
+  function undo() {
+    if (!history.length) return;
+    setSegments(history[history.length - 1]);
+    setHistory((h) => h.slice(0, -1));
+    setSelSeg(null);
+    setPreviewing(false);
+  }
+
+  function playResult() {
+    const v = videoRef.current; if (!v || !segments.length) return;
+    setPreviewing(true);
+    v.currentTime = segments[0].start;
     v.play().catch(() => {});
   }
+
   function onTimeUpdate() {
     const v = videoRef.current; if (!v) return;
-    if (v.currentTime >= trimEnd) v.pause();
+    const t = v.currentTime;
+    setPlayhead(t);
+    if (!previewing) return;
+    // ¿dentro de un trozo que se conserva?
+    const inSeg = segments.some((s) => t >= s.start - 0.05 && t < s.end);
+    if (inSeg) return;
+    // está en un hueco (parte eliminada) → saltar al próximo trozo
+    const next = segments.find((s) => s.start >= t - 0.05);
+    if (next) { v.currentTime = next.start; }
+    else { v.pause(); setPreviewing(false); }
   }
 
   // ── Generar el PREVIO (POST /api/plan) ──────────────
@@ -175,10 +245,14 @@ export default function Topcut() {
     setUploadPct(0);
     setError(''); setNote('');
 
+    const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('trimStart', String(Math.round(trimStart * 1000) / 1000));
-    fd.append('trimEnd', String(Math.round(trimEnd * 1000) / 1000));
+    fd.append('segments', JSON.stringify(segs));
+    if (segs.length) {
+      fd.append('trimStart', String(segs[0].start));
+      fd.append('trimEnd', String(segs[segs.length - 1].end));
+    }
     fd.append('context', context);
     fd.append('instructions', instructions);
 
@@ -258,10 +332,12 @@ export default function Topcut() {
     setNote(noteMsg);
     setStep('rendering'); setStage('uploading'); setUploadPct(0); setError('');
 
+    const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const qs = new URLSearchParams({ style: 'default' });
-    if (trimEnd > trimStart) {
-      qs.set('trimStart', String(Math.round(trimStart * 1000) / 1000));
-      qs.set('trimEnd', String(Math.round(trimEnd * 1000) / 1000));
+    if (segs.length) {
+      qs.set('segments', JSON.stringify(segs));
+      qs.set('trimStart', String(segs[0].start));
+      qs.set('trimEnd', String(segs[segs.length - 1].end));
     }
     if (context) qs.set('context', context.slice(0, 500));
 
@@ -310,16 +386,18 @@ export default function Topcut() {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     if (pollRef.current) clearTimeout(pollRef.current);
     setStep('upload'); setFile(null); setVideoUrl(''); setDuration(0);
-    setTrimStart(0); setTrimEnd(0); setContext(''); setInstructions('');
+    setSegments([]); setHistory([]); setSelSeg(null); setPlayhead(0); setPreviewing(false);
+    setContext(''); setInstructions('');
     setPlanId(''); setPlan(null); setMessages([]); setChatInput(''); setChatBusy(false);
     setUploadPct(0); setStage(''); setResultUrl(''); setError(''); setNote('');
     if (fileRef.current) fileRef.current.value = '';
   }
 
   const dur = duration || 1;
-  const startPct = (trimStart / dur) * 100;
-  const widthPct = ((trimEnd - trimStart) / dur) * 100;
   const sIdx = stepIndex(step);
+  const keptDur = segments.reduce((a, s) => a + (s.end - s.start), 0);
+  const removedDur = Math.max(0, duration - keptDur);
+  const canSplit = segments.some((s) => playhead > s.start + 0.15 && playhead < s.end - 0.15);
 
   const planCards = plan ? [
     { icon: '🎬', label: 'Intro / Hook', val: plan.hook || plan.title || plan.intro },
@@ -367,7 +445,7 @@ export default function Topcut() {
                 Subí tu video.{' '}
                 <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>La IA lo edita.</span>
               </h2>
-              <p className="text-sm" style={{ color: '#999' }}>Recortás, le contás de qué va, y el cerebro arma la edición. Vos aprobás el previo antes de renderizar.</p>
+              <p className="text-sm" style={{ color: '#999' }}>Recortás (sacás los errores), le contás de qué va, y el cerebro arma la edición. Vos aprobás el previo antes de renderizar.</p>
             </div>
 
             <div
@@ -400,29 +478,67 @@ export default function Topcut() {
           </>
         )}
 
-        {/* ── 2. TRIM ─────────────────────────────────── */}
+        {/* ── 2. TRIM (por trozos) ────────────────────── */}
         {step === 'trim' && (
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
-            <h3 className="text-xl font-bold mb-1">✂️ Recortá tu video</h3>
-            <p className="text-sm mb-5" style={{ color: '#888' }}>Elegí el pedazo que querés editar. Lo demás se descarta.</p>
+            <h3 className="text-xl font-bold mb-1">✂️ Recortá y sacá lo que no sirve</h3>
+            <p className="text-sm mb-5" style={{ color: '#888' }}>
+              Movés el video al punto del error → <b style={{ color: '#c4b5fd' }}>Cortar acá</b> (antes y después del error) → seleccionás ese trozo y lo <b style={{ color: '#c4b5fd' }}>Quitás</b>. Sacás partes del medio, del principio o del final.
+            </p>
 
-            <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate} controls
-              className="w-full rounded-2xl mb-5 mx-auto" style={{ maxHeight: 380, border: '1px solid #222', background: '#000' }} />
+            <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate}
+              controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #222', background: '#000' }} />
 
-            {/* dual range */}
-            <div className="relative h-9 mb-2">
-              <div className="absolute top-1/2 -translate-y-1/2 w-full h-1.5 rounded-full" style={{ background: '#222' }} />
-              <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full" style={{ left: `${startPct}%`, width: `${widthPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
-              <input className="tc-range" type="range" min={0} max={dur} step={0.05} value={trimStart}
-                onChange={(e) => setTrimStart(Math.min(Number(e.target.value), trimEnd - 0.2))} />
-              <input className="tc-range" type="range" min={0} max={dur} step={0.05} value={trimEnd}
-                onChange={(e) => setTrimEnd(Math.max(Number(e.target.value), trimStart + 0.2))} />
+            {/* timeline */}
+            <div ref={barRef} onClick={onBarClick} className="relative h-12 rounded-xl cursor-pointer overflow-hidden mb-3" style={{ background: '#0c0c0c', border: '1px solid #1f1f1f' }}>
+              {segments.map((s, i) => (
+                <div key={i} onClick={(e) => { e.stopPropagation(); setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
+                  className="absolute top-0 bottom-0 flex items-center justify-center transition-all"
+                  style={{
+                    left: `${(s.start / dur) * 100}%`, width: `${((s.end - s.start) / dur) * 100}%`,
+                    background: selSeg === i ? 'linear-gradient(135deg, #c084fc, #f472b6)' : 'linear-gradient(135deg, #7c3aed, #c13584)',
+                    borderLeft: '2px solid #080808', borderRight: '2px solid #080808',
+                    boxShadow: selSeg === i ? 'inset 0 0 0 2px #fff' : 'none',
+                  }}>
+                  <span className="text-[10px] font-bold" style={{ color: '#fff' }}>{i + 1}</span>
+                </div>
+              ))}
+              {/* playhead */}
+              <div className="absolute top-0 bottom-0 w-0.5 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, background: '#fff', boxShadow: '0 0 6px #fff' }} />
             </div>
 
-            <div className="flex items-center justify-between text-xs mb-6" style={{ color: '#999' }}>
-              <span>Desde <b style={{ color: '#c4b5fd' }}>{fmt(trimStart)}</b></span>
-              <button onClick={playSelection} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>▶ Ver selección</button>
-              <span>Hasta <b style={{ color: '#c4b5fd' }}>{fmt(trimEnd)}</b> · {fmt(trimEnd - trimStart)}</span>
+            {/* controles */}
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <button onClick={splitAtPlayhead} disabled={!canSplit}
+                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
+                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar acá ({fmt(playhead)})</button>
+              <button onClick={() => selSeg != null && deleteSeg(selSeg)} disabled={selSeg == null || segments.length <= 1}
+                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
+                style={{ background: '#2a0f0f', border: '1px solid #5c1414', color: '#f87171' }}>🗑️ Quitar trozo{selSeg != null ? ` ${selSeg + 1}` : ''}</button>
+              <button onClick={undo} disabled={!history.length}
+                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
+                style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>↩ Deshacer</button>
+              <button onClick={playResult}
+                className="px-3 py-2 rounded-xl text-xs font-bold ml-auto"
+                style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>▶ Ver resultado</button>
+            </div>
+
+            {/* lista de trozos */}
+            <div className="flex flex-col gap-1.5 mb-3">
+              {segments.map((s, i) => (
+                <div key={i} onClick={() => { setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
+                  className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-xs"
+                  style={{ background: selSeg === i ? '#7c3aed22' : '#0c0c0c', border: `1px solid ${selSeg === i ? '#7c3aed55' : '#1a1a1a'}` }}>
+                  <span style={{ color: '#ccc' }}>Trozo {i + 1}: {fmt(s.start)} – {fmt(s.end)} <span style={{ color: '#666' }}>({fmt(s.end - s.start)})</span></span>
+                  <button onClick={(e) => { e.stopPropagation(); deleteSeg(i); }} disabled={segments.length <= 1}
+                    className="px-2 disabled:opacity-30" style={{ color: '#f87171' }}>✕</button>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-xs mb-6" style={{ color: '#888' }}>
+              Quedan <b style={{ color: '#c4b5fd' }}>{segments.length}</b> trozo{segments.length !== 1 ? 's' : ''} · <b style={{ color: '#c4b5fd' }}>{fmt(keptDur)}</b> en total
+              {removedDur > 0.05 && <> · sacaste <b style={{ color: '#f472b6' }}>{fmt(removedDur)}</b></>}
             </div>
 
             <div className="flex gap-3">
@@ -535,7 +651,7 @@ export default function Topcut() {
               </div>
               <div className="flex gap-1.5 flex-wrap mt-3">
                 {['Textos más grandes', 'Palabra por palabra', 'Menos b-roll', 'Música más calmada'].map((q) => (
-                  <button key={q} onClick={() => { setChatInput(q); }} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
+                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
                 ))}
               </div>
             </div>
@@ -607,12 +723,6 @@ export default function Topcut() {
 
       <style>{`
         @keyframes tcpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.85;transform:scale(0.96)} }
-        .tc-range { -webkit-appearance:none; appearance:none; background:transparent; position:absolute; left:0; top:0; width:100%; height:36px; margin:0; pointer-events:none; }
-        .tc-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; pointer-events:all; width:18px; height:18px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#ec4899); border:2px solid #fff; cursor:pointer; box-shadow:0 0 10px #a855f7aa; }
-        .tc-range::-moz-range-thumb { pointer-events:all; width:18px; height:18px; border-radius:50%; background:#a855f7; border:2px solid #fff; cursor:pointer; }
-        .tc-range::-webkit-slider-runnable-track { background:transparent; }
-        .tc-range::-moz-range-track { background:transparent; }
-        .tc-range:focus { outline:none; }
       `}</style>
     </main>
   );
