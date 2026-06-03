@@ -45,7 +45,7 @@
 // best-effort) → poll → descargar. Así TOPCUT nunca queda roto.
 // ───────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useEffect, type MouseEvent } from 'react';
+import { useState, useRef, useEffect, type PointerEvent as RPointerEvent } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 
@@ -154,6 +154,7 @@ export default function Topcut() {
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const scrubbingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -195,12 +196,32 @@ export default function Topcut() {
     setPlayhead(clamped);
   }
 
-  function onBarClick(e: MouseEvent<HTMLDivElement>) {
-    const el = barRef.current; if (!el || !duration) return;
+  // ── La línea de corte: arrastrable por todo el timeline ──
+  function timeFromX(clientX: number): number {
+    const el = barRef.current; if (!el || !duration) return 0;
     const rect = el.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return ratio * duration;
+  }
+  function onScrubStart(e: RPointerEvent<HTMLDivElement>) {
+    if (!duration) return;
+    e.preventDefault();
+    scrubbingRef.current = true;
     setPreviewing(false);
-    seekTo(ratio * duration);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+    seekTo(timeFromX(e.clientX));
+  }
+  function onScrubMove(e: RPointerEvent<HTMLDivElement>) {
+    if (!scrubbingRef.current) return;
+    seekTo(timeFromX(e.clientX));
+  }
+  function onScrubEnd(e: RPointerEvent<HTMLDivElement>) {
+    scrubbingRef.current = false;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+  }
+  function nudge(delta: number) {
+    setPreviewing(false);
+    seekTo(playhead + delta);
   }
 
   function splitAtPlayhead() {
@@ -510,11 +531,14 @@ export default function Topcut() {
             <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate}
               controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #222', background: '#000' }} />
 
-            {/* timeline */}
-            <div ref={barRef} onClick={onBarClick} className="relative h-12 rounded-xl cursor-pointer overflow-hidden mb-3" style={{ background: '#0c0c0c', border: '1px solid #1f1f1f' }}>
+            {/* timeline — arrastrá la línea para elegir dónde cortar */}
+            <div ref={barRef}
+              onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
+              className="relative h-16 rounded-xl overflow-hidden mb-2 select-none"
+              style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
               {segments.map((s, i) => (
-                <div key={i} onClick={(e) => { e.stopPropagation(); setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
-                  className="absolute top-0 bottom-0 flex items-center justify-center transition-all"
+                <div key={i}
+                  className="absolute top-0 bottom-0 flex items-center justify-center transition-all pointer-events-none"
                   style={{
                     left: `${(s.start / dur) * 100}%`, width: `${((s.end - s.start) / dur) * 100}%`,
                     background: selSeg === i ? 'linear-gradient(135deg, #c084fc, #f472b6)' : 'linear-gradient(135deg, #7c3aed, #c13584)',
@@ -524,15 +548,24 @@ export default function Topcut() {
                   <span className="text-[10px] font-bold" style={{ color: '#fff' }}>{i + 1}</span>
                 </div>
               ))}
-              {/* playhead */}
-              <div className="absolute top-0 bottom-0 w-0.5 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, background: '#fff', boxShadow: '0 0 6px #fff' }} />
+              {/* línea de corte (playhead) + handle arrastrable + tiempo */}
+              <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, transform: 'translateX(-50%)' }}>
+                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2" style={{ width: 2, background: '#fff', boxShadow: '0 0 8px #fff' }} />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: 18, height: 18, background: '#fff', border: '3px solid #a855f7', boxShadow: '0 0 10px #a855f7' }} />
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#a855f7', color: '#fff', whiteSpace: 'nowrap' }}>{fmt(playhead)}</div>
+              </div>
             </div>
+            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastrá la línea ⚪ por el video para elegir el punto exacto. También podés tocar cualquier parte de la barra.</p>
 
             {/* controles */}
             <div className="flex items-center gap-2 flex-wrap mb-4">
+              <button onClick={() => nudge(-0.1)} title="Atrás 0.1s"
+                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>◀ 0.1s</button>
               <button onClick={splitAtPlayhead} disabled={!canSplit}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
                 style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar acá ({fmt(playhead)})</button>
+              <button onClick={() => nudge(0.1)} title="Adelante 0.1s"
+                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>0.1s ▶</button>
               <button onClick={() => selSeg != null && deleteSeg(selSeg)} disabled={selSeg == null || segments.length <= 1}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
                 style={{ background: '#2a0f0f', border: '1px solid #5c1414', color: '#f87171' }}>🗑️ Quitar trozo{selSeg != null ? ` ${selSeg + 1}` : ''}</button>
