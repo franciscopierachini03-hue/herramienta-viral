@@ -55,11 +55,12 @@ const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 // /api/topcut/* (el token viaja del lado server). La subida del video va
 // DIRECTA a Hetzner con un ticket corto que pedimos acá (Vercel no deja
 // proxyear archivos grandes). El ticket solo se emite a usuarios con acceso.
-async function getTicket(): Promise<{ token: string; api: string }> {
+type Ticket = { token: string; api: string; planAvailable: boolean };
+async function getTicket(): Promise<Ticket> {
   const r = await fetch('/api/topcut/ticket', { method: 'POST' });
   if (!r.ok) throw new Error('ticket');
   const j = await r.json();
-  return { token: j.token || '', api: (j.api || API).replace(/\/+$/, '') };
+  return { token: j.token || '', api: (j.api || API).replace(/\/+$/, ''), planAvailable: !!j.planAvailable };
 }
 
 type Step =
@@ -313,9 +314,16 @@ export default function Topcut() {
     setUploadPct(0);
     setError(''); setNote('');
 
-    let ticket: { token: string; api: string };
+    let ticket: Ticket;
     try { ticket = await getTicket(); }
     catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
+
+    // Si el backend todavía no tiene el modo previo, NO subimos el video al pedo
+    // a /api/plan: vamos directo al flujo que sí funciona (una sola subida).
+    if (!ticket.planAvailable) {
+      fallbackRender('Tu backend todavía no tiene el modo previo (/api/plan): edité el video directo. Cuando sumes ese endpoint vas a ver el previo + el chat antes de renderizar.', ticket);
+      return;
+    }
 
     const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const fd = new FormData();
@@ -331,6 +339,8 @@ export default function Topcut() {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${ticket.api}/api/plan`);
     if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
+    xhr.timeout = 20 * 60 * 1000;
+    xhr.ontimeout = () => fail('La subida tardó demasiado. Probá con un video más corto o revisá tu conexión.');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -400,14 +410,18 @@ export default function Topcut() {
   }
 
   // ── Fallback: flujo one-shot actual (/api/jobs) ─────
-  async function fallbackRender(noteMsg: string) {
+  async function fallbackRender(noteMsg: string, pre?: Ticket) {
     if (!file) { fail('No hay video para editar.'); return; }
     setNote(noteMsg);
     setStep('rendering'); setStage('uploading'); setUploadPct(0); setError('');
 
-    let ticket: { token: string; api: string };
-    try { ticket = await getTicket(); }
-    catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
+    let ticket: Ticket;
+    if (pre) {
+      ticket = pre;
+    } else {
+      try { ticket = await getTicket(); }
+      catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
+    }
 
     const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const qs = new URLSearchParams({ style: 'default' });
@@ -422,6 +436,8 @@ export default function Topcut() {
     xhr.open('POST', `${ticket.api}/api/jobs?${qs.toString()}`);
     xhr.setRequestHeader('content-type', file.type || 'video/mp4');
     if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
+    xhr.timeout = 20 * 60 * 1000;
+    xhr.ontimeout = () => fail('La subida tardó demasiado. Probá con un video más corto o revisá tu conexión.');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
