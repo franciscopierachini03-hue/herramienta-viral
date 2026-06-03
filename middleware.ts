@@ -23,13 +23,6 @@ const ACTIVE_STATUSES = new Set(['active']);
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // TOPCUT (/editor) está en construcción — siempre bloquear el acceso directo
-  // por URL y mandar a /app, sin importar el estado de auth ni REQUIRE_AUTH.
-  // Cuando esté listo, eliminar este bloque y descomentar /editor en el matcher.
-  if (pathname.startsWith('/editor')) {
-    return NextResponse.redirect(new URL('/app', req.url));
-  }
-
   if (!REQUIRE_AUTH) return NextResponse.next();
 
   // /app/welcome (post-pago) y /cuenta (gestión de suscripción) requieren

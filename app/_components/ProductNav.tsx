@@ -18,11 +18,9 @@ type Item = {
   comingSoon?: boolean;
 };
 
-// TOPCUT está oculto del menú principal mientras está en construcción.
-// Cuando esté listo: bajar `comingSoon: false`.
 const ITEMS: Item[] = [
   { id: 'viral',   href: '/app',     label: '🧬 ViralADN' },
-  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT', comingSoon: true },
+  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT' },
   { id: 'guiones', href: '/guiones', label: '✍️ Guiones' },
 ];
 
