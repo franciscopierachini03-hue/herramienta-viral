@@ -51,6 +51,17 @@ import SessionGuard from '../_components/SessionGuard';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
+// Las llamadas chicas (chat, render, poll) van por el proxy mismo-origen
+// /api/topcut/* (el token viaja del lado server). La subida del video va
+// DIRECTA a Hetzner con un ticket corto que pedimos acá (Vercel no deja
+// proxyear archivos grandes). El ticket solo se emite a usuarios con acceso.
+async function getTicket(): Promise<{ token: string; api: string }> {
+  const r = await fetch('/api/topcut/ticket', { method: 'POST' });
+  if (!r.ok) throw new Error('ticket');
+  const j = await r.json();
+  return { token: j.token || '', api: (j.api || API).replace(/\/+$/, '') };
+}
+
 type Step =
   | 'upload'     // dropzone
   | 'trim'       // recortar por trozos
@@ -239,11 +250,15 @@ export default function Topcut() {
   }
 
   // ── Generar el PREVIO (POST /api/plan) ──────────────
-  function generatePlan() {
+  async function generatePlan() {
     if (!file) return;
     setStep('planning');
     setUploadPct(0);
     setError(''); setNote('');
+
+    let ticket: { token: string; api: string };
+    try { ticket = await getTicket(); }
+    catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
 
     const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const fd = new FormData();
@@ -257,7 +272,8 @@ export default function Topcut() {
     fd.append('instructions', instructions);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API}/api/plan`);
+    xhr.open('POST', `${ticket.api}/api/plan`);
+    if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -286,7 +302,7 @@ export default function Topcut() {
     setChatInput('');
     setChatBusy(true);
     try {
-      const r = await fetch(`${API}/api/plan/${planId}/chat`, {
+      const r = await fetch(`/api/topcut/plan/${planId}/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: msg }),
@@ -307,7 +323,7 @@ export default function Topcut() {
     if (!planId) { fallbackRender(''); return; }
     setStep('rendering'); setStage('queued'); setError(''); setNote('');
     try {
-      const r = await fetch(`${API}/api/render`, {
+      const r = await fetch(`/api/topcut/render`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ planId }),
@@ -327,10 +343,14 @@ export default function Topcut() {
   }
 
   // ── Fallback: flujo one-shot actual (/api/jobs) ─────
-  function fallbackRender(noteMsg: string) {
+  async function fallbackRender(noteMsg: string) {
     if (!file) { fail('No hay video para editar.'); return; }
     setNote(noteMsg);
     setStep('rendering'); setStage('uploading'); setUploadPct(0); setError('');
+
+    let ticket: { token: string; api: string };
+    try { ticket = await getTicket(); }
+    catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
 
     const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
     const qs = new URLSearchParams({ style: 'default' });
@@ -342,8 +362,9 @@ export default function Topcut() {
     if (context) qs.set('context', context.slice(0, 500));
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API}/api/jobs?${qs.toString()}`);
+    xhr.open('POST', `${ticket.api}/api/jobs?${qs.toString()}`);
     xhr.setRequestHeader('content-type', file.type || 'video/mp4');
+    if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -362,7 +383,7 @@ export default function Topcut() {
   // ── Poll del job de render ──────────────────────────
   async function poll(id: string) {
     try {
-      const r = await fetch(`${API}/api/jobs/${id}`, { cache: 'no-store' });
+      const r = await fetch(`/api/topcut/jobs/${id}`, { cache: 'no-store' });
       const j = await r.json();
       if (j.stage) setStage(j.stage);
       if (j.status === 'done') {
