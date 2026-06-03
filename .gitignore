@@ -54,3 +54,4 @@ google-apps-script-acceso.gs
 /topcut/node_modules
 /topcut/out
 /topcut/public/*.mp4
+/topcut/props-*.json
