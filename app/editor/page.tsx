@@ -1,27 +1,73 @@
 'use client';
 
-// TOPCUT — pestaña de edición automática de video.
+// TOPCUT — edición automática de video, con flujo guiado.
 //
-// El cliente sube un video → el backend de render (api.viraladn.com) lo edita
-// con IA (subtítulos animados, beats, b-roll, música) → devuelve el MP4 final.
+// Flujo (lo que pidió el usuario):
+//   1. Subir video
+//   2. Recortar (elegir el pedazo que sirve) — client-side, manda inicio/fin
+//   3. Contexto ("de qué va tu video") + instrucciones de animación
+//   4. PREVIO: el cerebro arma un PLAN (hook, subtítulos, animación, b-roll,
+//      música) SIN renderizar todavía → se muestra como storyboard
+//   5. Chat: la persona le pide ajustes al cerebro ("animá palabra por palabra",
+//      "textos más grandes") → el PLAN se actualiza en vivo
+//   6. Editar: con el plan aprobado, recién ahí se renderiza → descargar
 //
-// El "motor" de render vive en un servidor aparte (Hetzner). Acá solo subimos
-// el video, mostramos el progreso y damos el link de descarga.
+// El "cerebro" + render viven en el backend (Hetzner, api.viraladn.com).
 //
-// Requiere env var: NEXT_PUBLIC_VIDEO_API = https://api.viraladn.com
+// ───────────────────────────────────────────────────────────────────────────
+// CONTRATO con el backend (lo que hay que exponer en api.viraladn.com):
 //
-// NOTA: el editor client-side anterior (FFmpeg en navegador) quedó respaldado
-// en /editor-client-editor.bak en la raíz del repo (recuperable de git).
+//   POST /api/plan                         (multipart/form-data)
+//     campos: file, trimStart, trimEnd, context, instructions
+//     → 200 { planId, plan:{hook, subtitleStyle, subtitleSize, animation,
+//                            brollCount, music, summary, ...}, reply? }
+//     (NO renderiza: solo arma el plan. Esto es el "previo".)
+//
+//   POST /api/plan/{planId}/chat           (application/json)
+//     body: { message }
+//     → 200 { plan:{...}, reply }          (plan editado por el cerebro)
+//
+//   POST /api/render                       (application/json)
+//     body: { planId }
+//     → 200 { jobId }                      (arranca el render del plan aprobado)
+//
+//   GET  /api/jobs/{jobId}                 (ya existe)
+//     → { status:'queued'|'processing'|'done'|'error', stage, result, error }
+//
+// MIENTRAS el backend no tenga /api/plan|/api/render (responde 404/501), el
+// front cae solo al flujo actual: POST /api/jobs?style=default (+trim/context
+// como best-effort) → poll → descargar. Así TOPCUT nunca queda roto.
+// ───────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
-type Status = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
+type Step =
+  | 'upload'     // dropzone
+  | 'trim'       // recortar
+  | 'brief'      // contexto + instrucciones
+  | 'planning'   // generando el previo (POST /api/plan)
+  | 'studio'     // previo (storyboard) + chat
+  | 'rendering'  // render + poll
+  | 'done'
+  | 'error';
 
-// Etapas que reporta el backend → texto humano.
+type Plan = {
+  hook?: string; title?: string; intro?: string;
+  subtitleStyle?: string; captionStyle?: string;
+  subtitleSize?: string;
+  animation?: string; textAnimation?: string;
+  brollCount?: number; broll?: unknown; bRoll?: unknown;
+  music?: string;
+  summary?: string;
+  [k: string]: unknown;
+};
+
+type Msg = { role: 'user' | 'brain'; text: string };
+
 const STAGE_ES: Record<string, string> = {
   uploading:  'Subiendo video',
   queued:     'En cola',
@@ -32,103 +78,256 @@ const STAGE_ES: Record<string, string> = {
   render:     'Renderizando video',
   done:       'Listo',
 };
-
 const STAGE_ORDER = ['uploading', 'queued', 'transcribe', 'plan', 'broll', 'music', 'render', 'done'];
 
+const STEPS = ['Subir', 'Recortar', 'Previo', 'Editar'];
+function stepIndex(s: Step): number {
+  if (s === 'upload') return 0;
+  if (s === 'trim') return 1;
+  if (s === 'brief' || s === 'planning' || s === 'studio') return 2;
+  return 3; // rendering / done
+}
+
+function fmt(s: number): string {
+  if (!isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function brollLabel(p: Plan): string | undefined {
+  if (typeof p.brollCount === 'number') return `${p.brollCount} cortes`;
+  if (Array.isArray(p.broll)) return `${p.broll.length} cortes`;
+  if (Array.isArray(p.bRoll)) return `${p.bRoll.length} cortes`;
+  if (typeof p.broll === 'string') return p.broll;
+  return undefined;
+}
+
 export default function Topcut() {
-  const [status, setStatus] = useState<Status>('idle');
-  const [stage, setStage] = useState('');
+  const [step, setStep] = useState<Step>('upload');
+  const [file, setFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [duration, setDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [context, setContext] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [planId, setPlanId] = useState('');
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+  const [stage, setStage] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const busy = status === 'uploading' || status === 'processing';
-
-  function pickFile() {
-    if (!busy) fileRef.current?.click();
-  }
-
-  function onFile(file: File | undefined) {
-    if (!file || busy) return;
-    if (!file.type.startsWith('video/')) {
-      setStatus('error');
-      setError('El archivo no es un video.');
-      return;
-    }
-    start(file);
-  }
-
-  function start(file: File) {
-    setStatus('uploading');
-    setStage('uploading');
-    setUploadPct(0);
-    setError('');
-    setResultUrl('');
-
-    // Subida con progreso (XHR para poder mostrar el %).
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API}/api/jobs?style=default`);
-    xhr.setRequestHeader('content-type', file.type || 'video/mp4');
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100));
+  // limpieza: object URL + poll pendiente
+  useEffect(() => {
+    return () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
+  }, [videoUrl]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, chatBusy]);
+
+  // ── Subida del archivo ──────────────────────────────
+  function onFile(f: File | undefined) {
+    if (!f) return;
+    if (!f.type.startsWith('video/')) { setStep('error'); setError('El archivo no es un video.'); return; }
+    const url = URL.createObjectURL(f);
+    setFile(f);
+    setVideoUrl(url);
+    setStep('trim');
+  }
+
+  function onMeta() {
+    const d = videoRef.current?.duration || 0;
+    setDuration(d);
+    setTrimStart(0);
+    setTrimEnd(d);
+  }
+
+  function playSelection() {
+    const v = videoRef.current; if (!v) return;
+    v.currentTime = trimStart;
+    v.play().catch(() => {});
+  }
+  function onTimeUpdate() {
+    const v = videoRef.current; if (!v) return;
+    if (v.currentTime >= trimEnd) v.pause();
+  }
+
+  // ── Generar el PREVIO (POST /api/plan) ──────────────
+  function generatePlan() {
+    if (!file) return;
+    setStep('planning');
+    setUploadPct(0);
+    setError(''); setNote('');
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('trimStart', String(Math.round(trimStart * 1000) / 1000));
+    fd.append('trimEnd', String(Math.round(trimEnd * 1000) / 1000));
+    fd.append('context', context);
+    fd.append('instructions', instructions);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/api/plan`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const j = JSON.parse(xhr.responseText);
+          setPlanId(j.planId || j.id || '');
+          setPlan(j.plan || j);
+          setMessages([{ role: 'brain', text: j.reply || 'Acá tenés el previo de tu edición. Pedime los cambios que quieras (animaciones, tamaño, color, música) y lo ajusto antes de renderizar.' }]);
+          setStep('studio');
+        } catch { fail('Respuesta inválida del servidor (plan).'); }
+      } else if (xhr.status === 404 || xhr.status === 501) {
+        fallbackRender('Tu backend todavía no expone el modo previo (/api/plan), así que edité el video directo. Cuando sumes esos endpoints vas a poder ver y ajustar el previo + chatear las animaciones antes de renderizar.');
+      } else {
+        fail(`Error generando el previo (${xhr.status}).`);
+      }
+    };
+    xhr.onerror = () => fail('No se pudo conectar con el servidor de edición.');
+    xhr.send(fd);
+  }
+
+  // ── Chat: ajustar el plan (POST /api/plan/:id/chat) ─
+  async function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || chatBusy || !planId) return;
+    setMessages((m) => [...m, { role: 'user', text: msg }]);
+    setChatInput('');
+    setChatBusy(true);
+    try {
+      const r = await fetch(`${API}/api/plan/${planId}/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      const j = await r.json();
+      if (j.plan) setPlan(j.plan);
+      setMessages((m) => [...m, { role: 'brain', text: j.reply || 'Listo, actualicé el previo con ese cambio.' }]);
+    } catch {
+      setMessages((m) => [...m, { role: 'brain', text: 'No pude aplicar ese cambio (el backend todavía no tiene el chat de edición). Igual podés editar el video con el previo actual.' }]);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  // ── Render final del plan aprobado (POST /api/render) ─
+  async function startRender() {
+    if (!planId) { fallbackRender(''); return; }
+    setStep('rendering'); setStage('queued'); setError(''); setNote('');
+    try {
+      const r = await fetch(`${API}/api/render`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      });
+      if (r.status === 404 || r.status === 501) {
+        fallbackRender('Tu backend todavía no expone /api/render; lo edité con el flujo actual.');
+        return;
+      }
+      if (!r.ok) throw new Error(String(r.status));
+      const j = await r.json();
+      const jobId = j.jobId || j.id;
+      if (!jobId) throw new Error('no jobId');
+      poll(jobId);
+    } catch {
+      fail('No pude arrancar el render.');
+    }
+  }
+
+  // ── Fallback: flujo one-shot actual (/api/jobs) ─────
+  function fallbackRender(noteMsg: string) {
+    if (!file) { fail('No hay video para editar.'); return; }
+    setNote(noteMsg);
+    setStep('rendering'); setStage('uploading'); setUploadPct(0); setError('');
+
+    const qs = new URLSearchParams({ style: 'default' });
+    if (trimEnd > trimStart) {
+      qs.set('trimStart', String(Math.round(trimStart * 1000) / 1000));
+      qs.set('trimEnd', String(Math.round(trimEnd * 1000) / 1000));
+    }
+    if (context) qs.set('context', context.slice(0, 500));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/api/jobs?${qs.toString()}`);
+    xhr.setRequestHeader('content-type', file.type || 'video/mp4');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const { id } = JSON.parse(xhr.responseText);
           if (!id) throw new Error('no id');
-          setStatus('processing');
           setStage('queued');
           poll(id);
-        } catch {
-          fail('Respuesta inválida del servidor.');
-        }
-      } else {
-        fail(`Error al subir (${xhr.status}).`);
-      }
+        } catch { fail('Respuesta inválida del servidor.'); }
+      } else { fail(`Error al subir (${xhr.status}).`); }
     };
     xhr.onerror = () => fail('No se pudo conectar con el servidor de edición.');
     xhr.send(file);
   }
 
+  // ── Poll del job de render ──────────────────────────
   async function poll(id: string) {
     try {
       const r = await fetch(`${API}/api/jobs/${id}`, { cache: 'no-store' });
       const j = await r.json();
       if (j.stage) setStage(j.stage);
       if (j.status === 'done') {
-        setStatus('done');
         setResultUrl(typeof j.result === 'string' && j.result.startsWith('http') ? j.result : `${API}${j.result}`);
+        setStep('done');
         return;
       }
       if (j.status === 'error') {
         fail((j.error || '').split('\n')[0] || 'El servidor reportó un error.');
         return;
       }
-      setTimeout(() => poll(id), 2500);
+      pollRef.current = setTimeout(() => poll(id), 2500);
     } catch {
       fail('Se perdió la conexión con el servidor.');
     }
   }
 
-  function fail(msg: string) {
-    setStatus('error');
-    setError(msg);
-  }
+  function fail(msg: string) { setStep('error'); setError(msg); }
 
   function reset() {
-    setStatus('idle');
-    setStage('');
-    setUploadPct(0);
-    setResultUrl('');
-    setError('');
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    if (pollRef.current) clearTimeout(pollRef.current);
+    setStep('upload'); setFile(null); setVideoUrl(''); setDuration(0);
+    setTrimStart(0); setTrimEnd(0); setContext(''); setInstructions('');
+    setPlanId(''); setPlan(null); setMessages([]); setChatInput(''); setChatBusy(false);
+    setUploadPct(0); setStage(''); setResultUrl(''); setError(''); setNote('');
     if (fileRef.current) fileRef.current.value = '';
   }
 
-  const stageIdx = STAGE_ORDER.indexOf(stage);
+  const dur = duration || 1;
+  const startPct = (trimStart / dur) * 100;
+  const widthPct = ((trimEnd - trimStart) / dur) * 100;
+  const sIdx = stepIndex(step);
+
+  const planCards = plan ? [
+    { icon: '🎬', label: 'Intro / Hook', val: plan.hook || plan.title || plan.intro },
+    { icon: '💬', label: 'Subtítulos', val: [plan.subtitleStyle || plan.captionStyle, plan.subtitleSize].filter(Boolean).join(' · ') || undefined },
+    { icon: '✨', label: 'Animación de texto', val: plan.animation || plan.textAnimation },
+    { icon: '🎞️', label: 'B-roll', val: brollLabel(plan) },
+    { icon: '🎵', label: 'Música', val: plan.music },
+  ].filter((c) => c.val) : [];
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -137,40 +336,49 @@ export default function Topcut() {
         <ProductNav active="topcut" />
       </div>
 
-      <div className="px-6 pb-24 max-w-2xl mx-auto">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="video/*"
-          className="hidden"
-          onChange={(e) => onFile(e.target.files?.[0])}
-        />
+      <div className="px-6 pb-24 max-w-3xl mx-auto">
+        <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
 
-        {/* ── IDLE: dropzone ───────────────────────────────── */}
-        {status === 'idle' && (
+        {/* ── Stepper ─────────────────────────────────── */}
+        {step !== 'error' && (
+          <div className="flex items-center justify-center gap-2 mb-8">
+            {STEPS.map((label, i) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                    style={i <= sIdx
+                      ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }
+                      : { background: '#141414', border: '1px solid #222', color: '#555' }}>
+                    {i < sIdx ? '✓' : i + 1}
+                  </span>
+                  <span className="text-xs hidden sm:inline" style={{ color: i <= sIdx ? '#c4b5fd' : '#555' }}>{label}</span>
+                </div>
+                {i < STEPS.length - 1 && <span className="w-6 h-px" style={{ background: i < sIdx ? '#a855f7' : '#222' }} />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── 1. UPLOAD ───────────────────────────────── */}
+        {step === 'upload' && (
           <>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">
                 Subí tu video.{' '}
-                <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>
-                  La IA lo edita.
-                </span>
+                <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>La IA lo edita.</span>
               </h2>
-              <p className="text-sm" style={{ color: '#999' }}>
-                Subtítulos animados, beats, B-roll y música — automático, en minutos.
-              </p>
+              <p className="text-sm" style={{ color: '#999' }}>Recortás, le contás de qué va, y el cerebro arma la edición. Vos aprobás el previo antes de renderizar.</p>
             </div>
 
             <div
-              onClick={pickFile}
+              onClick={() => fileRef.current?.click()}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={(e) => { e.preventDefault(); setIsDragging(false); onFile(e.dataTransfer.files?.[0]); }}
               className="border-2 border-dashed rounded-3xl p-16 cursor-pointer text-center transition-all"
               style={isDragging
                 ? { borderColor: '#a855f7', background: '#a855f70d', boxShadow: '0 0 40px #a855f722' }
-                : { borderColor: '#2a2a2a', background: '#0c0c0c' }}
-            >
+                : { borderColor: '#2a2a2a', background: '#0c0c0c' }}>
               <div className="text-6xl mb-4">{isDragging ? '📂' : '🎬'}</div>
               <h3 className="text-lg font-bold mb-1">Soltá tu video acá</h3>
               <p className="text-sm mb-5" style={{ color: '#666' }}>o hacé clic para elegirlo</p>
@@ -182,12 +390,7 @@ export default function Topcut() {
             </div>
 
             <div className="grid grid-cols-4 gap-2 mt-6">
-              {[
-                { icon: '💬', label: 'Subtítulos' },
-                { icon: '✨', label: 'Animaciones' },
-                { icon: '🎬', label: 'B-Roll' },
-                { icon: '🎵', label: 'Música' },
-              ].map((f) => (
+              {[{ icon: '✂️', label: 'Recortás' }, { icon: '💬', label: 'Das contexto' }, { icon: '🤖', label: 'Chateás' }, { icon: '✨', label: 'Aprobás' }].map((f) => (
                 <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
                   <span className="text-xl">{f.icon}</span>
                   <span className="text-[10px]" style={{ color: '#666' }}>{f.label}</span>
@@ -197,33 +400,170 @@ export default function Topcut() {
           </>
         )}
 
-        {/* ── UPLOADING / PROCESSING ───────────────────────── */}
-        {(status === 'uploading' || status === 'processing') && (
-          <div className="rounded-3xl p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
-                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>
-                ✂️
-              </div>
-              <h3 className="text-lg font-bold">
-                {status === 'uploading' ? 'Subiendo tu video…' : 'Editando con IA…'}
-              </h3>
-              <p className="text-sm" style={{ color: '#888' }}>
-                {status === 'uploading' ? `${uploadPct}%` : 'Puede tardar unos minutos. No cierres esta pestaña.'}
-              </p>
+        {/* ── 2. TRIM ─────────────────────────────────── */}
+        {step === 'trim' && (
+          <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
+            <h3 className="text-xl font-bold mb-1">✂️ Recortá tu video</h3>
+            <p className="text-sm mb-5" style={{ color: '#888' }}>Elegí el pedazo que querés editar. Lo demás se descarta.</p>
+
+            <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate} controls
+              className="w-full rounded-2xl mb-5 mx-auto" style={{ maxHeight: 380, border: '1px solid #222', background: '#000' }} />
+
+            {/* dual range */}
+            <div className="relative h-9 mb-2">
+              <div className="absolute top-1/2 -translate-y-1/2 w-full h-1.5 rounded-full" style={{ background: '#222' }} />
+              <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full" style={{ left: `${startPct}%`, width: `${widthPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
+              <input className="tc-range" type="range" min={0} max={dur} step={0.05} value={trimStart}
+                onChange={(e) => setTrimStart(Math.min(Number(e.target.value), trimEnd - 0.2))} />
+              <input className="tc-range" type="range" min={0} max={dur} step={0.05} value={trimEnd}
+                onChange={(e) => setTrimEnd(Math.max(Number(e.target.value), trimStart + 0.2))} />
             </div>
 
-            {status === 'uploading' && (
-              <div className="h-2 rounded-full overflow-hidden" style={{ background: '#1a1a1a' }}>
+            <div className="flex items-center justify-between text-xs mb-6" style={{ color: '#999' }}>
+              <span>Desde <b style={{ color: '#c4b5fd' }}>{fmt(trimStart)}</b></span>
+              <button onClick={playSelection} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>▶ Ver selección</button>
+              <span>Hasta <b style={{ color: '#c4b5fd' }}>{fmt(trimEnd)}</b> · {fmt(trimEnd - trimStart)}</span>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={reset} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>Cambiar video</button>
+              <button onClick={() => setStep('brief')} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>Continuar →</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 3. BRIEF ────────────────────────────────── */}
+        {step === 'brief' && (
+          <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
+            <h3 className="text-xl font-bold mb-1">💬 Contanos de tu video</h3>
+            <p className="text-sm mb-5" style={{ color: '#888' }}>Cuanto mejor el contexto, mejor le pega el cerebro con el hook, los subtítulos y el b-roll.</p>
+
+            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿De qué va el video?</label>
+            <textarea value={context} onChange={(e) => setContext(e.target.value)} maxLength={600} rows={3}
+              placeholder="Ej: Reel sobre cómo empezar a invertir con poco dinero. Tono motivacional, directo, para gente joven."
+              className="w-full rounded-2xl px-4 py-3 text-sm mb-5 resize-none outline-none"
+              style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+
+            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿Cómo querés las animaciones de texto? <span style={{ color: '#555', fontWeight: 400 }}>(opcional)</span></label>
+            <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={600} rows={2}
+              placeholder="Ej: que los subtítulos aparezcan palabra por palabra, grandes, abajo del centro, blancos con resalte."
+              className="w-full rounded-2xl px-4 py-3 text-sm mb-6 resize-none outline-none"
+              style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep('trim')} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>← Volver</button>
+              <button onClick={generatePlan} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>Generar previo ✨</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 3b. PLANNING (spinner) ──────────────────── */}
+        {step === 'planning' && (
+          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto"
+              style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>🧠</div>
+            <h3 className="text-lg font-bold mb-1">Armando tu previo…</h3>
+            <p className="text-sm" style={{ color: '#888' }}>{uploadPct < 100 ? `Subiendo video ${uploadPct}%` : 'El cerebro está analizando tu video.'}</p>
+            {uploadPct < 100 && (
+              <div className="h-2 rounded-full overflow-hidden mt-4" style={{ background: '#1a1a1a' }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${uploadPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
               </div>
             )}
+          </div>
+        )}
 
-            {status === 'processing' && (
+        {/* ── 4+5. STUDIO: previo + chat ──────────────── */}
+        {step === 'studio' && (
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* PREVIO (storyboard) */}
+            <div className="rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-lg">🎬</span>
+                <h3 className="text-base font-bold">Previo de tu edición</h3>
+              </div>
+              {planCards.length > 0 ? (
+                <div className="flex flex-col gap-2.5">
+                  {planCards.map((c) => (
+                    <div key={c.label} className="flex items-start gap-3 px-4 py-3 rounded-2xl" style={{ background: '#0c0c0c', border: '1px solid #1a1a1a' }}>
+                      <span className="text-base">{c.icon}</span>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#666' }}>{c.label}</div>
+                        <div className="text-sm" style={{ color: '#ddd' }}>{String(c.val)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <pre className="text-xs whitespace-pre-wrap rounded-2xl p-4" style={{ background: '#0c0c0c', border: '1px solid #1a1a1a', color: '#aaa' }}>
+                  {plan?.summary || JSON.stringify(plan, null, 2)?.slice(0, 1200) || 'Sin previo todavía.'}
+                </pre>
+              )}
+              <button onClick={startRender} className="w-full mt-5 py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>
+                ✨ Editar video con este plan
+              </button>
+              <p className="text-[11px] text-center mt-2" style={{ color: '#555' }}>El render recién corre cuando le das acá.</p>
+            </div>
+
+            {/* CHAT con el cerebro */}
+            <div className="rounded-3xl p-6 flex flex-col" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f', minHeight: 420 }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🤖</span>
+                <h3 className="text-base font-bold">Pedile cambios al cerebro</h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2.5 mb-3" style={{ maxHeight: 320 }}>
+                {messages.map((m, i) => (
+                  <div key={i} className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm ${m.role === 'user' ? 'self-end' : 'self-start'}`}
+                    style={m.role === 'user'
+                      ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
+                      : { background: '#0c0c0c', border: '1px solid #1f1f1f', color: '#ddd' }}>
+                    {m.text}
+                  </div>
+                ))}
+                {chatBusy && (
+                  <div className="self-start px-3.5 py-2.5 rounded-2xl text-sm" style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', color: '#888' }}>escribiendo…</div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div className="flex gap-2">
+                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                  placeholder="Ej: animá los textos palabra por palabra"
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+                <button onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
+              </div>
+              <div className="flex gap-1.5 flex-wrap mt-3">
+                {['Textos más grandes', 'Palabra por palabra', 'Menos b-roll', 'Música más calmada'].map((q) => (
+                  <button key={q} onClick={() => { setChatInput(q); }} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── 6. RENDERING ────────────────────────────── */}
+        {step === 'rendering' && (
+          <div className="rounded-3xl p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+            {note && (
+              <div className="rounded-2xl px-4 py-3 mb-5 text-xs" style={{ background: '#1a160a', border: '1px solid #5c4a14', color: '#e8d48a' }}>ℹ️ {note}</div>
+            )}
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>✂️</div>
+              <h3 className="text-lg font-bold">{stage === 'uploading' ? 'Subiendo tu video…' : 'Editando con IA…'}</h3>
+              <p className="text-sm" style={{ color: '#888' }}>{stage === 'uploading' ? `${uploadPct}%` : 'Puede tardar unos minutos. No cierres esta pestaña.'}</p>
+            </div>
+
+            {stage === 'uploading' ? (
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: '#1a1a1a' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${uploadPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
+              </div>
+            ) : (
               <div className="flex flex-col gap-2">
-                {STAGE_ORDER.filter((s) => s !== 'uploading' && s !== 'done').map((s, i) => {
-                  const idx = i + 1; // offset: sacamos 'uploading' del orden
-                  const done = stageIdx > idx;
+                {STAGE_ORDER.filter((s) => s !== 'uploading' && s !== 'done').map((s) => {
+                  const idx = STAGE_ORDER.indexOf(s);
+                  const cur = STAGE_ORDER.indexOf(stage);
+                  const done = cur > idx;
                   const active = stage === s;
                   return (
                     <div key={s} className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
@@ -238,46 +578,42 @@ export default function Topcut() {
           </div>
         )}
 
-        {/* ── DONE ─────────────────────────────────────────── */}
-        {status === 'done' && (
+        {/* ── 7. DONE ─────────────────────────────────── */}
+        {step === 'done' && (
           <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e55' }}>
             <div className="text-5xl mb-3">✨</div>
             <h3 className="text-xl font-bold mb-1">¡Tu video está listo!</h3>
             <p className="text-sm mb-6" style={{ color: '#888' }}>Editado automáticamente con IA.</p>
-
-            {resultUrl && (
-              <video src={resultUrl} controls className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />
-            )}
-
+            {resultUrl && <video src={resultUrl} controls className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />}
             <div className="flex flex-col gap-3">
-              <a href={resultUrl} download
-                className="w-full py-3.5 rounded-2xl text-sm font-bold"
-                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>
-                ⬇️ Descargar video editado
-              </a>
-              <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>
-                Editar otro video
-              </button>
+              <a href={resultUrl} download className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
+              <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
             </div>
           </div>
         )}
 
-        {/* ── ERROR ────────────────────────────────────────── */}
-        {status === 'error' && (
+        {/* ── ERROR ───────────────────────────────────── */}
+        {step === 'error' && (
           <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7f1d1d55' }}>
             <div className="text-5xl mb-3">⚠️</div>
             <h3 className="text-lg font-bold mb-1">Algo salió mal</h3>
             <p className="text-sm mb-6" style={{ color: '#fca5a5' }}>{error}</p>
-            <button onClick={reset}
-              className="px-6 py-3 rounded-2xl text-sm font-bold"
-              style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>
-              Intentar de nuevo
+            <button onClick={() => (planId ? setStep('studio') : reset())} className="px-6 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>
+              {planId ? 'Volver al previo' : 'Intentar de nuevo'}
             </button>
           </div>
         )}
       </div>
 
-      <style>{`@keyframes tcpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.85;transform:scale(0.96)} }`}</style>
+      <style>{`
+        @keyframes tcpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.85;transform:scale(0.96)} }
+        .tc-range { -webkit-appearance:none; appearance:none; background:transparent; position:absolute; left:0; top:0; width:100%; height:36px; margin:0; pointer-events:none; }
+        .tc-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; pointer-events:all; width:18px; height:18px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#ec4899); border:2px solid #fff; cursor:pointer; box-shadow:0 0 10px #a855f7aa; }
+        .tc-range::-moz-range-thumb { pointer-events:all; width:18px; height:18px; border-radius:50%; background:#a855f7; border:2px solid #fff; cursor:pointer; }
+        .tc-range::-webkit-slider-runnable-track { background:transparent; }
+        .tc-range::-moz-range-track { background:transparent; }
+        .tc-range:focus { outline:none; }
+      `}</style>
     </main>
   );
 }
