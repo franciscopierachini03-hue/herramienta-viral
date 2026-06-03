@@ -12,17 +12,29 @@ import { requireTopcutUser, mintTicket, videoApiBase } from '@/lib/topcut';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function planAvailable(api: string): Promise<boolean> {
+async function probe(url: string, ms = 3500): Promise<Response | null> {
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 3500);
-    // GET a un endpoint POST-only → 405 (existe) vs 404 (no existe).
-    const r = await fetch(`${api}/api/plan`, { method: 'GET', signal: ctrl.signal, cache: 'no-store' });
+    const t = setTimeout(() => ctrl.abort(), ms);
+    const r = await fetch(url, { method: 'GET', signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(t);
-    return r.status !== 404;
+    return r;
   } catch {
-    return false; // backend caído / sin endpoint → usamos el flujo actual
+    return null;
   }
+}
+
+async function planAvailable(api: string): Promise<boolean> {
+  // 1) Señal limpia: GET /api/capabilities → { plan: true } (lo ideal del backend).
+  const cap = await probe(`${api}/api/capabilities`);
+  if (cap && cap.ok) {
+    const j = await cap.json().catch(() => null);
+    if (j && typeof j.plan === 'boolean') return j.plan;
+  }
+  // 2) Heurística: el route existe si GET /api/plan NO da 404 (200/400/405 = existe).
+  const p = await probe(`${api}/api/plan`);
+  if (p) return p.status !== 404;
+  return false; // backend caído / sin endpoint → usamos el flujo actual
 }
 
 export async function POST() {
