@@ -45,7 +45,7 @@
 // best-effort) → poll → descargar. Así TOPCUT nunca queda roto.
 // ───────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useEffect, type PointerEvent as RPointerEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, type PointerEvent as RPointerEvent } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 
@@ -136,6 +136,8 @@ export default function Topcut() {
   const [selSeg, setSelSeg] = useState<number | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [previewing, setPreviewing] = useState(false);
+  const [waveform, setWaveform] = useState<number[]>([]);
+  const [waveLoading, setWaveLoading] = useState(false);
 
   const [context, setContext] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -153,7 +155,6 @@ export default function Topcut() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
   const scrubbingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -177,6 +178,41 @@ export default function Topcut() {
     setFile(f);
     setVideoUrl(url);
     setStep('trim');
+    analyzeAudio(f);
+  }
+
+  // Decodifica el audio en el navegador y saca el nivel (RMS) por tramo.
+  // Picos altos = voz/sonido fuerte; valles = silencio o poco audio.
+  // Si el formato no se puede decodificar (algún MOV/AVI), no muestra waveform.
+  async function analyzeAudio(f: File) {
+    setWaveform([]);
+    setWaveLoading(true);
+    try {
+      const buf = await f.arrayBuffer();
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      const audio = await ctx.decodeAudioData(buf);
+      const ch = audio.getChannelData(0);
+      const BARS = 180;
+      const block = Math.floor(ch.length / BARS) || 1;
+      const peaks: number[] = [];
+      for (let i = 0; i < BARS; i++) {
+        const start = i * block;
+        const end = Math.min(start + block, ch.length);
+        let sum = 0;
+        for (let j = start; j < end; j++) sum += ch[j] * ch[j];
+        peaks.push(Math.sqrt(sum / Math.max(1, end - start)));
+      }
+      // Normalizar contra el percentil 95 (un pico aislado no aplasta el resto).
+      const sorted = [...peaks].sort((a, b) => a - b);
+      const ref = sorted[Math.floor(sorted.length * 0.95)] || Math.max(...peaks) || 1;
+      setWaveform(peaks.map((p) => Math.min(1, p / ref)));
+      ctx.close().catch(() => {});
+    } catch {
+      setWaveform([]); // formato sin audio decodificable → seguimos sin onda
+    } finally {
+      setWaveLoading(false);
+    }
   }
 
   function onMeta() {
@@ -196,11 +232,11 @@ export default function Topcut() {
     setPlayhead(clamped);
   }
 
-  // ── La línea de corte: arrastrable por todo el timeline ──
-  function timeFromX(clientX: number): number {
-    const el = barRef.current; if (!el || !duration) return 0;
-    const rect = el.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  // ── La línea de corte: arrastrable por el timeline Y el waveform ──
+  function timeFromEvent(e: RPointerEvent<HTMLDivElement>): number {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!duration || !rect.width) return 0;
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     return ratio * duration;
   }
   function onScrubStart(e: RPointerEvent<HTMLDivElement>) {
@@ -209,11 +245,11 @@ export default function Topcut() {
     scrubbingRef.current = true;
     setPreviewing(false);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
-    seekTo(timeFromX(e.clientX));
+    seekTo(timeFromEvent(e));
   }
   function onScrubMove(e: RPointerEvent<HTMLDivElement>) {
     if (!scrubbingRef.current) return;
-    seekTo(timeFromX(e.clientX));
+    seekTo(timeFromEvent(e));
   }
   function onScrubEnd(e: RPointerEvent<HTMLDivElement>) {
     scrubbingRef.current = false;
@@ -429,6 +465,7 @@ export default function Topcut() {
     if (pollRef.current) clearTimeout(pollRef.current);
     setStep('upload'); setFile(null); setVideoUrl(''); setDuration(0);
     setSegments([]); setHistory([]); setSelSeg(null); setPlayhead(0); setPreviewing(false);
+    setWaveform([]); setWaveLoading(false);
     setContext(''); setInstructions('');
     setPlanId(''); setPlan(null); setMessages([]); setChatInput(''); setChatBusy(false);
     setUploadPct(0); setStage(''); setResultUrl(''); setError(''); setNote('');
@@ -440,6 +477,16 @@ export default function Topcut() {
   const keptDur = segments.reduce((a, s) => a + (s.end - s.start), 0);
   const removedDur = Math.max(0, duration - keptDur);
   const canSplit = segments.some((s) => playhead > s.start + 0.15 && playhead < s.end - 0.15);
+
+  // Barras del waveform (memo: no se recrean al mover la línea, solo al cortar).
+  const waveBars = useMemo(() => {
+    if (!waveform.length || !duration) return null;
+    return waveform.map((v, i) => {
+      const t = ((i + 0.5) / waveform.length) * duration;
+      const kept = segments.some((s) => t >= s.start && t < s.end);
+      return <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, v * 92)}%`, background: kept ? 'linear-gradient(180deg, #d8b4fe, #7c3aed)' : '#262626' }} />;
+    });
+  }, [waveform, segments, duration]);
 
   const planCards = plan ? [
     { icon: '🎬', label: 'Intro / Hook', val: plan.hook || plan.title || plan.intro },
@@ -532,9 +579,9 @@ export default function Topcut() {
               controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #222', background: '#000' }} />
 
             {/* timeline — arrastrá la línea para elegir dónde cortar */}
-            <div ref={barRef}
+            <div
               onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
-              className="relative h-16 rounded-xl overflow-hidden mb-2 select-none"
+              className="relative h-12 rounded-xl overflow-hidden mb-1.5 select-none"
               style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
               {segments.map((s, i) => (
                 <div key={i}
@@ -555,7 +602,23 @@ export default function Topcut() {
                 <div className="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#a855f7', color: '#fff', whiteSpace: 'nowrap' }}>{fmt(playhead)}</div>
               </div>
             </div>
-            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastrá la línea ⚪ por el video para elegir el punto exacto. También podés tocar cualquier parte de la barra.</p>
+
+            {/* waveform de audio — picos = voz/sonido fuerte; valles = silencio */}
+            {(waveLoading || waveform.length > 0) && (
+              <div
+                onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
+                className="relative h-16 rounded-xl overflow-hidden mb-1.5 select-none flex items-end gap-px"
+                style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
+                {waveLoading
+                  ? <div className="w-full text-center text-[11px] self-center" style={{ color: '#555' }}>Analizando audio…</div>
+                  : waveBars}
+                {!waveLoading && (
+                  <div className="absolute top-0 bottom-0 w-0.5 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, background: '#fff', boxShadow: '0 0 6px #fff' }} />
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastrá la línea ⚪ por el video (o por la onda de audio) para elegir el punto exacto. Los picos altos son voz fuerte; los valles, silencios.</p>
 
             {/* controles */}
             <div className="flex items-center gap-2 flex-wrap mb-4">
