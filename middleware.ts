@@ -33,6 +33,7 @@ export async function middleware(req: NextRequest) {
 
   const isProtected =
     pathname.startsWith('/app') ||
+    pathname.startsWith('/editor') ||
     pathname.startsWith('/guiones') ||
     isCuenta;
   if (!isProtected) return NextResponse.next();
@@ -111,5 +112,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/editor/:path*', '/guiones/:path*', '/admin/:path*', '/cuenta/:path*', '/cuenta'],
+  matcher: ['/app/:path*', '/editor/:path*', '/editor', '/guiones/:path*', '/admin/:path*', '/cuenta/:path*', '/cuenta'],
 };
