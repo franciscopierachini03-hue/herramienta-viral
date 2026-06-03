@@ -150,6 +150,8 @@ export default function Topcut() {
   const [uploadPct, setUploadPct] = useState(0);
   const [stage, setStage] = useState('');
   const [resultUrl, setResultUrl] = useState('');
+  const [blobUrl, setBlobUrl] = useState('');
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -159,6 +161,7 @@ export default function Topcut() {
   const scrubbingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const procStartRef = useRef(0); // inicio del procesamiento (para el cronómetro)
 
   useEffect(() => {
     return () => {
@@ -166,6 +169,18 @@ export default function Topcut() {
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, [videoUrl]);
+
+  // Revoca el blob del resultado al cambiarlo o desmontar.
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+
+  // Cronómetro del procesamiento: arranca cuando deja de subir y corre hasta done.
+  useEffect(() => {
+    const processing = step === 'rendering' && !!stage && stage !== 'uploading' && stage !== 'done';
+    if (!processing) return;
+    if (procStartRef.current === 0) procStartRef.current = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - procStartRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [step, stage]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -388,7 +403,7 @@ export default function Topcut() {
   // ── Render final del plan aprobado (POST /api/render) ─
   async function startRender() {
     if (!planId) { fallbackRender(''); return; }
-    setStep('rendering'); setStage('queued'); setError(''); setNote('');
+    setStep('rendering'); setStage('queued'); setError(''); setNote(''); procStartRef.current = 0; setElapsed(0);
     try {
       const r = await fetch(`/api/topcut/render`, {
         method: 'POST',
@@ -413,7 +428,7 @@ export default function Topcut() {
   async function fallbackRender(noteMsg: string, pre?: Ticket) {
     if (!file) { fail('No hay video para editar.'); return; }
     setNote(noteMsg);
-    setStep('rendering'); setStage('uploading'); setUploadPct(0); setError('');
+    setStep('rendering'); setStage('uploading'); setUploadPct(0); setError(''); procStartRef.current = 0; setElapsed(0);
 
     let ticket: Ticket;
     if (pre) {
@@ -460,8 +475,15 @@ export default function Topcut() {
       const j = await r.json();
       if (j.stage) setStage(j.stage);
       if (j.status === 'done') {
-        setResultUrl(typeof j.result === 'string' && j.result.startsWith('http') ? j.result : `${API}${j.result}`);
+        const abs = typeof j.result === 'string' && j.result.startsWith('http') ? j.result : `${API}${j.result}`;
+        setResultUrl(abs);
         setStep('done');
+        // Bajamos el resultado como blob: el preview permite adelantar/retroceder
+        // (seek) aunque el server no soporte Range, y la descarga es instantánea.
+        // Si CORS lo bloquea, queda el src directo (sin seek pero reproduce).
+        fetch(abs).then((res) => (res.ok ? res.blob() : Promise.reject(new Error()))).then((b) => {
+          setBlobUrl(URL.createObjectURL(b));
+        }).catch(() => {});
         return;
       }
       if (j.status === 'error') {
@@ -478,13 +500,15 @@ export default function Topcut() {
 
   function reset() {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
     if (pollRef.current) clearTimeout(pollRef.current);
+    procStartRef.current = 0;
     setStep('upload'); setFile(null); setVideoUrl(''); setDuration(0);
     setSegments([]); setHistory([]); setSelSeg(null); setPlayhead(0); setPreviewing(false);
     setWaveform([]); setWaveLoading(false);
     setContext(''); setInstructions('');
     setPlanId(''); setPlan(null); setMessages([]); setChatInput(''); setChatBusy(false);
-    setUploadPct(0); setStage(''); setResultUrl(''); setError(''); setNote('');
+    setUploadPct(0); setStage(''); setResultUrl(''); setBlobUrl(''); setElapsed(0); setError(''); setNote('');
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -492,6 +516,9 @@ export default function Topcut() {
   const sIdx = stepIndex(step);
   const keptDur = segments.reduce((a, s) => a + (s.end - s.start), 0);
   const removedDur = Math.max(0, duration - keptDur);
+  // Estimado del procesamiento (excluye la subida): base + escala con la duración.
+  const estTotal = Math.max(30, Math.round(25 + keptDur * 2.2));
+  const remaining = Math.max(0, estTotal - elapsed);
   const canSplit = segments.some((s) => playhead > s.start + 0.15 && playhead < s.end - 0.15);
 
   // Barras del waveform (memo: no se recrean al mover la línea, solo al cortar).
@@ -800,7 +827,17 @@ export default function Topcut() {
             <div className="flex flex-col items-center text-center mb-6">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>✂️</div>
               <h3 className="text-lg font-bold">{stage === 'uploading' ? 'Subiendo tu video…' : 'Editando con IA…'}</h3>
-              <p className="text-sm" style={{ color: '#888' }}>{stage === 'uploading' ? `${uploadPct}%` : 'Puede tardar unos minutos. No cierres esta pestaña.'}</p>
+              {stage === 'uploading' ? (
+                <p className="text-sm" style={{ color: '#888' }}>{uploadPct}%</p>
+              ) : (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-bold tabular-nums" style={{ color: '#c4b5fd' }}>{fmt(elapsed)}</span>
+                  <span className="text-sm" style={{ color: '#888' }}>
+                    {remaining > 0 ? `· ≈ ${fmt(remaining)} restante` : '· casi listo…'}
+                  </span>
+                </div>
+              )}
+              {stage !== 'uploading' && <p className="text-[11px] mt-1" style={{ color: '#555' }}>Estimado — no cierres esta pestaña.</p>}
             </div>
 
             {stage === 'uploading' ? (
@@ -808,7 +845,11 @@ export default function Topcut() {
                 <div className="h-full rounded-full transition-all" style={{ width: `${uploadPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <>
+                <div className="h-1.5 rounded-full overflow-hidden mb-4" style={{ background: '#1a1a1a' }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(98, (elapsed / estTotal) * 100)}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)', transition: 'width 1s linear' }} />
+                </div>
+                <div className="flex flex-col gap-2">
                 {STAGE_ORDER.filter((s) => s !== 'uploading' && s !== 'done').map((s) => {
                   const idx = STAGE_ORDER.indexOf(s);
                   const cur = STAGE_ORDER.indexOf(stage);
@@ -822,7 +863,8 @@ export default function Topcut() {
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -833,9 +875,9 @@ export default function Topcut() {
             <div className="text-5xl mb-3">✨</div>
             <h3 className="text-xl font-bold mb-1">¡Tu video está listo!</h3>
             <p className="text-sm mb-6" style={{ color: '#888' }}>Editado automáticamente con IA.</p>
-            {resultUrl && <video src={resultUrl} controls className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />}
+            {(blobUrl || resultUrl) && <video src={blobUrl || resultUrl} controls playsInline className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />}
             <div className="flex flex-col gap-3">
-              <a href={resultUrl} download className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
+              <a href={blobUrl || resultUrl} download="topcut.mp4" className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
               <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
             </div>
           </div>
