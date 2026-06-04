@@ -258,26 +258,15 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     .sort((a, b) => b.total_usd - a.total_usd);
   const totalCostUsd = Math.round(userCosts.reduce((s, c) => s + c.total_usd, 0) * 100) / 100;
 
-  // Cargar perfiles — necesitamos los stripe_customer_id para filtrar
-  // charges de Stripe a SOLO los de ViralADN (evita mezcla con otros productos
-  // que comparten la misma cuenta Stripe).
   const { data: profiles, error } = await admin
     .from('profiles')
     .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, stripe_subscription_id, created_at')
     .order('created_at', { ascending: false });
 
-  const ourCustomerIds = (profiles || [])
-    .map(p => p.stripe_customer_id)
-    .filter((s): s is string => !!s);
-
-  // Pasamos también los emails de profiles para reconocer pagos cuyo
-  // stripe_customer_id todavía no se sincronizó (típico para los primeros
-  // pagos donde el webhook puede tardar en escribir en profiles).
-  const ourEmails = (profiles || [])
-    .map(p => p.email)
-    .filter((s): s is string => !!s);
-
-  const billing = await getBillingOverview(ourCustomerIds, ourEmails);
+  // Facturación: lee SOLO ViralADN desde Stripe, identificando las suscripciones
+  // por su Price ID (STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY). No mezcla con
+  // 2Clicks ni otros productos de la misma cuenta. Ver lib/stripe-admin.ts.
+  const billing = await getBillingOverview();
 
   if (error) {
     console.error('[admin] fetch profiles:', error);
