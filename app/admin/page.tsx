@@ -273,6 +273,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   const custToEmail = new Map<string, string>();
   for (const p of profiles || []) if (p.stripe_customer_id) custToEmail.set(p.stripe_customer_id, p.email);
 
+  // customer Stripe → fila del suscriptor (cuánto paga + renovación), para
+  // mostrarlo en cada fila de la tabla de usuarios de abajo.
+  const subByCustomer = new Map<string, (typeof billing.subscribers)[number]>();
+  for (const s of billing.subscribers) subByCustomer.set(s.customer, s);
+
   if (error) {
     console.error('[admin] fetch profiles:', error);
   }
@@ -730,6 +735,8 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                 <th className="px-4 py-3 font-semibold">Nombre</th>
                 <th className="px-4 py-3 font-semibold">Teléfono</th>
                 <th className="px-4 py-3 font-semibold">Estado</th>
+                <th className="px-4 py-3 font-semibold">Pagó</th>
+                <th className="px-4 py-3 font-semibold">Renovación</th>
                 <th className="px-4 py-3 font-semibold">Código</th>
                 <th className="px-4 py-3 font-semibold">Registrado</th>
               </tr>
@@ -737,7 +744,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center" style={{ color: '#555' }}>
+                  <td colSpan={8} className="px-4 py-12 text-center" style={{ color: '#555' }}>
                     {all.length === 0
                       ? 'No hay usuarios todavía. Cuando alguien se registre va a aparecer acá.'
                       : 'No hay resultados con esos filtros.'}
@@ -748,6 +755,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                   const pill = statusPill(p);
                   const isCourtesy = (p.redeemed_code || '').toUpperCase().startsWith('COURTESY');
                   const inTrialMonth = isInTrialMonth(p);
+                  const sub = p.stripe_customer_id ? subByCustomer.get(p.stripe_customer_id) : undefined;
+                  const renew = sub?.renewal ? new Date(sub.renewal) : null;
+                  const renewDays = renew ? Math.ceil((renew.getTime() - Date.now()) / 86400000) : null;
                   return (
                     <tr key={p.email} style={{ borderBottom: '1px solid #141414' }}>
                       <td className="px-4 py-3" style={{ color: '#eee' }}>
@@ -776,6 +786,16 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                           style={{ background: pill.bg, color: pill.color }}>
                           {pill.label}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-bold" style={{ color: sub ? (sub.amountThisCycle === 0 ? '#a78bfa' : '#86efac') : '#444' }}>
+                        {sub
+                          ? <>{fmtUSD(sub.amountThisCycle)}{sub.isFreeMonth && <span className="text-[9px] ml-1" style={{ color: '#c4b5fd' }}>gratis</span>}</>
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
+                        {renew
+                          ? <>{renew.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}{renewDays != null && <span style={{ color: '#555' }}> · {renewDays}d</span>}</>
+                          : '—'}
                       </td>
                       <td className="px-4 py-3 text-xs font-mono" style={{ color: isCourtesy ? '#fcd34d' : '#a78bfa' }}>
                         {p.redeemed_code || '—'}
