@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
+import IdeasChat from './IdeasChat';
 
 const VIRAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube Shorts', color: '#FF0000' },
@@ -767,8 +768,12 @@ export default function Home() {
   // ── Virales ─────────────────────────────────────────────
   const [loadingMsg, setLoadingMsg] = useState('');
 
-  async function buscarVirales() {
-    if (!tema) return;
+  async function buscarVirales(override?: string) {
+    // override (string) viene de un chip del chat de ideas; si no, usamos el input.
+    // (onClick pasa un evento como arg → el typeof lo ignora y cae a `tema`.)
+    const q = (typeof override === 'string' ? override : tema).trim();
+    if (!q) return;
+    if (q !== tema) setTema(q);
     setLoadingV(true);
     setLoadingMsg('Analizando el tema con IA...');
     setVirales({ youtube: [], tiktok: [], instagram: [] });
@@ -796,7 +801,7 @@ export default function Home() {
         fetch('/api/virales', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tema, platform: p }),
+          body: JSON.stringify({ tema: q, platform: p }),
         }).then(r => r.json()).catch(() => ({ error: 'Error de conexión' }))
       )
     );
@@ -982,6 +987,9 @@ export default function Home() {
       {/* ══ BUSCAR VIRALES ═══════════════════════════════════ */}
       {tab === 'virales' && (
         <div>
+          {/* Chat de ideas: la IA sugiere términos según el nicho del usuario */}
+          <IdeasChat onPick={(t) => { setTema(t); buscarVirales(t); }} />
+
           {/* Suggestions */}
           <div className="flex gap-2 mb-5 flex-wrap">
             {SUGGESTIONS.map(s => (
@@ -1001,7 +1009,7 @@ export default function Home() {
                 placeholder="¿Qué tema quieres dominar? (fitness, dinero, negocios...)"
                 className="flex-1 bg-transparent px-4 py-3 text-sm outline-none"
                 style={{ color: '#e2e2e2' }} />
-              <button onClick={buscarVirales} disabled={loadingV}
+              <button onClick={() => buscarVirales()} disabled={loadingV}
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-40"
                 style={{ background: loadingV ? '#333' : 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', minWidth: '100px' }}>
                 {loadingV ? '...' : '🔍 Buscar'}
