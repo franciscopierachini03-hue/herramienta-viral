@@ -1,31 +1,38 @@
 // POST /api/ideas
-// Asistente de ViralADN: el usuario cuenta su nicho/negocio/interés y la IA
-// (Groq) devuelve una respuesta corta + una lista de TÉRMINOS de búsqueda
-// concretos para encontrar contenido viral de ese nicho. Los términos se
-// muestran como chips clicables que disparan la búsqueda.
+// Asistente de ViralADN basado en el método de 3 preguntas:
+//   1) ¿A qué te dedicás hoy? (nicho)
+//   2) ¿Qué es lo que más te apasiona hoy? (pilar 1)
+//   3) ¿Qué es lo que más amás hoy? (pilar 2)
+// Con eso la IA (Groq) devuelve 15 palabras CLAVE de UNA sola palabra para
+// escribir directo en el buscador y encontrar contenido viral del nicho.
 
 import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type Msg = { role: 'user' | 'assistant'; content: string };
+const SYSTEM = `Actuás como un experto en crecimiento orgánico en redes sociales (Instagram y TikTok), especializado en detectar patrones de contenido viral. Tu trabajo es dar palabras clave para BUSCAR contenido que ya está funcionando.
 
-const SYSTEM = `Sos el asistente de ViralADN, una herramienta que encuentra los videos más virales de TikTok, YouTube Shorts e Instagram Reels buscando por TEMA. El usuario te cuenta su nicho, negocio o interés.
+Devolvés SIEMPRE este JSON exacto, sin texto fuera del JSON:
+{"reply":"una frase corta y cercana","terms":["palabra1","palabra2", ... 15 en total ...]}
 
-Devolvés SIEMPRE este JSON exacto:
-{"reply":"1-2 frases cortas y cercanas que orienten qué le conviene buscar","terms":["término1","término2","..."]}
+Reglas DURAS para "terms":
+- EXACTAMENTE 15 palabras.
+- UNA SOLA palabra cada una. Sin frases, sin espacios, sin "#", sin explicaciones.
+- Directamente relacionadas con contenido que YA es viral en ese nicho.
+- Palabras que un creador usaría para encontrar tendencias, hooks y formatos que funcionan.
+- Evitá palabras genéricas sin intención (ej: "video", "viral", "fyp", "contenido").
+- En español salvo que el nicho use términos en inglés que se buscan así.`;
 
-Sobre "terms":
-- 6 a 10 términos de búsqueda CONCRETOS, en español, de 1 a 3 palabras cada uno.
-- Son TEMAS amplios que mucha gente busca (ej: "finanzas personales", "recetas saludables", "rutina de gym", "ventas", "mindset", "marketing digital"), NO frases largas ni preguntas ni hashtags.
-- Variados: el tema central del usuario + ángulos/subtemas que enganchan en redes.
-- Si el mensaje es vago o saluda nomás, igual sugerí términos de nichos que funcionan (dinero, fitness, negocios, relaciones, productividad, recetas).
-
-No expliques el formato. Devolvé SOLO el JSON.`;
+function buildUserPrompt(dedico: string, apasiona: string, amo: string, exclude: string[], extra: string): string {
+  const pilares = [apasiona, amo].filter(Boolean);
+  let p = `Mi nicho es: ${dedico}\n\nMis pilares de contenido son:\n${pilares.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDame 15 palabras CLAVE (una sola palabra cada una) para escribir directo en el buscador de Instagram o TikTok y encontrar contenido viral de mi nicho.`;
+  if (exclude.length) p += `\n\nNO repitas estas palabras (ya las tengo): ${exclude.join(', ')}. Dame 15 NUEVAS y distintas.`;
+  if (extra) p += `\n\nAjuste extra del usuario: ${extra}`;
+  return p;
+}
 
 export async function POST(req: Request) {
-  // Gate básico: tiene que estar logueado (en prod /app ya exige suscripción).
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user && process.env.REQUIRE_AUTH === '1') {
@@ -35,14 +42,15 @@ export async function POST(req: Request) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return Response.json({ error: 'IA no configurada' }, { status: 503 });
 
-  let body: { messages?: Msg[] };
+  let body: { dedico?: string; apasiona?: string; amo?: string; exclude?: string[]; extra?: string };
   try { body = await req.json(); } catch { return Response.json({ error: 'JSON inválido' }, { status: 400 }); }
 
-  const history = Array.isArray(body.messages) ? body.messages.slice(-8) : [];
-  const clean: Msg[] = history
-    .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .map(m => ({ role: m.role, content: m.content.slice(0, 800) }));
-  if (!clean.length) return Response.json({ error: 'Mensaje vacío' }, { status: 400 });
+  const dedico = (body.dedico || '').toString().slice(0, 300).trim();
+  const apasiona = (body.apasiona || '').toString().slice(0, 300).trim();
+  const amo = (body.amo || '').toString().slice(0, 300).trim();
+  const exclude = Array.isArray(body.exclude) ? body.exclude.filter(x => typeof x === 'string').slice(0, 60) : [];
+  const extra = (body.extra || '').toString().slice(0, 300).trim();
+  if (!dedico && !apasiona && !amo) return Response.json({ error: 'Faltan respuestas' }, { status: 400 });
 
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -50,10 +58,13 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        temperature: 0.6,
+        temperature: 0.7,
         max_tokens: 500,
         response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: SYSTEM }, ...clean],
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: buildUserPrompt(dedico, apasiona, amo, exclude, extra) },
+        ],
       }),
     });
     if (!res.ok) return Response.json({ error: 'La IA no respondió' }, { status: 502 });
@@ -64,14 +75,15 @@ export async function POST(req: Request) {
 
     const reply = typeof parsed.reply === 'string' && parsed.reply.trim()
       ? parsed.reply.trim()
-      : 'Acá tenés algunos temas para arrancar a buscar:';
-    const terms = Array.isArray(parsed.terms)
-      ? parsed.terms
-          .filter((t): t is string => typeof t === 'string')
-          .map(t => t.replace(/^#/, '').trim())
-          .filter(Boolean)
-          .slice(0, 10)
-      : [];
+      : 'Acá tenés palabras para buscar contenido viral de tu nicho:';
+
+    const seen = new Set(exclude.map(x => x.toLowerCase()));
+    const terms = (Array.isArray(parsed.terms) ? parsed.terms : [])
+      .filter((t): t is string => typeof t === 'string')
+      .map(t => t.replace(/[#"']/g, '').trim().split(/\s+/)[0]) // UNA sola palabra
+      .filter(Boolean)
+      .filter(t => { const k = t.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 15);
 
     return Response.json({ reply, terms });
   } catch {
