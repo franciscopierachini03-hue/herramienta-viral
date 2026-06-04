@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 
-const LAUNCH = new Date(process.env.NEXT_PUBLIC_TOPCUT_LAUNCH || '2026-06-06T20:00:00').getTime();
+const LAUNCH = new Date(process.env.NEXT_PUBLIC_TOPCUT_LAUNCH || '2026-06-08T20:00:00').getTime();
 
 export default function ComingSoon() {
   // null hasta montar en el cliente → evita desajuste de hidratación con el server.
@@ -53,7 +53,7 @@ export default function ComingSoon() {
 
         <h1 className="text-4xl sm:text-5xl font-bold mb-3">
           TOPCUT se lanza en{' '}
-          <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>3 días</span>
+          <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>5 días</span>
         </h1>
         <p className="text-sm mb-10" style={{ color: '#999', maxWidth: 460 }}>
           Subís tu video y la IA lo edita sola: recorte, subtítulos animados, B-roll y música. Estamos afinando los últimos detalles.
