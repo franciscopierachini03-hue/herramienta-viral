@@ -108,28 +108,12 @@ async function listActiveSubscriptions(): Promise<StripeSubWithMeta[]> {
   return data?.data || [];
 }
 
-/**
- * Filtra los charges para que solo cuenten los de ViralADN.
- *
- * Estrategia ESTRICTA: solo aceptamos charges que tengan explícitamente
- * metadata.app === 'viraladn'. Este metadata lo seteamos nosotros en
- * /api/checkout cuando creamos la sesión de Stripe.
- *
- * Antes hacíamos fallback por email/customer pero genera falsos positivos:
- * si el dueño de la cuenta Stripe vende OTROS productos a la misma persona,
- * esos pagos también matcheaban. Mejor solo confiar en el metadata propio.
- */
-function isOurCharge(
-  c: StripeCharge & { metadata?: Record<string, string> },
-): boolean {
-  return c.metadata?.app === 'viraladn';
-}
-
 export async function getBillingOverview(
-  // Conservados por compat con callers existentes — el filtro real ahora es
-  // solo por metadata.app === 'viraladn' (estricto). Ver isOurCharge.
-  _ourCustomerIds: string[] = [],
-  _ourEmails: string[] = [],
+  // Clientes y emails de ViralADN (de la tabla profiles). Se usan para atribuir
+  // los cobros, porque los cobros de suscripción NO llevan metadata.app en el
+  // charge (ese metadata vive en la suscripción, no en el cobro).
+  ourCustomerIds: string[] = [],
+  ourEmails: string[] = [],
 ): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) {
     return {
@@ -151,15 +135,29 @@ export async function getBillingOverview(
       listActiveSubscriptions(),
     ]);
 
-    // Solo charges exitosos NUESTROS (descartar OTROS productos en la misma cuenta Stripe)
-    // Filtro estricto: metadata.app === 'viraladn'
+    // Suscripciones nuestras (metadata.app === 'viraladn', seteado en /api/checkout).
+    const ourSubs = subs.filter(s => s.metadata?.app === 'viraladn');
+
+    // Atribución de cobros: los charges de suscripción NO traen metadata.app ni
+    // invoice (description genérico "Subscription update"), pero SÍ traen customer
+    // y email. Matcheamos por customer (de profiles + de nuestras suscripciones) y,
+    // como respaldo, por el email del cobro. Los productos de OTROS dueños de la
+    // cuenta Stripe quedan afuera: sus clientes/emails no están en nuestros profiles.
+    const ourCustomerSet = new Set<string>(
+      [...ourCustomerIds, ...ourSubs.map(s => s.customer)].filter(Boolean),
+    );
+    const ourEmailSet = new Set<string>(ourEmails.map(e => e.toLowerCase()));
+    const isOurs = (c: StripeCharge & { metadata?: Record<string, string> }): boolean => {
+      if (c.metadata?.app === 'viraladn') return true;
+      if (c.customer && ourCustomerSet.has(c.customer)) return true;
+      const email = (c.billing_details?.email || c.receipt_email || '').toLowerCase();
+      return !!email && ourEmailSet.has(email);
+    };
+
+    // Solo charges exitosos NUESTROS.
     const successCharges = charges
       .filter(c => c.paid && c.status === 'succeeded')
-      .filter(c => isOurCharge(c as StripeCharge & { metadata?: Record<string, string> }));
-
-    // Suscripciones activas: solo las que tengan metadata.app === 'viraladn'
-    // (lo seteamos via subscription_data[metadata][app] en /api/checkout)
-    const ourSubs = subs.filter(s => s.metadata?.app === 'viraladn');
+      .filter(c => isOurs(c as StripeCharge & { metadata?: Record<string, string> }));
 
     // Mes de prueba: suscripciones nuestras que tienen un cupón aplicado
     // (descuento activo) o que Stripe marca como `trialing`. Esos son los que
