@@ -40,6 +40,10 @@ export type BillingOverview = {
   totalRevenueLastMonth: number;
   // Suscripciones
   activeSubscriptions: number;
+  // MRR comprometido: suma de la tarifa recurrente (normalizada a mensual) de las
+  // suscripciones ACTIVAS de ViralADN. Es lo que se factura por mes aunque el
+  // primer mes salga $0 por el cupón. "Total acumulado" = plata YA cobrada.
+  committedMrr: number;
   // Lista cronológica de pagos exitosos (más reciente primero)
   recentPayments: Array<{
     id: string;
@@ -121,6 +125,7 @@ export async function getBillingOverview(
       totalRevenueThisMonth: 0,
       totalRevenueLastMonth: 0,
       activeSubscriptions: 0,
+      committedMrr: 0,
       recentPayments: [],
       monthlyRevenue: [],
       trialCustomerIds: [],
@@ -137,6 +142,24 @@ export async function getBillingOverview(
 
     // Suscripciones nuestras (metadata.app === 'viraladn', seteado en /api/checkout).
     const ourSubs = subs.filter(s => s.metadata?.app === 'viraladn');
+
+    // MRR comprometido: tarifa recurrente de las suscripciones ACTIVAS de ViralADN,
+    // normalizada a mensual (anual → /12). El cupón "$47 off una vez" NO baja el MRR
+    // (es un descuento de una sola factura, no de la tarifa recurrente).
+    const mrrCents = (s: StripeSubWithMeta): number => {
+      const price = s.items?.data?.[0]?.price;
+      if (!price || price.unit_amount == null) return 0;
+      const amt = price.unit_amount;
+      switch (price.recurring?.interval) {
+        case 'year': return amt / 12;
+        case 'week': return (amt * 52) / 12;
+        case 'day': return (amt * 365) / 12;
+        default: return amt; // month (o sin recurrencia → lo tratamos como mensual)
+      }
+    };
+    const committedMrr = ourSubs
+      .filter(s => s.status === 'active')
+      .reduce((sum, s) => sum + mrrCents(s), 0) / 100;
 
     // Atribución de cobros: los charges de suscripción NO traen metadata.app ni
     // invoice (description genérico "Subscription update"), pero SÍ traen customer
@@ -229,6 +252,7 @@ export async function getBillingOverview(
       totalRevenueThisMonth,
       totalRevenueLastMonth,
       activeSubscriptions: ourSubs.length,
+      committedMrr,
       recentPayments,
       monthlyRevenue,
       trialCustomerIds,
@@ -241,6 +265,7 @@ export async function getBillingOverview(
       totalRevenueThisMonth: 0,
       totalRevenueLastMonth: 0,
       activeSubscriptions: 0,
+      committedMrr: 0,
       recentPayments: [],
       monthlyRevenue: [],
       trialCustomerIds: [],

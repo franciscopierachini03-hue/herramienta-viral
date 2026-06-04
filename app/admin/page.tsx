@@ -423,10 +423,15 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             )}
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #1a1030, #0d0d0d)', border: '1px solid #7c3aed66' }}>
+              <div className="text-xs mb-1 flex items-center gap-1" style={{ color: '#a78bfa' }}>MRR comprometido</div>
+              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.committedMrr ?? 0)}<span className="text-xs font-normal" style={{ color: '#666' }}>/mes</span></div>
+            </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e44' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Este mes</div>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Cobrado este mes</div>
               <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(billing.totalRevenueThisMonth)}</div>
             </div>
             <div className="rounded-2xl p-4"
