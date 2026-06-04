@@ -268,6 +268,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // 2Clicks ni otros productos de la misma cuenta. Ver lib/stripe-admin.ts.
   const billing = await getBillingOverview();
 
+  // customer Stripe → email (de profiles), para completar el detalle de
+  // suscriptores cuando la factura no trae email (ej. los que están en trial).
+  const custToEmail = new Map<string, string>();
+  for (const p of profiles || []) if (p.stripe_customer_id) custToEmail.set(p.stripe_customer_id, p.email);
+
   if (error) {
     console.error('[admin] fetch profiles:', error);
   }
@@ -511,6 +516,62 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                             ) : (
                               <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#22c55e22', color: '#86efac' }}>Pagado</span>
                             )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+
+          {/* Detalle por suscriptor: cuánto paga c/u + renovación (para reconciliar) */}
+          {billing.subscribers && billing.subscribers.length > 0 && (
+            <details className="rounded-2xl overflow-hidden mt-3"
+              style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+              <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center justify-between"
+                style={{ color: '#aaa' }}>
+                <span>💳 Detalle por suscriptor ViralADN ({billing.subscribers.length}) — qué paga c/u + renovación</span>
+                <span className="text-xs" style={{ color: '#666' }}>Click para expandir ↓</span>
+              </summary>
+              <div className="overflow-x-auto" style={{ borderTop: '1px solid #1a1a1a' }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs" style={{ color: '#666', borderBottom: '1px solid #1a1a1a' }}>
+                      <th className="px-4 py-3 font-semibold">Email</th>
+                      <th className="px-4 py-3 font-semibold">Plan</th>
+                      <th className="px-4 py-3 font-semibold">Paga este ciclo</th>
+                      <th className="px-4 py-3 font-semibold">Total pagado</th>
+                      <th className="px-4 py-3 font-semibold">Renovación</th>
+                      <th className="px-4 py-3 font-semibold">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billing.subscribers.map((s, idx) => {
+                      const email = s.email || custToEmail.get(s.customer) || '—';
+                      const renew = s.renewal ? new Date(s.renewal) : null;
+                      const days = renew ? Math.ceil((renew.getTime() - Date.now()) / 86400000) : null;
+                      const st = s.status === 'active' ? { bg: '#22c55e22', c: '#86efac', t: 'Activa' }
+                        : s.status === 'trialing' ? { bg: '#3b82f622', c: '#93c5fd', t: 'Trial' }
+                        : s.status === 'past_due' ? { bg: '#f59e0b22', c: '#fcd34d', t: 'Vencida' }
+                        : { bg: '#7f1d1d33', c: '#fca5a5', t: s.status };
+                      return (
+                        <tr key={s.customer + idx} style={{ borderBottom: '1px solid #141414' }}>
+                          <td className="px-4 py-3" style={{ color: '#eee' }}>{email}</td>
+                          <td className="px-4 py-3 text-xs" style={{ color: '#aaa' }}>{s.plan}</td>
+                          <td className="px-4 py-3 font-bold" style={{ color: s.amountThisCycle === 0 ? '#a78bfa' : '#86efac' }}>
+                            {fmtUSD(s.amountThisCycle)}
+                            {s.isFreeMonth && <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded-full" style={{ background: '#7c3aed22', color: '#c4b5fd' }}>mes gratis</span>}
+                          </td>
+                          <td className="px-4 py-3" style={{ color: '#ccc' }}>{fmtUSD(s.totalPaid)}</td>
+                          <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
+                            {renew
+                              ? <>{renew.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}{days != null && <span style={{ color: '#666' }}> · en {days} día{days === 1 ? '' : 's'}</span>}</>
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs px-2 py-1 rounded-full" style={{ background: st.bg, color: st.c }}>{st.t}</span>
                           </td>
                         </tr>
                       );
