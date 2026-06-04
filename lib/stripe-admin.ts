@@ -185,11 +185,17 @@ export async function getBillingOverview(): Promise<BillingOverview> {
       subId: s.id, invs: await paidInvoicesForSub(s.id),
     }));
     const paidBySub = new Map<string, number>();
+    const lastAmtBySub = new Map<string, number>(); // monto de la ÚLTIMA factura
     const allPaid: StripeInvoice[] = [];
     for (const { subId, invs } of perSub) {
       let sum = 0;
       for (const inv of invs) { const a = inv.amount_paid || 0; if (a > 0) { allPaid.push(inv); sum += a; } }
       paidBySub.set(subId, sum);
+      // "lo que paga este ciclo" = monto de la factura más reciente. Si el cupón
+      // "$47 off una vez" la cubrió, esa factura es $0 → así detectamos el mes
+      // gratis de verdad (el descuento ya no está en la sub, Stripe lo consume).
+      const latest = invs.reduce<StripeInvoice | null>((a, b) => (!a || b.created > a.created ? b : a), null);
+      lastAmtBySub.set(subId, latest ? (latest.amount_paid || 0) : 0);
     }
 
     const usd = (cents: number) => Math.max(0, cents / 100);
@@ -219,7 +225,8 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     const subscribers: SubscriberRow[] = ourSubs.map(s => {
       const plan = planOf(s);
       const free = isFreeMonth(s);
-      const amountThisCycle = s.status === 'trialing' ? 0 : (free ? 0 : plan.unitUsd);
+      // Lo que pagó este ciclo = monto de su última factura (0 si fue mes gratis).
+      const amountThisCycle = s.status === 'trialing' ? 0 : usd(lastAmtBySub.get(s.id) || 0);
       return {
         customer: s.customer,
         email: emailByCustomer.get(s.customer) || '',
