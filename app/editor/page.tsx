@@ -48,8 +48,13 @@
 import { useState, useRef, useEffect, useMemo, type PointerEvent as RPointerEvent } from 'react';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
+import ComingSoon from './ComingSoon';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
+
+// TOPCUT en "muy pronto": mientras esto no sea '1', /editor muestra la cuenta
+// regresiva (ComingSoon) en vez del editor. Para lanzar: NEXT_PUBLIC_TOPCUT_LIVE=1.
+const TOPCUT_LIVE = process.env.NEXT_PUBLIC_TOPCUT_LIVE === '1';
 
 // Las llamadas chicas (chat, render, poll) van por el proxy mismo-origen
 // /api/topcut/* (el token viaja del lado server). La subida del video va
@@ -538,6 +543,9 @@ export default function Topcut() {
     { icon: '🎞️', label: 'B-roll', val: brollLabel(plan) },
     { icon: '🎵', label: 'Música', val: plan.music },
   ].filter((c) => c.val) : [];
+
+  // Mientras TOPCUT no esté lanzado, mostramos la cuenta regresiva.
+  if (!TOPCUT_LIVE) return <ComingSoon />;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
