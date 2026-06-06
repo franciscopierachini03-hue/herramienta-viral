@@ -18,7 +18,7 @@ import SendAccessPanel from './SendAccessPanel';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ q?: string; status?: string; wrong?: string }>;
+type SearchParams = Promise<{ q?: string; status?: string; wrong?: string; revMonth?: string }>;
 
 const PIN_COOKIE = 'admin_pin_ok';
 
@@ -82,7 +82,7 @@ function statusPill(p: Profile): { label: string; color: string; bg: string } {
 }
 
 export default async function Admin({ searchParams }: { searchParams: SearchParams }) {
-  const { q = '', status: statusFilter = '', wrong } = await searchParams;
+  const { q = '', status: statusFilter = '', wrong, revMonth } = await searchParams;
 
   // 1. Autenticación.
   const supabase = await createClient();
@@ -277,6 +277,48 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // mostrarlo en cada fila de la tabla de usuarios de abajo.
   const subByCustomer = new Map<string, (typeof billing.subscribers)[number]>();
   for (const s of billing.subscribers) subByCustomer.set(s.customer, s);
+
+  // ── Ingreso diario del mes seleccionado (gráfico de línea) ──
+  const nowD = new Date();
+  const defaultMonth = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
+  const selMonth = /^\d{4}-\d{2}$/.test(revMonth || '') ? revMonth! : defaultMonth;
+  const selY = Number(selMonth.slice(0, 4));
+  const selM = Number(selMonth.slice(5, 7)); // 1..12
+  const daysInMonth = new Date(selY, selM, 0).getDate();
+  const daily = Array.from({ length: daysInMonth }, () => 0);
+  for (const p of billing.payments) {
+    const d = new Date(p.date);
+    if (d.getFullYear() === selY && d.getMonth() + 1 === selM) daily[d.getDate() - 1] += p.amount;
+  }
+  const dailyMax = Math.max(...daily, 1);
+  const dailyTotal = daily.reduce((a, b) => a + b, 0);
+  const dailyCount = daily.filter(v => v > 0).length;
+  // Últimos 6 meses para el selector (links que preservan q/status).
+  const monthOptions = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1);
+    return {
+      val: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' }),
+    };
+  });
+  const monthHref = (val: string) => {
+    const sp = new URLSearchParams();
+    if (q) sp.set('q', q);
+    if (statusFilter) sp.set('status', statusFilter);
+    sp.set('revMonth', val);
+    return `/admin?${sp.toString()}#ingreso-diario`;
+  };
+  const monthLabel = new Date(selY, selM - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+  // Geometría del SVG (línea con ejes X/Y).
+  const CW = 720, CH = 220, padL = 46, padR = 14, padT = 16, padB = 28;
+  const plotW = CW - padL - padR, plotH = CH - padT - padB;
+  const xFor = (i: number) => padL + (daysInMonth <= 1 ? plotW / 2 : (i / (daysInMonth - 1)) * plotW);
+  const yFor = (v: number) => padT + plotH - (v / dailyMax) * plotH;
+  const linePts = daily.map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
+  const areaPts = `${padL.toFixed(1)},${(padT + plotH).toFixed(1)} ${linePts} ${xFor(daysInMonth - 1).toFixed(1)},${(padT + plotH).toFixed(1)}`;
+  const yTicks = [0, 0.5, 1].map(f => ({ v: dailyMax * f, y: yFor(dailyMax * f) }));
+  const xTickDays = Array.from(new Set([1, 5, 10, 15, 20, 25, daysInMonth].filter(d => d >= 1 && d <= daysInMonth)));
 
   if (error) {
     console.error('[admin] fetch profiles:', error);
@@ -482,6 +524,65 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               </div>
             </div>
           )}
+
+          {/* Ingreso diario del mes (gráfico de línea, eje X = días, eje Y = $) */}
+          <div id="ingreso-diario" className="rounded-2xl p-4 mb-4"
+            style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="text-xs" style={{ color: '#666' }}>
+                📈 Ingreso diario — <span style={{ color: '#c4b5fd', textTransform: 'capitalize' }}>{monthLabel}</span>
+              </div>
+              <div className="text-xs" style={{ color: '#888' }}>
+                {fmtUSD(dailyTotal)} · {dailyCount} día{dailyCount === 1 ? '' : 's'} con pagos
+              </div>
+            </div>
+
+            <div className="flex gap-1.5 flex-wrap mb-3">
+              {monthOptions.map(o => {
+                const active = o.val === selMonth;
+                return (
+                  <a key={o.val} href={monthHref(o.val)} className="text-xs px-2.5 py-1 rounded-full transition-all"
+                    style={active
+                      ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', fontWeight: 600 }
+                      : { background: '#141414', border: '1px solid #222', color: '#888' }}>
+                    {o.label}
+                  </a>
+                );
+              })}
+            </div>
+
+            <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+              <defs>
+                <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="revLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#a855f7" />
+                  <stop offset="100%" stopColor="#ec4899" />
+                </linearGradient>
+              </defs>
+              {/* eje Y: líneas guía + montos */}
+              {yTicks.map((t, i) => (
+                <g key={i}>
+                  <line x1={padL} y1={t.y} x2={CW - padR} y2={t.y} stroke="#222" strokeWidth="1" />
+                  <text x={padL - 6} y={t.y + 3} textAnchor="end" fontSize="10" fill="#666">{fmtUSD(t.v)}</text>
+                </g>
+              ))}
+              {/* área + línea */}
+              <polygon points={areaPts} fill="url(#revArea)" />
+              <polyline points={linePts} fill="none" stroke="url(#revLine)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+              {/* puntos en los días con ingreso */}
+              {daily.map((v, i) => v > 0 ? <circle key={i} cx={xFor(i)} cy={yFor(v)} r="3" fill="#ec4899" /> : null)}
+              {/* eje X: días */}
+              {xTickDays.map(d => (
+                <text key={d} x={xFor(d - 1)} y={CH - 8} textAnchor="middle" fontSize="10" fill="#666">{d}</text>
+              ))}
+            </svg>
+            {dailyTotal === 0 && (
+              <div className="text-center text-xs mt-1" style={{ color: '#555' }}>Sin ingresos cobrados en {monthLabel}.</div>
+            )}
+          </div>
 
           {/* Lista de pagos recientes */}
           {billing.recentPayments.length > 0 && (

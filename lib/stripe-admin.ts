@@ -59,6 +59,7 @@ export type BillingOverview = {
     email: string; date: string; description: string; refunded: boolean;
   }>;
   monthlyRevenue: Array<{ month: string; revenue: number; count: number }>;
+  payments: Array<{ date: string; amount: number }>; // TODAS las pagadas (para el gráfico diario)
   trialCustomerIds: string[];
   subscribers: SubscriberRow[];    // detalle por suscriptor (reconciliación)
   configured: boolean;
@@ -158,7 +159,7 @@ function zero(configured: boolean, error?: string): BillingOverview {
   return {
     totalRevenueAllTime: 0, totalRevenueThisMonth: 0, totalRevenueLastMonth: 0,
     activeSubscriptions: 0, committedMrr: 0, recentPayments: [], monthlyRevenue: [],
-    trialCustomerIds: [], subscribers: [], configured, error,
+    payments: [], trialCustomerIds: [], subscribers: [], configured, error,
   };
 }
 
@@ -261,7 +262,9 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     return {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
-      recentPayments, monthlyRevenue, trialCustomerIds, subscribers, configured: true,
+      recentPayments, monthlyRevenue,
+      payments: allPaid.map(i => ({ date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid) })),
+      trialCustomerIds, subscribers, configured: true,
     };
   } catch (e) {
     console.error('[stripe-admin]', e);
