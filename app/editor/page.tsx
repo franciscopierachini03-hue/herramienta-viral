@@ -49,6 +49,7 @@ import { useState, useRef, useEffect, useMemo, type PointerEvent as RPointerEven
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ComingSoon from './ComingSoon';
+import ScenePanel from './ScenePanel';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
@@ -646,7 +647,7 @@ export default function Topcut() {
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
             <h3 className="text-xl font-bold mb-1">✂️ Recortá y sacá lo que no sirve</h3>
             <p className="text-sm mb-5" style={{ color: '#888' }}>
-              Movés el video al punto del error → <b style={{ color: '#c4b5fd' }}>Cortar acá</b> (antes y después del error) → seleccionás ese trozo y lo <b style={{ color: '#c4b5fd' }}>Quitás</b>. Sacás partes del medio, del principio o del final.
+              Movés el video al punto del error → <b style={{ color: '#c4b5fd' }}>✂️ Cortar acá</b> (antes y después del error) → en la lista de abajo tocás <b style={{ color: '#f87171' }}>🗑️ Quitar</b> en ese trozo. Sacás partes del medio, del principio o del final.
             </p>
 
             <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate}
@@ -703,9 +704,6 @@ export default function Topcut() {
                 style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar acá ({fmt(playhead)})</button>
               <button onClick={() => nudge(0.1)} title="Adelante 0.1s"
                 className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>0.1s ▶</button>
-              <button onClick={() => selSeg != null && deleteSeg(selSeg)} disabled={selSeg == null || segments.length <= 1}
-                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
-                style={{ background: '#2a0f0f', border: '1px solid #5c1414', color: '#f87171' }}>🗑️ Quitar trozo{selSeg != null ? ` ${selSeg + 1}` : ''}</button>
               <button onClick={undo} disabled={!history.length}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
                 style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>↩ Deshacer</button>
@@ -714,15 +712,21 @@ export default function Topcut() {
                 style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>▶ Ver resultado</button>
             </div>
 
-            {/* lista de trozos */}
+            {/* lista de trozos — cada uno con su botón Quitar (sin seleccionar antes) */}
+            <p className="text-[11px] mb-2" style={{ color: '#888' }}>Estos son los pedazos que QUEDAN en el video. Tocá <b style={{ color: '#f87171' }}>🗑️ Quitar</b> para sacar el que no sirve.</p>
             <div className="flex flex-col gap-1.5 mb-3">
               {segments.map((s, i) => (
-                <div key={i} onClick={() => { setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-xs"
+                <div key={i}
+                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs"
                   style={{ background: selSeg === i ? '#7c3aed22' : '#0c0c0c', border: `1px solid ${selSeg === i ? '#7c3aed55' : '#1a1a1a'}` }}>
-                  <span style={{ color: '#ccc' }}>Trozo {i + 1}: {fmt(s.start)} – {fmt(s.end)} <span style={{ color: '#666' }}>({fmt(s.end - s.start)})</span></span>
-                  <button onClick={(e) => { e.stopPropagation(); deleteSeg(i); }} disabled={segments.length <= 1}
-                    className="px-2 disabled:opacity-30" style={{ color: '#f87171' }}>✕</button>
+                  <button onClick={() => { setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
+                    className="text-left flex-1 truncate" title="Ir a este trozo" style={{ color: '#ccc' }}>
+                    <b style={{ color: '#fff' }}>Trozo {i + 1}</b>: {fmt(s.start)} – {fmt(s.end)} <span style={{ color: '#666' }}>({fmt(s.end - s.start)})</span>
+                  </button>
+                  <button onClick={() => deleteSeg(i)} disabled={segments.length <= 1}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-30 shrink-0"
+                    style={{ background: '#2a0f0f', border: '1px solid #5c1414', color: '#f87171' }}
+                    title={segments.length <= 1 ? 'No podés quitar el único trozo' : 'Quitar este trozo del video'}>🗑️ Quitar</button>
                 </div>
               ))}
             </div>
@@ -846,6 +850,16 @@ export default function Topcut() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── 5b. PANEL DE ESCENAS (edición manual estilo Submagic) ── */}
+        {step === 'studio' && planId && (
+          <div className="mt-4 rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+            <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: '#666' }}>
+              Edición manual — ajustá cada escena (subtítulo, B-roll, zoom) y renderizá
+            </p>
+            <ScenePanel jobId={planId} />
           </div>
         )}
 
