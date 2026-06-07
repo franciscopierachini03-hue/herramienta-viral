@@ -859,7 +859,7 @@ export default function Topcut() {
             <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: '#666' }}>
               Edición manual — ajustá cada escena (subtítulo, B-roll, zoom) y renderizá
             </p>
-            <ScenePanel jobId={planId} />
+            <ScenePanel jobId={planId} videoUrl={videoUrl} />
           </div>
         )}
 

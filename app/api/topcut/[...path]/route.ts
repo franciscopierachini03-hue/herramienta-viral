@@ -18,6 +18,8 @@ const ALLOW = [
   /^render$/,                 // POST /api/render
   /^plan\/[^/]+\/chat$/,      // POST /api/plan/:id/chat
   /^jobs(\/[^/]+)?$/,         // GET  /api/jobs(/:id)
+  /^jobs\/[^/]+\/scenes$/,    // GET/POST /api/jobs/:id/scenes  (panel de escenas)
+  /^jobs\/[^/]+\/auto$/,      // POST /api/jobs/:id/auto        (auto B-roll/zoom)
 ];
 
 async function handle(req: NextRequest) {
