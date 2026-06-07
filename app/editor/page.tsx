@@ -487,6 +487,24 @@ export default function Topcut() {
     xhr.send(file);
   }
 
+  // ── Chat POST-edición: pedir cambios sobre el video YA renderizado ──────────
+  // Aplica el cambio con el cerebro y vuelve a renderizar (reusa el mismo poll).
+  async function sendPostEdit() {
+    const text = chatInput.trim();
+    if (!text || !planId) return;
+    setChatInput('');
+    setMessages((m) => [...m, { role: 'user', text }]);
+    try {
+      const r = await fetch(`/api/topcut/jobs/${planId}/chat`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: text }),
+      });
+      if (r.status === 404 || r.status === 501) { fail('Tu backend todavía no soporta editar después de renderizar.'); return; }
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Error (${r.status})`); }
+      setStep('rendering'); setStage('queued'); setNote(`Aplicando: "${text}"`); procStartRef.current = 0; setElapsed(0);
+      poll(planId);
+    } catch (e: any) { fail(e instanceof Error ? e.message : 'No pude aplicar el cambio.'); }
+  }
+
   // ── Poll del job de render ──────────────────────────
   async function poll(id: string) {
     try {
@@ -924,6 +942,24 @@ export default function Topcut() {
             <div className="flex flex-col gap-3">
               <a href={blobUrl || resultUrl} download="topcut.mp4" className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
               <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
+            </div>
+
+            {/* CHAT POST-EDICIÓN: pedir cambios y volver a renderizar */}
+            <div className="mt-6 pt-5 text-left" style={{ borderTop: '1px solid #1f1f1f' }}>
+              <div className="text-sm font-bold mb-1">💬 ¿Querés cambiar algo?</div>
+              <p className="text-[11px] mb-3" style={{ color: '#777' }}>Pedile a la IA el ajuste y vuelve a renderizar (~2-3 min).</p>
+              <div className="flex gap-2">
+                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPostEdit(); } }}
+                  placeholder='Ej: "subtítulos más pequeños", "música más baja"'
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+                <button onClick={sendPostEdit} disabled={!chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
+              </div>
+              <div className="flex gap-1.5 flex-wrap mt-3">
+                {['Subtítulos más pequeños', 'Más b-roll', 'Música más baja', 'Color verde', 'Quitar música'].map((q) => (
+                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
+                ))}
+              </div>
             </div>
           </div>
         )}

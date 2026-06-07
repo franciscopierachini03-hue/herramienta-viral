@@ -20,6 +20,7 @@ const ALLOW = [
   /^jobs(\/[^/]+)?$/,         // GET  /api/jobs(/:id)
   /^jobs\/[^/]+\/scenes$/,    // GET/POST /api/jobs/:id/scenes  (panel de escenas)
   /^jobs\/[^/]+\/auto$/,      // POST /api/jobs/:id/auto        (auto B-roll/zoom)
+  /^jobs\/[^/]+\/chat$/,      // POST /api/jobs/:id/chat        (chat post-edición + re-render)
 ];
 
 async function handle(req: NextRequest) {
