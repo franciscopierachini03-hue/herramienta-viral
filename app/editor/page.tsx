@@ -46,6 +46,7 @@
 // ───────────────────────────────────────────────────────────────────────────
 
 import { useState, useRef, useEffect, useMemo, type PointerEvent as RPointerEvent } from 'react';
+import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ComingSoon from './ComingSoon';
@@ -515,6 +516,14 @@ export default function Topcut() {
         const abs = typeof j.result === 'string' && j.result.startsWith('http') ? j.result : `${API}${j.result}`;
         setResultUrl(abs);
         setStep('done');
+        // Guardar en el historial (últimos 30 días). Fire-and-forget: si falla, no rompe.
+        try {
+          const kept = segments.reduce((a, s) => a + (s.end - s.start), 0);
+          fetch('/api/mis-videos', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jobId: id, resultUrl: abs, context, duration: Math.round(kept) }),
+          }).catch(() => {});
+        } catch { /* noop */ }
         // Bajamos el resultado como blob: el preview permite adelantar/retroceder
         // (seek) aunque el server no soporte Range, y la descarga es instantánea.
         // Si CORS lo bloquea, queda el src directo (sin seek pero reproduce).
@@ -628,6 +637,8 @@ export default function Topcut() {
                 <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>La IA lo edita.</span>
               </h2>
               <p className="text-sm" style={{ color: '#999' }}>Recortás (sacás los errores), le contás de qué va, y el cerebro arma la edición. Vos aprobás el previo antes de renderizar.</p>
+              <Link href="/editor/historial" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-2xl text-xs font-bold"
+                style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>📁 Mis videos editados</Link>
             </div>
 
             <div
@@ -941,7 +952,11 @@ export default function Topcut() {
             {(blobUrl || resultUrl) && <video src={blobUrl || resultUrl} controls playsInline className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />}
             <div className="flex flex-col gap-3">
               <a href={blobUrl || resultUrl} download="topcut.mp4" className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
-              <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
+              <div className="flex items-center justify-center gap-4">
+                <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
+                <Link href="/editor/historial" className="text-xs underline" style={{ color: '#c4b5fd' }}>📁 Mis videos</Link>
+              </div>
+              <p className="text-[11px]" style={{ color: '#555' }}>Guardado en tu historial por 30 días.</p>
             </div>
 
             {/* CHAT POST-EDICIÓN: pedir cambios y volver a renderizar */}
