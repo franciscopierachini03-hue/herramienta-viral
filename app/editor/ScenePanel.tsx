@@ -99,13 +99,14 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       {/* PREVIO EN VIVO — subtítulos sobre tu vídeo, sin gastar render */}
       {videoUrl && (
         <div className="mb-4">
-          <div className="relative mx-auto rounded-xl overflow-hidden bg-black" style={{ maxWidth: 280 }}>
+          <div className="relative mx-auto rounded-xl overflow-hidden bg-black" style={{ maxWidth: 280, containerType: "size" }}>
             <video ref={videoRef} src={videoUrl} controls playsInline onTimeUpdate={onTime} className="w-full block" />
             {activeCap && (
               <div className="pointer-events-none absolute left-0 right-0 flex justify-center px-3"
                 style={{ top: `${subPos === "low" ? 72 : 52}%`, transform: "translateY(-50%)" }}>
+                {/* 3.2cqh = mismo % de la altura que el render (0.032·H) → tamaño fiel */}
                 <span className="font-extrabold text-white text-center leading-none whitespace-nowrap"
-                  style={{ fontSize: "clamp(13px,5.5vw,24px)", textShadow: "0 2px 6px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.85)" }}>
+                  style={{ fontSize: "3.2cqh", textShadow: "0 2px 6px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.85)" }}>
                   {activeCap}
                 </span>
               </div>
