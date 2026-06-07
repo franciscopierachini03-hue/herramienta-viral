@@ -160,6 +160,8 @@ export default function Topcut() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  // Admin puede probar TOPCUT aunque no esté público (el resto ve la cuenta regresiva).
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -167,6 +169,17 @@ export default function Topcut() {
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const procStartRef = useRef(0); // inicio del procesamiento (para el cronómetro)
+
+  // Si TOPCUT no está público, vemos si quien entra es admin (para dejarlo probar).
+  useEffect(() => {
+    if (TOPCUT_LIVE) { setIsAdmin(false); return; }
+    let cancel = false;
+    fetch('/api/auth/is-admin', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { isAdmin: false }))
+      .then(d => { if (!cancel) setIsAdmin(!!d.isAdmin); })
+      .catch(() => { if (!cancel) setIsAdmin(false); });
+    return () => { cancel = true; };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -545,7 +558,8 @@ export default function Topcut() {
   ].filter((c) => c.val) : [];
 
   // Mientras TOPCUT no esté lanzado, mostramos la cuenta regresiva.
-  if (!TOPCUT_LIVE) return <ComingSoon />;
+  // Público ve la cuenta regresiva; el admin (confirmado) puede entrar a probar.
+  if (!TOPCUT_LIVE && isAdmin !== true) return <ComingSoon />;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -553,6 +567,15 @@ export default function Topcut() {
         <SessionGuard />
         <ProductNav active="topcut" />
       </div>
+
+      {!TOPCUT_LIVE && (
+        <div className="px-6 max-w-2xl mx-auto mb-4">
+          <div className="rounded-xl px-4 py-2.5 text-xs flex items-center gap-2"
+            style={{ background: '#1a160a', border: '1px solid #5c4a14', color: '#e8d48a' }}>
+            🛠️ <span><b>Modo admin</b> — estás probando TOPCUT en preview. El resto de los usuarios ve la cuenta regresiva hasta el lanzamiento.</span>
+          </div>
+        </div>
+      )}
 
       <div className="px-6 pb-24 max-w-3xl mx-auto">
         <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
