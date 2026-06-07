@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
+import DailyRevenueChart from './DailyRevenueChart';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
 
@@ -290,7 +291,6 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     const d = new Date(p.date);
     if (d.getFullYear() === selY && d.getMonth() + 1 === selM) daily[d.getDate() - 1] += p.amount;
   }
-  const dailyMax = Math.max(...daily, 1);
   const dailyTotal = daily.reduce((a, b) => a + b, 0);
   const dailyCount = daily.filter(v => v > 0).length;
   // Últimos 6 meses para el selector (links que preservan q/status).
@@ -309,16 +309,6 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     return `/admin?${sp.toString()}#ingreso-diario`;
   };
   const monthLabel = new Date(selY, selM - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
-
-  // Geometría del SVG (línea con ejes X/Y).
-  const CW = 720, CH = 220, padL = 46, padR = 14, padT = 16, padB = 28;
-  const plotW = CW - padL - padR, plotH = CH - padT - padB;
-  const xFor = (i: number) => padL + (daysInMonth <= 1 ? plotW / 2 : (i / (daysInMonth - 1)) * plotW);
-  const yFor = (v: number) => padT + plotH - (v / dailyMax) * plotH;
-  const linePts = daily.map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
-  const areaPts = `${padL.toFixed(1)},${(padT + plotH).toFixed(1)} ${linePts} ${xFor(daysInMonth - 1).toFixed(1)},${(padT + plotH).toFixed(1)}`;
-  const yTicks = [0, 0.5, 1].map(f => ({ v: dailyMax * f, y: yFor(dailyMax * f) }));
-  const xTickDays = Array.from(new Set([1, 5, 10, 15, 20, 25, daysInMonth].filter(d => d >= 1 && d <= daysInMonth)));
 
   if (error) {
     console.error('[admin] fetch profiles:', error);
@@ -551,34 +541,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               })}
             </div>
 
-            <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-              <defs>
-                <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
-                </linearGradient>
-                <linearGradient id="revLine" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#a855f7" />
-                  <stop offset="100%" stopColor="#ec4899" />
-                </linearGradient>
-              </defs>
-              {/* eje Y: líneas guía + montos */}
-              {yTicks.map((t, i) => (
-                <g key={i}>
-                  <line x1={padL} y1={t.y} x2={CW - padR} y2={t.y} stroke="#222" strokeWidth="1" />
-                  <text x={padL - 6} y={t.y + 3} textAnchor="end" fontSize="10" fill="#666">{fmtUSD(t.v)}</text>
-                </g>
-              ))}
-              {/* área + línea */}
-              <polygon points={areaPts} fill="url(#revArea)" />
-              <polyline points={linePts} fill="none" stroke="url(#revLine)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-              {/* puntos en los días con ingreso */}
-              {daily.map((v, i) => v > 0 ? <circle key={i} cx={xFor(i)} cy={yFor(v)} r="3" fill="#ec4899" /> : null)}
-              {/* eje X: días */}
-              {xTickDays.map(d => (
-                <text key={d} x={xFor(d - 1)} y={CH - 8} textAnchor="middle" fontSize="10" fill="#666">{d}</text>
-              ))}
-            </svg>
+            <DailyRevenueChart daily={daily} year={selY} month={selM} daysInMonth={daysInMonth} />
             {dailyTotal === 0 && (
               <div className="text-center text-xs mt-1" style={{ color: '#555' }}>Sin ingresos cobrados en {monthLabel}.</div>
             )}
