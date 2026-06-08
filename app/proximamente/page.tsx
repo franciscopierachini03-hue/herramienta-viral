@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 
-const LAUNCH = new Date(process.env.NEXT_PUBLIC_LAUNCH_DATE || '2026-06-28T20:00:00').getTime();
+const LAUNCH = new Date(process.env.NEXT_PUBLIC_LAUNCH_DATE || '2026-06-09T20:00:00').getTime();
 const GRAD = 'linear-gradient(135deg, #a855f7, #ec4899)';
 
 export default function Proximamente() {
