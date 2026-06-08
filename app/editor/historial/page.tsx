@@ -1,24 +1,27 @@
 'use client';
 
 // Historial de videos editados con TOPCUT (últimos 30 días).
-// Lista los renders del usuario: preview, descargar, eliminar.
+// Fuente: localStorage (funciona sin base de datos) + merge con el server si la
+// tabla existe (futuro/sync entre dispositivos). Preview, descargar, eliminar.
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../../_components/ProductNav';
 import SessionGuard from '../../_components/SessionGuard';
+import { getLocalVideos, removeLocalVideo } from '@/lib/topcut-history';
 
-type Video = {
+type V = {
   id: string;
-  job_id: string | null;
-  result_url: string;
-  title: string | null;
-  context: string | null;
-  duration: number | null;
+  jobId?: string;
+  resultUrl: string;
+  title?: string | null;
+  context?: string | null;
+  duration?: number | null;
   created_at: string;
+  isLocal: boolean;
 };
 
-function fmtDur(n: number | null): string {
+function fmtDur(n: number | null | undefined): string {
   if (!n || n <= 0) return '';
   const m = Math.floor(n / 60), s = Math.round(n % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
@@ -29,20 +32,38 @@ function fmtDate(s: string): string {
 }
 
 export default function Historial() {
-  const [videos, setVideos] = useState<Video[] | null>(null);
+  const [videos, setVideos] = useState<V[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
+    const local: V[] = getLocalVideos().map(v => ({
+      id: v.id, jobId: v.jobId, resultUrl: v.resultUrl, title: v.title,
+      context: v.context, duration: v.duration, created_at: v.created_at, isLocal: true,
+    }));
+    setVideos(local);
+
+    // Intentar traer del server (si la tabla existe) y mergear sin duplicar.
     fetch('/api/mis-videos', { cache: 'no-store' })
       .then(r => r.json())
-      .then(d => setVideos(Array.isArray(d.videos) ? d.videos : []))
-      .catch(() => setVideos([]));
+      .then((d: { videos?: Array<{ id: string; job_id?: string | null; result_url: string; title?: string | null; context?: string | null; duration?: number | null; created_at: string }> }) => {
+        const server: V[] = (Array.isArray(d.videos) ? d.videos : []).map(s => ({
+          id: s.id, jobId: s.job_id || undefined, resultUrl: s.result_url, title: s.title,
+          context: s.context, duration: s.duration, created_at: s.created_at, isLocal: false,
+        }));
+        if (!server.length) return;
+        const seen = new Set(server.map(s => s.jobId || s.resultUrl));
+        const merged = [...server, ...local.filter(l => !seen.has(l.jobId || l.resultUrl))]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setVideos(merged);
+      })
+      .catch(() => {});
   }, []);
 
-  async function del(id: string) {
-    setVideos(v => (v || []).filter(x => x.id !== id));
+  async function del(v: V) {
+    setVideos(list => (list || []).filter(x => x.id !== v.id));
     setConfirmId(null);
-    await fetch(`/api/mis-videos/${id}`, { method: 'DELETE' }).catch(() => {});
+    if (v.isLocal) removeLocalVideo(v.id);
+    else await fetch(`/api/mis-videos/${v.id}`, { method: 'DELETE' }).catch(() => {});
   }
 
   return (
@@ -80,7 +101,7 @@ export default function Historial() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {videos.map(v => (
               <div key={v.id} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-                <video src={v.result_url} controls playsInline preload="metadata"
+                <video src={v.resultUrl} controls playsInline preload="metadata"
                   className="w-full" style={{ aspectRatio: '9/16', maxHeight: 320, objectFit: 'cover', background: '#000' }} />
                 <div className="p-3 flex flex-col gap-2 flex-1">
                   <div className="text-sm font-semibold line-clamp-2" style={{ color: '#eee' }}>
@@ -91,10 +112,10 @@ export default function Historial() {
                     {fmtDur(v.duration) && <span>· {fmtDur(v.duration)}</span>}
                   </div>
                   <div className="flex gap-2 mt-auto pt-1">
-                    <a href={v.result_url} download className="flex-1 text-center py-2 rounded-xl text-xs font-bold"
+                    <a href={v.resultUrl} download className="flex-1 text-center py-2 rounded-xl text-xs font-bold"
                       style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>⬇️ Descargar</a>
                     {confirmId === v.id ? (
-                      <button onClick={() => del(v.id)} className="px-3 py-2 rounded-xl text-xs font-bold"
+                      <button onClick={() => del(v)} className="px-3 py-2 rounded-xl text-xs font-bold"
                         style={{ background: '#5c1414', border: '1px solid #7f1d1d', color: '#fca5a5' }}>¿Seguro?</button>
                     ) : (
                       <button onClick={() => setConfirmId(v.id)} className="px-3 py-2 rounded-xl text-xs font-bold"

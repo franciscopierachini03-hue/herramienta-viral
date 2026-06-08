@@ -51,6 +51,7 @@ import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ComingSoon from './ComingSoon';
 import ScenePanel from './ScenePanel';
+import { saveLocalVideo } from '@/lib/topcut-history';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
@@ -516,12 +517,14 @@ export default function Topcut() {
         const abs = typeof j.result === 'string' && j.result.startsWith('http') ? j.result : `${API}${j.result}`;
         setResultUrl(abs);
         setStep('done');
-        // Guardar en el historial (últimos 30 días). Fire-and-forget: si falla, no rompe.
+        // Guardar en el historial (30 días). Local (navegador) = funciona ya, sin
+        // base de datos. El POST al server es por si la tabla existe (futuro/sync).
         try {
-          const kept = segments.reduce((a, s) => a + (s.end - s.start), 0);
+          const kept = Math.round(segments.reduce((a, s) => a + (s.end - s.start), 0));
+          saveLocalVideo({ jobId: id, resultUrl: abs, context, duration: kept });
           fetch('/api/mis-videos', {
             method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ jobId: id, resultUrl: abs, context, duration: Math.round(kept) }),
+            body: JSON.stringify({ jobId: id, resultUrl: abs, context, duration: kept }),
           }).catch(() => {});
         } catch { /* noop */ }
         // Bajamos el resultado como blob: el preview permite adelantar/retroceder
