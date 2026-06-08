@@ -59,7 +59,7 @@ export type BillingOverview = {
     email: string; date: string; description: string; refunded: boolean;
   }>;
   monthlyRevenue: Array<{ month: string; revenue: number; count: number }>;
-  payments: Array<{ date: string; amount: number }>; // TODAS las pagadas (para el gráfico diario)
+  payments: Array<{ id: string; customer: string; email: string; date: string; amount: number }>; // TODAS las pagadas (gráfico diario + reporte de ventas)
   trialCustomerIds: string[];
   subscribers: SubscriberRow[];    // detalle por suscriptor (reconciliación)
   configured: boolean;
@@ -263,7 +263,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
       recentPayments, monthlyRevenue,
-      payments: allPaid.map(i => ({ date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid) })),
+      payments: allPaid.map(i => ({ id: i.id, customer: i.customer || '', email: i.customer_email || '', date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid) })),
       trialCustomerIds, subscribers, configured: true,
     };
   } catch (e) {
