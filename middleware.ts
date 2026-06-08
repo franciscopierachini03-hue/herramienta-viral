@@ -1,33 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-// Middleware: protege /app, /editor, /guiones — requiere:
-//   1. sesión activa (usuario logueado)
-//   2. subscription_status === 'active' en `profiles`
+// Middleware.
 //
-// Si no hay sesión → /login?next=...
-// Si hay sesión pero no pagó → /precios?need=pago
+// ── MODO CERRADO (pre-lanzamiento) ──────────────────────────────────────────
+// Mientras CLOSED = true, TODO el tráfico cae en /proximamente (la cuenta
+// regresiva), EXCEPTO los admin (que entran a todo para construir el rediseño)
+// y unas pocas rutas siempre abiertas (landing, login, waitlist).
+// Para REABRIR la plataforma: poner CLOSED = false (o env PLATFORM_OPEN=1) y deploy.
 //
-// Activación:
-// - REQUIRE_AUTH=1 en .env → protege rutas
-// - REQUIRE_AUTH=0 o ausente → modo dev, deja pasar todo
+// ── MODO ABIERTO (normal) ───────────────────────────────────────────────────
+// Protege /app, /editor, /guiones, /cuenta: requiere login + subscription_status
+// activo (o trial vigente). REQUIRE_AUTH=1 activa la protección.
 
+const CLOSED = process.env.PLATFORM_OPEN === '1' ? false : true;
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === '1';
-
-// Estados que cuentan como "pagó y puede entrar". `trialing` se verifica
-// aparte con trial_ends_at para no dejar pasar trials vencidos.
-// `past_due` queda afuera a propósito: si la tarjeta rebotó, no entra
-// hasta regularizar.
 const ACTIVE_STATUSES = new Set(['active']);
+
+const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
+function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const e = email.toLowerCase().trim();
+  if (PERMANENT_OWNERS.includes(e)) return true;
+  const list = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  return list.includes(e);
+}
+
+// Cookies de auth con vida de "session" (mueren al cerrar el navegador).
+function stripPersistence(options?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!options) return options;
+  const { maxAge: _ma, expires: _ex, ...rest } = options;
+  return rest;
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ── MODO CERRADO ──────────────────────────────────────────────────────────
+  if (CLOSED) {
+    // Siempre abiertas, incluso cerrado: la landing, el login y sus APIs, la waitlist.
+    const alwaysOpen =
+      pathname === '/proximamente' || pathname.startsWith('/proximamente/') ||
+      pathname === '/login' || pathname.startsWith('/login/') ||
+      pathname.startsWith('/api/auth') || pathname === '/api/waitlist';
+    if (alwaysOpen) return NextResponse.next();
+
+    // ¿Es admin? Leemos la sesión + allowlist.
+    let response = NextResponse.next({ request: req });
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return req.cookies.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+            response = NextResponse.next({ request: req });
+            cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, stripPersistence(options)));
+          },
+        },
+      },
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (isAdminEmail(user?.email)) return response; // admin → acceso total
+
+    // No admin: APIs cerradas (503), páginas → cuenta regresiva.
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'En mantenimiento' }, { status: 503 });
+    }
+    return NextResponse.redirect(new URL('/proximamente', req.url));
+  }
+
+  // ── MODO ABIERTO (protección normal por suscripción) ────────────────────────
   if (!REQUIRE_AUTH) return NextResponse.next();
 
-  // /app/welcome (post-pago) y /cuenta (gestión de suscripción) requieren
-  // login pero NO chequeo de subscription_status. Sino los usuarios con trial
-  // vencido o cancelados nunca podrían volver a pagar/gestionar.
   const isWelcome = pathname === '/app/welcome' || pathname.startsWith('/app/welcome/');
   const isCuenta = pathname === '/cuenta' || pathname.startsWith('/cuenta/');
 
@@ -39,37 +85,21 @@ export async function middleware(req: NextRequest) {
   if (!isProtected) return NextResponse.next();
 
   let response = NextResponse.next({ request: req });
-
-  // Cookies de auth con vida de "session" (mueren al cerrar el navegador).
-  // Quitamos maxAge/expires para que sean session cookies.
-  const stripPersistence = (
-    options?: Record<string, unknown>,
-  ): Record<string, unknown> | undefined => {
-    if (!options) return options;
-    const { maxAge: _ma, expires: _ex, ...rest } = options;
-    return rest;
-  };
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
+        getAll() { return req.cookies.getAll(); },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
           response = NextResponse.next({ request: req });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, stripPersistence(options)),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, stripPersistence(options)));
         },
       },
     },
   );
 
-  // 1. ¿Está logueado?
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     const loginUrl = new URL('/login', req.url);
@@ -77,15 +107,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // /app/welcome y /cuenta solo requieren login; el chequeo de pago no aplica.
   if (isWelcome || isCuenta) return response;
 
-  // 2. ¿Pagó? Buscamos el status en profiles por email.
   const email = user.email;
-  if (!email) {
-    // Edge case: usuario sin email (no debería pasar). Lo mandamos a /login.
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
+  if (!email) return NextResponse.redirect(new URL('/login', req.url));
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -96,14 +121,11 @@ export async function middleware(req: NextRequest) {
   const status = profile?.subscription_status ?? 'pending';
   const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
   const trialActive = !!trialEndsAt && trialEndsAt.getTime() > Date.now();
-
-  // Pasa si: (1) status activo o (2) está en trial vigente
   const allowedByStatus = ACTIVE_STATUSES.has(status);
   const allowedByTrial = status === 'trialing' && trialActive;
 
   if (!allowedByStatus && !allowedByTrial) {
     const url = new URL('/precios', req.url);
-    // ?need=trial-expirado si el trial venció, ?need=pago si nunca pagó.
     url.searchParams.set('need', status === 'trialing' && !trialActive ? 'trial-expirado' : 'pago');
     return NextResponse.redirect(url);
   }
@@ -112,5 +134,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/editor/:path*', '/editor', '/guiones/:path*', '/admin/:path*', '/cuenta/:path*', '/cuenta'],
+  // En modo cerrado el middleware corre en TODO (para redirigir). Excluimos solo
+  // assets estáticos para no romper la landing (logo, etc.).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|woff|woff2|ttf|css|js|txt|xml|json)).*)'],
 };
