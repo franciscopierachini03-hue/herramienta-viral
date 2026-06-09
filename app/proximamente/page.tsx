@@ -36,10 +36,17 @@ export default function Proximamente() {
         style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44', boxShadow: '0 0 60px #7c3aed22' }}>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-mark.svg" alt="ViralADN" width={56} height={56} className="mx-auto mb-6"
+        <img src="/logo-mark.svg" alt="ViralADN" width={56} height={56} className="mx-auto mb-5"
           style={{ filter: 'drop-shadow(0 0 20px #7c3aed66)' }} />
 
-        <p className="text-base sm:text-lg mb-7" style={{ color: '#eaeaea' }}>
+        {/* Frase de marca */}
+        <div className="font-bold mb-6" style={{ fontSize: 'clamp(18px,5vw,26px)', letterSpacing: '-0.5px' }}>
+          <span style={{ color: '#fff' }}>ViralADN</span>
+          <span style={{ color: '#7c3aed', margin: '0 0.18em', fontWeight: 400 }}>✕</span>
+          <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>TOPCUT</span>
+        </div>
+
+        <p className="text-sm sm:text-base mb-7" style={{ color: '#999' }}>
           La página se volverá a activar en
         </p>
 
