@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
   return Response.json({
     ok: true,
-    redirect: '/app',
+    redirect: '/inicio',
     trial: { endsAt: trialEndsAt, durationMs: match.durationMs },
   });
 }

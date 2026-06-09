@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
+import ProductGate from '../_components/ProductGate';
 import IdeasChat from './IdeasChat';
 
 const VIRAL_PLATFORMS = [
@@ -832,6 +833,7 @@ export default function Home() {
       <div className="max-w-3xl mx-auto px-6 pt-10 pb-20">
 
       <SessionGuard />
+      <ProductGate product="viraladn" />
       {/* Header */}
       <ProductNav active="viral" />
 

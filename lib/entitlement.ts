@@ -1,33 +1,17 @@
 // Permisos por producto (a qué plataforma tiene acceso cada usuario).
-// Se deriva de la SUSCRIPCIÓN de Stripe del cliente, por el PRICE ID:
-//   STRIPE_PRICE_VIRALADN ($27)  → ViralADN
-//   STRIPE_PRICE_TOPCUT   ($57)  → TOPCUT
-//   STRIPE_PRICE_COMBO    ($67)  → las dos
-//   STRIPE_PRICE_MONTHLY  (viejo $47) → ViralADN (continuidad de los que ya pagaban)
+// Se deriva de la SUSCRIPCIÓN de Stripe del cliente, clasificada por
+// (PRODUCTO + MONTO) — ver lib/products.ts (classifyPrice):
+//   producto Combo               → las dos
+//   producto TOPCUT              → TOPCUT
+//   producto ViralADN $47/$470   → las dos (fundadores)
+//   producto ViralADN $27/$270   → ViralADN
 //
-// Setear esos price IDs en Vercel cuando se creen los productos en Stripe.
+// No depende de price ids mapeados a mano: usa el id de PRODUCTO + el monto,
+// que vienen en cada item de la suscripción.
 
-export type Entitlement = { viraladn: boolean; topcut: boolean };
+import { classifyPrice, type Entitlement } from '@/lib/products';
 
-const ids = () => ({
-  viraladn: (process.env.STRIPE_PRICE_VIRALADN || '').trim(),
-  topcut: (process.env.STRIPE_PRICE_TOPCUT || '').trim(),
-  combo: (process.env.STRIPE_PRICE_COMBO || '').trim(),
-  legacy: (process.env.STRIPE_PRICE_MONTHLY || '').trim(), // viejo plan único → ViralADN
-});
-
-// Mapea un price id → qué desbloquea.
-// Los que pagaban el viejo $47 (STRIPE_PRICE_MONTHLY) son "miembros fundadores":
-// su plan les da acceso a LAS DOS plataformas (lo mismo que el combo de $67).
-export function entitlementFromPriceId(priceId: string | null | undefined): Entitlement {
-  const out = { viraladn: false, topcut: false };
-  if (!priceId) return out;
-  const p = ids();
-  if (priceId === p.combo || (p.legacy && priceId === p.legacy)) { out.viraladn = true; out.topcut = true; }
-  else if (priceId === p.viraladn) out.viraladn = true;
-  else if (priceId === p.topcut) out.topcut = true;
-  return out;
-}
+export type { Entitlement };
 
 // Permisos de un cliente Stripe (suma de sus suscripciones activas/trial).
 export async function entitlementForCustomer(customerId: string | null | undefined): Promise<Entitlement> {
@@ -44,7 +28,7 @@ export async function entitlementForCustomer(customerId: string | null | undefin
     for (const sub of data?.data || []) {
       if (!['active', 'trialing', 'past_due'].includes(sub.status)) continue;
       for (const it of sub.items?.data || []) {
-        const e = entitlementFromPriceId(it.price?.id);
+        const e = classifyPrice(it.price);
         if (e.viraladn) out.viraladn = true;
         if (e.topcut) out.topcut = true;
       }

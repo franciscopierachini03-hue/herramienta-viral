@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json({
       ok: true,
-      redirect: inviteMatch ? '/app' : '/precios',
+      redirect: '/inicio',
       trial: inviteMatch ? { endsAt: trialEndsAt, durationMs: inviteMatch.durationMs } : null,
     });
   }
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     if (signErr) {
       return Response.json({ ok: true, redirect: '/login' });
     }
-    return Response.json({ ok: true, redirect: '/app' });
+    return Response.json({ ok: true, redirect: '/inicio' });
   }
 
   return Response.json({ error: 'Modo inválido.' }, { status: 400 });

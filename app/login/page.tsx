@@ -72,7 +72,7 @@ function Login() {
           setLoading(false);
           return;
         }
-        const target = data.redirect || '/app';
+        const target = data.redirect || '/inicio';
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {
@@ -145,7 +145,7 @@ function Login() {
           setLoading(false);
           return;
         }
-        const target = data.redirect || '/app';
+        const target = data.redirect || '/inicio';
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {
@@ -205,7 +205,7 @@ function Login() {
           setLoading(false);
           return;
         }
-        const target = data.redirect || '/app';
+        const target = data.redirect || '/inicio';
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {

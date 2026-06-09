@@ -1,41 +1,63 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { resolvePriceId, type ProductKey, type Ciclo } from '@/lib/products';
 
 // Crea una sesión de Stripe Checkout y devuelve la URL para redirigir al usuario.
 //
-// IMPORTANTE: requiere usuario logueado. Pasamos su email a Stripe como
-// `customer_email` para:
-//   1. Pre-rellenar el email en el checkout (mejor UX).
-//   2. Que el webhook (o el verify post-pago) pueda matchear el pago al perfil.
+// Formato nuevo por producto:
+//   { producto: 'viraladn' | 'topcut' | 'combo', ciclo?: 'monthly' | 'yearly' }
+// Formato viejo (compatibilidad): { plan: 'monthly' | 'yearly' } → plan único.
+//
+// El price id se resuelve por (PRODUCTO + MONTO) en lib/products.ts — no hace
+// falta mapear price ids a mano. Pasamos el email del usuario logueado como
+// customer_email para que el webhook / verify post-pago matchee el pago al perfil.
+
+const PRODUCTOS: ProductKey[] = ['viraladn', 'topcut', 'combo'];
 
 export async function POST(req: NextRequest) {
-  const { plan } = await req.json();
+  const body = await req.json().catch(() => ({}));
 
   const secret = process.env.STRIPE_SECRET_KEY;
-  const priceMonthly = process.env.STRIPE_PRICE_MONTHLY;
-  const priceYearly = process.env.STRIPE_PRICE_YEARLY;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   if (!secret) {
-    return Response.json({
-      error: 'Stripe no está configurado todavía. Falta STRIPE_SECRET_KEY en las variables de entorno.'
-    }, { status: 500 });
+    return Response.json({ error: 'Stripe no está configurado todavía. Falta STRIPE_SECRET_KEY.' }, { status: 500 });
   }
 
-  const priceId = plan === 'yearly' ? priceYearly : priceMonthly;
-  if (!priceId) {
-    return Response.json({
-      error: `Falta el price_id para el plan ${plan}. Configurá STRIPE_PRICE_${plan === 'yearly' ? 'YEARLY' : 'MONTHLY'} en .env.`
-    }, { status: 500 });
+  // ── Resolver producto + ciclo + price id ──────────────────────────────────
+  const producto: ProductKey | null = PRODUCTOS.includes(body?.producto) ? body.producto : null;
+  let ciclo: Ciclo = body?.ciclo === 'yearly' ? 'yearly' : 'monthly';
+  let priceId: string | null;
+  let metaProduct: string;
+  let metaPlan: string;
+
+  if (producto) {
+    priceId = await resolvePriceId(producto, ciclo);
+    metaProduct = producto;
+    metaPlan = producto === 'combo' ? `combo-${ciclo}` : producto;
+    if (!priceId) {
+      return Response.json(
+        { error: `Todavía no encontramos el precio de "${producto}" (${ciclo}) en Stripe. Revisá que el producto y el monto existan.` },
+        { status: 503 },
+      );
+    }
+  } else {
+    // Compatibilidad: plan único viejo.
+    const plan: Ciclo = body?.plan === 'yearly' ? 'yearly' : 'monthly';
+    ciclo = plan;
+    metaProduct = 'viraladn';
+    metaPlan = plan;
+    priceId = (plan === 'yearly' ? process.env.STRIPE_PRICE_YEARLY : process.env.STRIPE_PRICE_MONTHLY)?.trim() || null;
+    if (!priceId) {
+      return Response.json({ error: `Falta el price id del plan ${plan}.` }, { status: 503 });
+    }
   }
 
-  // Si el usuario ya está logueado usamos su email. Si no, Stripe lo va a
-  // pedir durante el checkout — no forzamos el registro antes del pago.
+  // Usuario logueado → su email/id para matchear el pago al perfil.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Stripe rechaza `mode=subscription` con prices de tipo `one_time` y viceversa.
-  // Consultamos el price para elegir el mode correcto y soportar ambos casos.
+  // Stripe rechaza mode=subscription con prices one_time y viceversa.
   let mode: 'subscription' | 'payment' = 'subscription';
   try {
     const priceRes = await fetch(
@@ -47,7 +69,7 @@ export async function POST(req: NextRequest) {
       mode = priceData?.type === 'recurring' ? 'subscription' : 'payment';
     }
   } catch (e) {
-    console.warn('[checkout] price lookup failed, defaulting to subscription mode:', e);
+    console.warn('[checkout] price lookup failed, defaulting to subscription:', e);
   }
 
   const params = new URLSearchParams();
@@ -56,23 +78,17 @@ export async function POST(req: NextRequest) {
   params.append('line_items[0][quantity]', '1');
   if (user?.email) params.append('customer_email', user.email);
   if (user?.id) params.append('client_reference_id', user.id);
-  // Tags para identificar pagos de ViralADN cuando la cuenta de Stripe se
-  // comparte con otros productos. El admin panel filtra por estos.
-  params.append('metadata[app]', 'viraladn');
-  params.append('metadata[plan]', plan === 'yearly' ? 'yearly' : 'monthly');
-  if (mode === 'subscription') {
-    params.append('subscription_data[metadata][app]', 'viraladn');
-    params.append('subscription_data[metadata][plan]', plan === 'yearly' ? 'yearly' : 'monthly');
-  } else {
-    params.append('payment_intent_data[metadata][app]', 'viraladn');
-    params.append('payment_intent_data[metadata][plan]', plan === 'yearly' ? 'yearly' : 'monthly');
-  }
-  // Tras pagar, /app/welcome verifica el pago y activa la cuenta.
+
+  // Tags: ingreso nuestro + por qué producto entró (respaldo / lectura).
+  const meta: Record<string, string> = { app: 'viraladn', product: metaProduct, plan: metaPlan };
+  for (const [k, v] of Object.entries(meta)) params.append(`metadata[${k}]`, v);
+  const subOrPay = mode === 'subscription' ? 'subscription_data' : 'payment_intent_data';
+  for (const [k, v] of Object.entries(meta)) params.append(`${subOrPay}[metadata][${k}]`, v);
+
+  // Tras pagar, /app/welcome verifica el pago y guarda el stripe_customer_id;
+  // después el hub /inicio desbloquea el producto pagado.
   params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
-  params.append('cancel_url', `${appUrl}/precios?cancelled=1`);
-  // Campo de código promocional en el checkout de Stripe. El descuento exclusivo
-  // se reparte como un PROMOTION CODE secreto (con límite de canjes) que solo
-  // conoce el grupo — nadie puede aplicarlo sin saber el código exacto.
+  params.append('cancel_url', `${appUrl}/precios?cancelled=1&producto=${metaProduct}`);
   params.append('allow_promotion_codes', 'true');
   params.append('billing_address_collection', 'auto');
   params.append('phone_number_collection[enabled]', 'true');
@@ -80,24 +96,15 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${secret}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Authorization': `Bearer ${secret}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
     });
-
     const data = await res.json();
     if (!res.ok) {
-      return Response.json({
-        error: data?.error?.message || 'Stripe rechazó la solicitud.',
-      }, { status: 502 });
+      return Response.json({ error: data?.error?.message || 'Stripe rechazó la solicitud.' }, { status: 502 });
     }
-
     return Response.json({ url: data.url });
   } catch (e) {
-    return Response.json({
-      error: `Error de conexión con Stripe: ${(e as Error).message}`
-    }, { status: 502 });
+    return Response.json({ error: `Error de conexión con Stripe: ${(e as Error).message}` }, { status: 502 });
   }
 }

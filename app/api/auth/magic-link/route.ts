@@ -165,10 +165,11 @@ export async function POST(req: NextRequest) {
       return Response.json({ ok: true, redirect: '/login' });
     }
 
-    // 4. Redirect: si tiene trial → directo a /app. Si no → /precios para pagar.
+    // 4. Redirect al hub /inicio: ahí ve sus dos cuadrados (ViralADN · TOPCUT),
+    //    desbloqueado lo que tenga (trial/pago) y bloqueado lo demás con CTA a pagar.
     return Response.json({
       ok: true,
-      redirect: codeMatch ? '/app' : '/precios',
+      redirect: '/inicio',
       userId: created.user?.id,
       trial: codeMatch ? { endsAt: trialEndsAt, durationMs: codeMatch.durationMs } : null,
     });
@@ -194,7 +195,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return Response.json({ ok: true, redirect: next || '/app' });
+    return Response.json({ ok: true, redirect: next || '/inicio' });
   }
 
   return Response.json({ error: 'Modo inválido.' }, { status: 400 });

@@ -165,6 +165,8 @@ export default function Topcut() {
   const [isDragging, setIsDragging] = useState(false);
   // Admin puede probar TOPCUT aunque no esté público (el resto ve la cuenta regresiva).
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // ¿Pagó TOPCUT (o combo / fundador)? — solo importa cuando TOPCUT ya está público.
+  const [topcutOk, setTopcutOk] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -173,13 +175,22 @@ export default function Topcut() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const procStartRef = useRef(0); // inicio del procesamiento (para el cronómetro)
 
-  // Si TOPCUT no está público, vemos si quien entra es admin (para dejarlo probar).
+  // Acceso a TOPCUT (admin + entitlement por producto).
+  //   • TOPCUT NO público → solo admin entra (el resto ve la cuenta regresiva).
+  //   • TOPCUT público    → admin o quien pagó TOPCUT/combo/fundador; el resto
+  //     va al hub /inicio (ahí ve el upsell).
   useEffect(() => {
-    if (TOPCUT_LIVE) { setIsAdmin(false); return; }
     let cancel = false;
-    fetch('/api/auth/is-admin', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : { isAdmin: false }))
-      .then(d => { if (!cancel) setIsAdmin(!!d.isAdmin); })
+    fetch('/api/access', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { admin: false, topcut: false, ok: false }))
+      .then(d => {
+        if (cancel) return;
+        setIsAdmin(!!d.admin);
+        setTopcutOk(!!d.topcut);
+        if (TOPCUT_LIVE && !d.admin && !d.topcut) {
+          window.location.href = d.ok ? '/inicio' : '/login?next=/editor';
+        }
+      })
       .catch(() => { if (!cancel) setIsAdmin(false); });
     return () => { cancel = true; };
   }, []);
@@ -588,9 +599,13 @@ export default function Topcut() {
     { icon: '🎵', label: 'Música', val: plan.music },
   ].filter((c) => c.val) : [];
 
-  // Mientras TOPCUT no esté lanzado, mostramos la cuenta regresiva.
-  // Público ve la cuenta regresiva; el admin (confirmado) puede entrar a probar.
-  if (!TOPCUT_LIVE && isAdmin !== true) return <ComingSoon />;
+  // Gate de acceso a TOPCUT:
+  //   • chequeando (isAdmin === null) → cuenta regresiva (loader neutro).
+  //   • admin → entra siempre.
+  //   • no admin: necesita que TOPCUT esté público Y haber pagado TOPCUT/combo.
+  //     (si no, el effect ya redirige al hub /inicio; acá mostramos la regresiva).
+  if (isAdmin === null) return <ComingSoon />;
+  if (!isAdmin && (!TOPCUT_LIVE || !topcutOk)) return <ComingSoon />;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>

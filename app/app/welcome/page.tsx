@@ -9,7 +9,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 //   2. Le preguntamos a Stripe si ese pago realmente quedó (payment_status='paid').
 //   3. Si está pago, marcamos profiles.subscription_status='active' nosotros
 //      mismos — sin esperar al webhook.
-//   4. Redirigimos a /app.
+//   4. Redirigimos al hub /inicio (ahí ve qué producto desbloqueó).
 //
 // Por qué hacemos esto en vez de depender solo del webhook:
 //   - El webhook puede no estar configurado (caso ahora).
@@ -213,6 +213,7 @@ export default async function Welcome({
     // Aun así dejamos pasar — el webhook puede arreglarlo después.
   }
 
-  // 5. Listo, mandalo a la app. ?session=new para que SessionGuard marque el tab.
-  redirect('/app?session=new');
+  // 5. Listo → al hub /inicio: ahí ve sus dos cuadrados con lo que desbloqueó
+  //    (ViralADN, TOPCUT o las dos según lo que pagó).
+  redirect('/inicio');
 }

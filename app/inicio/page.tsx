@@ -3,34 +3,14 @@
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { entitlementForCustomer } from '@/lib/entitlement';
+import { getAccess } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
-const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
-function isAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const e = email.toLowerCase().trim();
-  if (PERMANENT_OWNERS.includes(e)) return true;
-  return (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(e);
-}
-
 export default async function Inicio() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) redirect('/login?next=/inicio');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('stripe_customer_id, name')
-    .eq('email', user.email)
-    .maybeSingle();
-
-  const admin = isAdminEmail(user.email);
-  const ent = admin
-    ? { viraladn: true, topcut: true }
-    : await entitlementForCustomer(profile?.stripe_customer_id);
+  const { email, name, ent } = await getAccess();
+  if (!email) redirect('/login?next=/inicio');
+  const profile = { name };
 
   const cards = [
     {
