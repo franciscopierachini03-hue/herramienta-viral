@@ -51,21 +51,6 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
     setScenes((sc) => sc.map((s) => (s.id === id ? fn(s) : s)));
   }
 
-  async function auto(kind: "broll" | "zoom") {
-    try {
-      const r = await fetch(`/api/topcut/jobs/${jobId}/auto`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind }),
-      });
-      const d = await r.json();
-      const map = new Map<string, any>((d.edits || []).map((e: any) => [e.id, e]));
-      setScenes((sc) => sc.map((s) => {
-        const e = map.get(s.id); if (!e) return s;
-        if (kind === "zoom") return { ...s, zoom: true };
-        return { ...s, broll: { enabled: true, query: e.broll?.query || s.text.slice(0, 80) } };
-      }));
-    } catch { /* noop */ }
-  }
-
   async function applyAndRender() {
     setStatus("rendering"); setStage("queued"); setError(""); setResultUrl("");
     const edits = scenes.map((s) => ({ id: s.id, text: s.text, broll: s.broll, zoom: s.zoom }));
@@ -119,8 +104,6 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       {/* Barra de acciones */}
       <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 bg-black/40 backdrop-blur py-2 z-10">
         <span className="font-bold mr-auto">🎬 Escenas <span className="text-white/40 font-normal">({scenes.length})</span></span>
-        <button onClick={() => auto("broll")} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-white/10 hover:bg-white/20 disabled:opacity-40">✨ Auto B-rolls</button>
-        <button onClick={() => auto("zoom")} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm bg-white/10 hover:bg-white/20 disabled:opacity-40">✨ Auto Zooms</button>
         <button onClick={applyAndRender} disabled={busy} className="px-4 py-1.5 rounded-lg text-sm font-bold bg-gradient-to-r from-purple-500 to-pink-500 disabled:opacity-40">
           {busy ? "Renderizando…" : "Aplicar y renderizar"}
         </button>
