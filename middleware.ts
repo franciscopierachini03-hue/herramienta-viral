@@ -13,7 +13,9 @@ import { createServerClient } from '@supabase/ssr';
 // Protege /app, /editor, /guiones, /cuenta: requiere login + subscription_status
 // activo (o trial vigente). REQUIRE_AUTH=1 activa la protección.
 
-const CLOSED = process.env.PLATFORM_OPEN === '1' ? false : true;
+// 🚀 LANZADO — plataforma ABIERTA al público. Para volver a cerrarla (cuenta
+// regresiva /proximamente): setear PLATFORM_OPEN=0 en Vercel y redeploy.
+const CLOSED = process.env.PLATFORM_OPEN === '0';
 const REQUIRE_AUTH = process.env.REQUIRE_AUTH === '1';
 const ACTIVE_STATUSES = new Set(['active']);
 
