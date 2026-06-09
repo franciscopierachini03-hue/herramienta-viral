@@ -17,12 +17,14 @@ const ids = () => ({
 });
 
 // Mapea un price id → qué desbloquea.
+// Los que pagaban el viejo $47 (STRIPE_PRICE_MONTHLY) son "miembros fundadores":
+// su plan les da acceso a LAS DOS plataformas (lo mismo que el combo de $67).
 export function entitlementFromPriceId(priceId: string | null | undefined): Entitlement {
   const out = { viraladn: false, topcut: false };
   if (!priceId) return out;
   const p = ids();
-  if (priceId === p.combo) { out.viraladn = true; out.topcut = true; }
-  else if (priceId === p.viraladn || (p.legacy && priceId === p.legacy)) out.viraladn = true;
+  if (priceId === p.combo || (p.legacy && priceId === p.legacy)) { out.viraladn = true; out.topcut = true; }
+  else if (priceId === p.viraladn) out.viraladn = true;
   else if (priceId === p.topcut) out.topcut = true;
   return out;
 }
