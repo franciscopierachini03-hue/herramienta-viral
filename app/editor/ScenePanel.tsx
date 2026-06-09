@@ -16,8 +16,10 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
 export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUrl?: string }) {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [captions, setCaptions] = useState<Caption[]>([]);
+  const [hook, setHook] = useState<Caption | null>(null);
   const [subPos, setSubPos] = useState<"middle" | "low">("middle");
   const [activeCap, setActiveCap] = useState("");
+  const [activeHook, setActiveHook] = useState(false);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<"idle" | "rendering" | "done" | "error">("idle");
   const [stage, setStage] = useState("");
@@ -35,6 +37,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       const d = await r.json();
       setScenes(d.scenes || []);
       setCaptions(d.captions || []);
+      setHook(d.hook || null);
       setSubPos(d.subtitles?.position === "low" ? "low" : "middle");
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -43,6 +46,8 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   // Previo en vivo: el subtítulo activo según el tiempo del vídeo (mismos chunks que el render).
   function onTime() {
     const t = videoRef.current?.currentTime || 0;
+    if (hook && t >= hook.start && t < hook.end) { setActiveHook(true); setActiveCap(hook.text); return; }
+    setActiveHook(false);
     const c = captions.find((c) => t >= c.start && t < c.end);
     setActiveCap(c ? c.text : "");
   }
@@ -88,10 +93,12 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
             <video ref={videoRef} src={videoUrl} controls playsInline onTimeUpdate={onTime} className="w-full block" />
             {activeCap && (
               <div className="pointer-events-none absolute left-0 right-0 flex justify-center px-3"
-                style={{ top: `${subPos === "low" ? 72 : 52}%`, transform: "translateY(-50%)" }}>
-                {/* 3.2cqh = mismo % de la altura que el render (0.032·H) → tamaño fiel */}
-                <span className="font-extrabold text-white text-center leading-none whitespace-nowrap"
-                  style={{ fontSize: "3.2cqh", textShadow: "0 2px 6px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.85)" }}>
+                style={{ top: `${activeHook ? 48 : subPos === "low" ? 72 : 52}%`, transform: "translateY(-50%)" }}>
+                {/* gancho: 5.8cqh multilínea · resto: 3.2cqh 1 línea — mismos % que el render */}
+                <span className="font-extrabold text-white text-center"
+                  style={activeHook
+                    ? { fontSize: "5.8cqh", lineHeight: 1.12, letterSpacing: "-0.5px", maxWidth: "86%", textShadow: "0 3px 10px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.8)" }
+                    : { fontSize: "3.2cqh", lineHeight: 1, whiteSpace: "nowrap", textShadow: "0 2px 6px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.85)" }}>
                   {activeCap}
                 </span>
               </div>
