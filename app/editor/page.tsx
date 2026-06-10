@@ -49,7 +49,6 @@ import { useState, useRef, useEffect, useMemo, type PointerEvent as RPointerEven
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
-import ComingSoon from './ComingSoon';
 import ScenePanel from './ScenePanel';
 import { saveLocalVideo } from '@/lib/topcut-history';
 
@@ -163,10 +162,6 @@ export default function Topcut() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  // Admin puede probar TOPCUT aunque no esté público (el resto ve la cuenta regresiva).
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  // ¿Pagó TOPCUT (o combo / fundador)? — solo importa cuando TOPCUT ya está público.
-  const [topcutOk, setTopcutOk] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -174,26 +169,6 @@ export default function Topcut() {
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const procStartRef = useRef(0); // inicio del procesamiento (para el cronómetro)
-
-  // Acceso a TOPCUT (admin + entitlement por producto).
-  //   • TOPCUT NO público → solo admin entra (el resto ve la cuenta regresiva).
-  //   • TOPCUT público    → admin o quien pagó TOPCUT/combo/fundador; el resto
-  //     va al hub /inicio (ahí ve el upsell).
-  useEffect(() => {
-    let cancel = false;
-    fetch('/api/access', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : { admin: false, topcut: false, ok: false }))
-      .then(d => {
-        if (cancel) return;
-        setIsAdmin(!!d.admin);
-        setTopcutOk(!!d.topcut);
-        if (TOPCUT_LIVE && !d.admin && !d.topcut) {
-          window.location.href = d.ok ? '/inicio' : '/login?next=/editor';
-        }
-      })
-      .catch(() => { if (!cancel) setIsAdmin(false); });
-    return () => { cancel = true; };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -599,14 +574,9 @@ export default function Topcut() {
     { icon: '🎵', label: 'Música', val: plan.music },
   ].filter((c) => c.val) : [];
 
-  // Gate de acceso a TOPCUT:
-  //   • chequeando (isAdmin === null) → cuenta regresiva (loader neutro).
-  //   • admin → entra siempre.
-  //   • no admin: necesita que TOPCUT esté público Y haber pagado TOPCUT/combo.
-  //     (si no, el effect ya redirige al hub /inicio; acá mostramos la regresiva).
-  if (isAdmin === null) return <ComingSoon />;
-  if (!isAdmin && (!TOPCUT_LIVE || !topcutOk)) return <ComingSoon />;
-
+  // El acceso a TOPCUT lo gatea el layout server-side (app/editor/layout.tsx):
+  // admin o quien pagó TOPCUT/combo entra; al resto lo manda directo a /precios.
+  // Acá ya podemos renderizar el editor.
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
       <div className="px-6 pt-10 pb-2 max-w-6xl mx-auto w-full">
