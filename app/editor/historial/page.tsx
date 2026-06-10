@@ -9,6 +9,7 @@ import Link from 'next/link';
 import ProductNav from '../../_components/ProductNav';
 import SessionGuard from '../../_components/SessionGuard';
 import { getLocalVideos, removeLocalVideo } from '@/lib/topcut-history';
+import { getUserKey } from '@/lib/user-key';
 
 type V = {
   id: string;
@@ -34,35 +35,45 @@ function fmtDate(s: string): string {
 export default function Historial() {
   const [videos, setVideos] = useState<V[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [userKey, setUserKey] = useState('');
 
   useEffect(() => {
-    const local: V[] = getLocalVideos().map(v => ({
-      id: v.id, jobId: v.jobId, resultUrl: v.resultUrl, title: v.title,
-      context: v.context, duration: v.duration, created_at: v.created_at, isLocal: true,
-    }));
-    setVideos(local);
+    let cancel = false;
+    // Namespaceamos el historial local por usuario: una cuenta nunca ve los
+    // videos de otra que entró en el mismo navegador.
+    getUserKey().then(uk => {
+      if (cancel) return;
+      setUserKey(uk);
+      const local: V[] = getLocalVideos(uk).map(v => ({
+        id: v.id, jobId: v.jobId, resultUrl: v.resultUrl, title: v.title,
+        context: v.context, duration: v.duration, created_at: v.created_at, isLocal: true,
+      }));
+      setVideos(local);
 
-    // Intentar traer del server (si la tabla existe) y mergear sin duplicar.
-    fetch('/api/mis-videos', { cache: 'no-store' })
-      .then(r => r.json())
-      .then((d: { videos?: Array<{ id: string; job_id?: string | null; result_url: string; title?: string | null; context?: string | null; duration?: number | null; created_at: string }> }) => {
-        const server: V[] = (Array.isArray(d.videos) ? d.videos : []).map(s => ({
-          id: s.id, jobId: s.job_id || undefined, resultUrl: s.result_url, title: s.title,
-          context: s.context, duration: s.duration, created_at: s.created_at, isLocal: false,
-        }));
-        if (!server.length) return;
-        const seen = new Set(server.map(s => s.jobId || s.resultUrl));
-        const merged = [...server, ...local.filter(l => !seen.has(l.jobId || l.resultUrl))]
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setVideos(merged);
-      })
-      .catch(() => {});
+      // Traer del server (si la tabla existe; ya filtra por user_email) y mergear.
+      fetch('/api/mis-videos', { cache: 'no-store' })
+        .then(r => r.json())
+        .then((d: { videos?: Array<{ id: string; job_id?: string | null; result_url: string; title?: string | null; context?: string | null; duration?: number | null; created_at: string }> }) => {
+          if (cancel) return;
+          const server: V[] = (Array.isArray(d.videos) ? d.videos : []).map(s => ({
+            id: s.id, jobId: s.job_id || undefined, resultUrl: s.result_url, title: s.title,
+            context: s.context, duration: s.duration, created_at: s.created_at, isLocal: false,
+          }));
+          if (!server.length) return;
+          const seen = new Set(server.map(s => s.jobId || s.resultUrl));
+          const merged = [...server, ...local.filter(l => !seen.has(l.jobId || l.resultUrl))]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setVideos(merged);
+        })
+        .catch(() => {});
+    });
+    return () => { cancel = true; };
   }, []);
 
   async function del(v: V) {
     setVideos(list => (list || []).filter(x => x.id !== v.id));
     setConfirmId(null);
-    if (v.isLocal) removeLocalVideo(v.id);
+    if (v.isLocal) removeLocalVideo(userKey, v.id);
     else await fetch(`/api/mis-videos/${v.id}`, { method: 'DELETE' }).catch(() => {});
   }
 

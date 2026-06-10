@@ -51,6 +51,7 @@ import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ScenePanel from './ScenePanel';
 import { saveLocalVideo } from '@/lib/topcut-history';
+import { getUserKey } from '@/lib/user-key';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
@@ -507,7 +508,7 @@ export default function Topcut() {
         // base de datos. El POST al server es por si la tabla existe (futuro/sync).
         try {
           const kept = Math.round(segments.reduce((a, s) => a + (s.end - s.start), 0));
-          saveLocalVideo({ jobId: id, resultUrl: abs, context, duration: kept });
+          getUserKey().then(uk => saveLocalVideo(uk, { jobId: id, resultUrl: abs, context, duration: kept }));
           fetch('/api/mis-videos', {
             method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ jobId: id, resultUrl: abs, context, duration: kept }),
