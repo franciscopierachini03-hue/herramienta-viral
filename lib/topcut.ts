@@ -15,8 +15,14 @@
 
 import { createHmac } from 'crypto';
 import { createClient } from '@/lib/supabase/server';
+import { entitlementForCustomer } from '@/lib/entitlement';
 
 const TICKET_TTL_SEC = 30 * 60; // 30 min: alcanza para una sesión de edición
+
+// Cache corto del entitlement por email: el render hace POLLING (cada ~2-3s),
+// no queremos pegarle a Stripe en cada poll. 60s es suficiente.
+const _entCache = new Map<string, { topcut: boolean; t: number }>();
+const ENT_CACHE_MS = 60 * 1000;
 
 // Owner permanente + admins: siempre pueden probar TOPCUT aunque no tengan
 // suscripción de pago (mismo criterio que /api/auth/is-admin).
@@ -42,8 +48,9 @@ export function mintTicket(sub: string): { token: string; exp: number } {
   return { token: `${body}.${sig}`, exp };
 }
 
-// Gate: ¿el que llama puede usar TOPCUT? (logueado + suscripción activa/trial,
-// o admin). Devuelve el email o null. Espeja la lógica del middleware.
+// Gate: ¿el que llama puede usar TOPCUT? Exige entitlement de TOPCUT
+// (TOPCUT / combo / fundador) o admin — NO cualquier suscripción. Así un
+// cliente de solo-ViralADN ($27) no puede renderizar. Devuelve el email o null.
 export async function requireTopcutUser(): Promise<{ email: string } | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -55,15 +62,17 @@ export async function requireTopcutUser(): Promise<{ email: string } | null> {
   if (!email) return null;
   if (isAdminEmail(email)) return { email };
 
+  // Cache corto para no consultar Stripe en cada poll del render.
+  const hit = _entCache.get(email);
+  if (hit && Date.now() - hit.t < ENT_CACHE_MS) return hit.topcut ? { email } : null;
+
   const { data: profile } = await supabase
     .from('profiles')
-    .select('subscription_status, trial_ends_at')
+    .select('stripe_customer_id')
     .eq('email', email)
     .maybeSingle();
 
-  const status = profile?.subscription_status ?? 'pending';
-  const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
-  const trialActive = !!trialEndsAt && trialEndsAt.getTime() > Date.now();
-  const ok = status === 'active' || (status === 'trialing' && trialActive);
-  return ok ? { email } : null;
+  const ent = await entitlementForCustomer(profile?.stripe_customer_id);
+  _entCache.set(email, { topcut: ent.topcut, t: Date.now() });
+  return ent.topcut ? { email } : null;
 }
