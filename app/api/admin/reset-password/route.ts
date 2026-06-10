@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
   }
   if (!userId) return Response.json({ error: `No encontré ningún usuario con el email ${targetEmail}.` }, { status: 404 });
 
-  const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password: String(newPassword) });
+  // password + email_confirm: muchos que "no pueden entrar" tienen el email sin
+  // confirmar (nunca lo verificaron). Al resetear desde admin, lo confirmamos.
+  const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password: String(newPassword), email_confirm: true });
   if (updErr) {
     console.error('[admin/reset-password]', updErr);
     return Response.json({ error: 'No pudimos cambiar la contraseña.' }, { status: 500 });
