@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import FoundersCounter from './_components/FoundersCounter';
 
 const FEATURES = [
   { icon: '⚡', title: 'Transcripción instantánea', desc: 'Pegá el link de cualquier video y obtené el guión en segundos. YouTube, TikTok e Instagram.' },
@@ -56,7 +55,7 @@ const TESTIMONIALS = [
     avatar: 'BS',
     color: '#f59e0b',
     niche: 'Finanzas · 213K seguidores',
-    text: 'Vale 10 veces lo que cobra. La biblioteca de guiones que armé en un mes me sirvió para 3 lanzamientos distintos. Pagar $47 cuando vale $397 me sigue pareciendo una locura, pero no me voy a quejar.',
+    text: 'Vale 10 veces lo que cobra. La biblioteca de guiones que armé en un mes me sirvió para 3 lanzamientos distintos. El precio me sigue pareciendo una ganga para lo que da, pero no me voy a quejar.',
   },
   {
     name: 'Lucía Beltrán',
@@ -120,7 +119,7 @@ export default function Landing() {
           <Link href="/precios"
             className="px-7 py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 30px #7c3aed44' }}>
-            Empezar por $47/mes <span className="line-through opacity-60 ml-1">$397</span> →
+            Empezar · desde $27/mes →
           </Link>
           <Link href="#features"
             className="px-7 py-3.5 rounded-2xl text-sm font-semibold transition-colors"
@@ -129,7 +128,7 @@ export default function Landing() {
           </Link>
         </div>
         <p className="text-xs mt-4" style={{ color: '#555' }}>
-          Acceso inmediato · Cancelá cuando quieras · 20% off pagando anual
+          Acceso inmediato · Cancelá cuando quieras
         </p>
 
         {/* Demo preview */}
@@ -317,38 +316,27 @@ export default function Landing() {
 
       {/* PRICING TEASER */}
       <section className="px-6 py-20 max-w-3xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">Un precio. Acceso total.</h2>
-        <p className="text-sm mb-10" style={{ color: '#666' }}>Sin tiers confusos. Sin features escondidas. Todo desbloqueado.</p>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3">Elegí tu herramienta.</h2>
+        <p className="text-sm mb-10" style={{ color: '#666' }}>Buscá lo viral, editá con IA, o llevate las dos. Cancelás cuando quieras.</p>
 
         <div className="rounded-3xl p-8 max-w-md mx-auto" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44', boxShadow: '0 0 40px #7c3aed22' }}>
           {/* Contador de cupos arriba */}
-          <div className="flex justify-center mb-4">
-            <FoundersCounter variant="pill" />
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <p className="text-sm" style={{ color: '#a78bfa' }}>Elegí tu plan</p>
           </div>
 
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <p className="text-sm" style={{ color: '#a78bfa' }}>ViralADN Pro</p>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
-              style={{ background: '#22c55e22', border: '1px solid #22c55e55', color: '#4ade80' }}>
-              -88% lanzamiento
-            </span>
-          </div>
-
-          <div className="flex items-baseline justify-center gap-2 mb-0.5" style={{ color: '#555' }}>
-            <span className="text-base line-through">$397</span>
-            <span className="text-xs">/mes</span>
-          </div>
           <div className="flex items-baseline justify-center gap-2 mb-1">
-            <span className="text-6xl font-bold">$47</span>
+            <span className="text-sm" style={{ color: '#888' }}>desde</span>
+            <span className="text-6xl font-bold">$27</span>
             <span className="text-sm" style={{ color: '#888' }}>/mes</span>
           </div>
-          <p className="text-xs mb-6" style={{ color: '#22c55e' }}>
-            🎉 Te ahorrás $350 cada mes · <span style={{ color: '#666' }}>o $470 al año</span>
+          <p className="text-xs mb-6" style={{ color: '#999' }}>
+            ViralADN <b style={{ color: '#ccc' }}>$27</b> · TOPCUT <b style={{ color: '#ccc' }}>$57</b> · las dos <b style={{ color: '#ccc' }}>$67</b> — cancelás cuando quieras
           </p>
 
           <Link href="/precios" className="block w-full py-3.5 rounded-2xl text-sm font-bold transition-all"
             style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
-            Empezar ahora →
+            Ver los planes →
           </Link>
         </div>
       </section>
