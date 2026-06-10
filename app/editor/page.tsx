@@ -55,9 +55,9 @@ import { saveLocalVideo } from '@/lib/topcut-history';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
-// TOPCUT en "muy pronto": mientras esto no sea '1', /editor muestra la cuenta
-// regresiva (ComingSoon) en vez del editor. Para lanzar: NEXT_PUBLIC_TOPCUT_LIVE=1.
-const TOPCUT_LIVE = process.env.NEXT_PUBLIC_TOPCUT_LIVE === '1';
+// 🚀 TOPCUT LANZADO — el editor está público. Para volver a ocultarlo (mostrar
+// la cuenta regresiva ComingSoon): setear NEXT_PUBLIC_TOPCUT_LIVE=0 en Vercel.
+const TOPCUT_LIVE = process.env.NEXT_PUBLIC_TOPCUT_LIVE !== '0';
 
 // Las llamadas chicas (chat, render, poll) van por el proxy mismo-origen
 // /api/topcut/* (el token viaja del lado server). La subida del video va
