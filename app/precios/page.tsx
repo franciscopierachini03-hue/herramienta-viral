@@ -86,8 +86,8 @@ function PricingInner() {
   const focus = (params.get('producto') as Producto) || null;
 
   const [loading, setLoading] = useState<string | null>(null);
-  // Ciclo (mensual/anual) por producto. Cada card con precio anual muestra el toggle.
-  const [ciclos, setCiclos] = useState<Record<Producto, Ciclo>>({ viraladn: 'monthly', topcut: 'monthly', combo: 'monthly' });
+  // Ciclo global: un solo toggle arriba cambia las 3 tarjetas a la vez.
+  const [ciclo, setCiclo] = useState<Ciclo>('monthly');
 
   // Resetear loading si el usuario vuelve con "atrás" (bfcache congela el estado).
   useEffect(() => {
@@ -127,19 +127,19 @@ function PricingInner() {
       key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encontrá el contenido que explota.',
       grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
       monthly: { price: '$27', period: '/mes' },
-      yearly: { price: '$270', period: '/año', note: '🎉 2 meses gratis · ahorrás $54/año' },
+      yearly: { price: '$270', period: '/año', note: '🎉 ahorrás $54/año' },
     },
     {
       key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Editá tus videos solo con IA.',
       grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$57', period: '/mes' },
-      yearly: { price: '$570', period: '/año', note: '🎉 2 meses gratis · ahorrás $114/año' },
+      yearly: { price: '$570', period: '/año', note: '🎉 ahorrás $114/año' },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$67', period: '/mes' },
-      yearly: { price: '$670', period: '/año', note: '🎉 2 meses gratis · ahorrás $134/año' },
+      yearly: { price: '$670', period: '/año', note: '🎉 ahorrás $134/año' },
       badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
@@ -167,13 +167,27 @@ function PricingInner() {
         <p className="text-base" style={{ color: '#888' }}>Buscá lo viral, editá con IA, o llevate las dos. Cancelás cuando quieras.</p>
       </section>
 
+      {/* TOGGLE GLOBAL Mensual / Anual — cambia las 3 tarjetas a la vez */}
+      <div className="flex items-center justify-center gap-3 mb-9 px-6">
+        <span className="text-sm font-semibold transition-colors" style={{ color: ciclo === 'monthly' ? '#fff' : '#777' }}>Mensual</span>
+        <button role="switch" aria-checked={ciclo === 'yearly'} aria-label="Cambiar entre pago mensual y anual"
+          onClick={() => setCiclo(prev => (prev === 'monthly' ? 'yearly' : 'monthly'))}
+          className="relative w-[52px] h-7 rounded-full transition-all shrink-0"
+          style={{ background: ciclo === 'yearly' ? 'linear-gradient(135deg, #a855f7, #ec4899)' : '#2b2b2b' }}>
+          <span className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"
+            style={{ transform: ciclo === 'yearly' ? 'translateX(24px)' : 'translateX(0)' }} />
+        </button>
+        <span className="text-sm font-semibold transition-colors" style={{ color: ciclo === 'yearly' ? '#fff' : '#777' }}>Anual</span>
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide"
+          style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>−20%</span>
+      </div>
+
       {/* 3 CARDS */}
       <section className="px-6 pb-12 max-w-5xl mx-auto">
         <div className="grid md:grid-cols-3 gap-5 items-start">
           {cards.map(c => {
             const focused = focus === c.key;
             const isCombo = c.key === 'combo';
-            const ciclo = ciclos[c.key];
             const plan = c.yearly && ciclo === 'yearly' ? c.yearly : c.monthly;
             const loadKey = `${c.key}-${ciclo}`;
             return (
@@ -195,21 +209,6 @@ function PricingInner() {
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: c.grad, boxShadow: `0 0 24px ${c.ring}44` }}>{c.icon}</div>
                 <h2 className="text-xl font-bold mb-0.5">{c.name}</h2>
                 <p className="text-sm mb-4" style={{ color: '#999' }}>{c.tagline}</p>
-
-                {/* Toggle mensual/anual: en toda card que tenga precio anual */}
-                {c.yearly && (
-                  <div className="flex gap-1 p-1 rounded-xl mb-3 text-xs font-semibold" style={{ background: '#0c0c0c', border: '1px solid #222' }}>
-                    {(['monthly', 'yearly'] as Ciclo[]).map(ci => (
-                      <button key={ci} onClick={() => setCiclos(prev => ({ ...prev, [c.key]: ci }))}
-                        className="flex-1 py-1.5 rounded-lg transition-all"
-                        style={ciclo === ci
-                          ? { background: c.grad, color: '#fff' }
-                          : { background: 'transparent', color: '#888' }}>
-                        {ci === 'monthly' ? 'Mensual' : 'Anual'}
-                      </button>
-                    ))}
-                  </div>
-                )}
 
                 <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-5xl font-bold">{plan.price}</span>
