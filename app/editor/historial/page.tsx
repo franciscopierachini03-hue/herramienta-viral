@@ -122,16 +122,23 @@ export default function Historial() {
                     <span>{fmtDate(v.created_at)}</span>
                     {fmtDur(v.duration) && <span>· {fmtDur(v.duration)}</span>}
                   </div>
-                  <div className="flex gap-2 mt-auto pt-1">
-                    <a href={v.resultUrl} download className="flex-1 text-center py-2 rounded-xl text-xs font-bold"
-                      style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>⬇️ Descargar</a>
-                    {confirmId === v.id ? (
-                      <button onClick={() => del(v)} className="px-3 py-2 rounded-xl text-xs font-bold"
-                        style={{ background: '#5c1414', border: '1px solid #7f1d1d', color: '#fca5a5' }}>¿Seguro?</button>
-                    ) : (
-                      <button onClick={() => setConfirmId(v.id)} className="px-3 py-2 rounded-xl text-xs font-bold"
-                        style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#f87171' }}>🗑️</button>
+                  <div className="flex flex-col gap-2 mt-auto pt-1">
+                    {v.jobId && (
+                      <Link href={`/editor?job=${encodeURIComponent(v.jobId)}`}
+                        className="w-full text-center py-2 rounded-xl text-xs font-bold"
+                        style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✏️ Hacer cambios</Link>
                     )}
+                    <div className="flex gap-2">
+                      <a href={v.resultUrl} download className="flex-1 text-center py-2 rounded-xl text-xs font-bold"
+                        style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#ddd' }}>⬇️ Descargar</a>
+                      {confirmId === v.id ? (
+                        <button onClick={() => del(v)} className="px-3 py-2 rounded-xl text-xs font-bold"
+                          style={{ background: '#5c1414', border: '1px solid #7f1d1d', color: '#fca5a5' }}>¿Seguro?</button>
+                      ) : (
+                        <button onClick={() => setConfirmId(v.id)} className="px-3 py-2 rounded-xl text-xs font-bold"
+                          style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#f87171' }}>🗑️</button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

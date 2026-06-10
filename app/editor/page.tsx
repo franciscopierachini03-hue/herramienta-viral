@@ -78,6 +78,7 @@ type Step =
   | 'planning'   // generando el previo (POST /api/plan)
   | 'studio'     // previo (storyboard) + chat
   | 'rendering'  // render + poll
+  | 'loading'    // cargando un video del historial para re-editarlo
   | 'done'
   | 'error';
 
@@ -134,7 +135,9 @@ function brollLabel(p: Plan): string | undefined {
 function r3(n: number) { return Math.round(n * 1000) / 1000; }
 
 export default function Topcut() {
-  const [step, setStep] = useState<Step>('upload');
+  const [step, setStep] = useState<Step>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('job') ? 'loading' : 'upload',
+  );
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
   const [duration, setDuration] = useState(0);
@@ -170,6 +173,24 @@ export default function Topcut() {
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const procStartRef = useRef(0); // inicio del procesamiento (para el cronómetro)
+
+  // Re-editar desde el historial: /editor?job=<jobId> → carga ese job en "done"
+  // con el chat de cambios. Si el backend ya no tiene el job, avisa.
+  useEffect(() => {
+    const jobId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('job') : null;
+    if (!jobId) return;
+    let cancel = false;
+    fetch(`/api/topcut/jobs/${jobId}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancel) return;
+        const res = j && typeof j.result === 'string' ? (j.result.startsWith('http') ? j.result : `${API}${j.result}`) : '';
+        if (res) { setPlanId(jobId); setResultUrl(res); setStep('done'); }
+        else { setStep('error'); setError('Este video ya no se puede editar (pasó el tiempo). Editá uno nuevo.'); }
+      })
+      .catch(() => { if (!cancel) { setStep('error'); setError('No pude cargar el video para editarlo.'); } });
+    return () => { cancel = true; };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -618,6 +639,15 @@ export default function Topcut() {
         )}
 
         {/* ── 1. UPLOAD ───────────────────────────────── */}
+        {step === 'loading' && (
+          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto"
+              style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>🎬</div>
+            <h3 className="text-lg font-bold mb-1">Cargando tu video…</h3>
+            <p className="text-sm" style={{ color: '#888' }}>Lo abrimos para que le pidas cambios.</p>
+          </div>
+        )}
+
         {step === 'upload' && (
           <>
             <div className="text-center mb-8">
