@@ -86,7 +86,8 @@ function PricingInner() {
   const focus = (params.get('producto') as Producto) || null;
 
   const [loading, setLoading] = useState<string | null>(null);
-  const [comboCiclo, setComboCiclo] = useState<Ciclo>('monthly');
+  // Ciclo (mensual/anual) por producto. Cada card con precio anual muestra el toggle.
+  const [ciclos, setCiclos] = useState<Record<Producto, Ciclo>>({ viraladn: 'monthly', topcut: 'monthly', combo: 'monthly' });
 
   // Resetear loading si el usuario vuelve con "atrás" (bfcache congela el estado).
   useEffect(() => {
@@ -96,7 +97,7 @@ function PricingInner() {
   }, []);
 
   async function handleCheckout(producto: Producto, ciclo: Ciclo = 'monthly') {
-    const key = producto === 'combo' ? `combo-${ciclo}` : producto;
+    const key = `${producto}-${ciclo}`;
     setLoading(key);
     try {
       const res = await fetch('/api/checkout', {
@@ -117,21 +118,27 @@ function PricingInner() {
 
   const cards: {
     key: Producto; icon: string; name: string; tagline: string;
-    price: string; period: string; grad: string; ring: string;
+    grad: string; ring: string;
+    monthly: { price: string; period: string };
+    yearly?: { price: string; period: string; note: string };
     badge?: string; badgeBg?: string; badgeColor?: string;
   }[] = [
     {
       key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encontrá el contenido que explota.',
-      price: '$27', period: '/mes', grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
+      grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
+      monthly: { price: '$27', period: '/mes' },
+      yearly: { price: '$270', period: '/año', note: '🎉 2 meses gratis vs pagar mensual' },
     },
     {
       key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Editá tus videos solo con IA.',
-      price: '$57', period: '/mes', grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
+      grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
+      monthly: { price: '$57', period: '/mes' },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
-      price: comboCiclo === 'yearly' ? '$670' : '$67', period: comboCiclo === 'yearly' ? '/año' : '/mes',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
+      monthly: { price: '$67', period: '/mes' },
+      yearly: { price: '$670', period: '/año', note: '🎉 2 meses gratis vs pagar mensual' },
       badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
@@ -165,7 +172,9 @@ function PricingInner() {
           {cards.map(c => {
             const focused = focus === c.key;
             const isCombo = c.key === 'combo';
-            const loadKey = isCombo ? `combo-${comboCiclo}` : c.key;
+            const ciclo = ciclos[c.key];
+            const plan = c.yearly && ciclo === 'yearly' ? c.yearly : c.monthly;
+            const loadKey = `${c.key}-${ciclo}`;
             return (
               <div key={c.key} className="rounded-3xl p-7 relative flex flex-col"
                 style={{
@@ -186,14 +195,14 @@ function PricingInner() {
                 <h2 className="text-xl font-bold mb-0.5">{c.name}</h2>
                 <p className="text-sm mb-4" style={{ color: '#999' }}>{c.tagline}</p>
 
-                {/* Toggle mensual/anual SOLO para el combo */}
-                {isCombo && (
+                {/* Toggle mensual/anual: en toda card que tenga precio anual */}
+                {c.yearly && (
                   <div className="flex gap-1 p-1 rounded-xl mb-3 text-xs font-semibold" style={{ background: '#0c0c0c', border: '1px solid #222' }}>
                     {(['monthly', 'yearly'] as Ciclo[]).map(ci => (
-                      <button key={ci} onClick={() => setComboCiclo(ci)}
+                      <button key={ci} onClick={() => setCiclos(prev => ({ ...prev, [c.key]: ci }))}
                         className="flex-1 py-1.5 rounded-lg transition-all"
-                        style={comboCiclo === ci
-                          ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }
+                        style={ciclo === ci
+                          ? { background: c.grad, color: '#fff' }
                           : { background: 'transparent', color: '#888' }}>
                         {ci === 'monthly' ? 'Mensual' : 'Anual'}
                       </button>
@@ -202,11 +211,11 @@ function PricingInner() {
                 )}
 
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-5xl font-bold">{c.price}</span>
-                  <span className="text-sm" style={{ color: '#888' }}>{c.period}</span>
+                  <span className="text-5xl font-bold">{plan.price}</span>
+                  <span className="text-sm" style={{ color: '#888' }}>{plan.period}</span>
                 </div>
-                {isCombo && comboCiclo === 'yearly'
-                  ? <p className="text-xs mb-5" style={{ color: '#22c55e' }}>🎉 2 meses gratis vs pagar mensual</p>
+                {c.yearly && ciclo === 'yearly'
+                  ? <p className="text-xs mb-5" style={{ color: '#22c55e' }}>{c.yearly.note}</p>
                   : <p className="text-xs mb-5" style={{ color: '#666' }}>cancelás cuando quieras</p>}
 
                 <ul className="flex flex-col gap-2.5 mb-6 flex-1">
@@ -219,11 +228,11 @@ function PricingInner() {
                 </ul>
 
                 <button
-                  onClick={() => handleCheckout(c.key, isCombo ? comboCiclo : 'monthly')}
+                  onClick={() => handleCheckout(c.key, ciclo)}
                   disabled={loading !== null}
                   className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
                   style={{ background: c.grad, color: '#fff', boxShadow: `0 0 24px ${c.ring}44` }}>
-                  {loading === loadKey ? 'Redirigiendo...' : `Empezar · ${c.price}${c.period}`}
+                  {loading === loadKey ? 'Redirigiendo...' : `Empezar · ${plan.price}${plan.period}`}
                 </button>
                 <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Pago seguro con Stripe</p>
               </div>
