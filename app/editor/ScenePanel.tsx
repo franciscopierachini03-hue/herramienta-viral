@@ -17,6 +17,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [hook, setHook] = useState<Caption | null>(null);
+  const [hookText, setHookText] = useState("");
   const [subPos, setSubPos] = useState<"middle" | "low">("middle");
   const [activeCap, setActiveCap] = useState("");
   const [activeHook, setActiveHook] = useState(false);
@@ -38,6 +39,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setScenes(d.scenes || []);
       setCaptions(d.captions || []);
       setHook(d.hook || null);
+      setHookText(d.hookText || d.hook?.text || "");
       setSubPos(d.subtitles?.position === "low" ? "low" : "middle");
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -61,7 +63,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
     const edits = scenes.map((s) => ({ id: s.id, text: s.text, broll: s.broll, zoom: s.zoom }));
     try {
       const r = await fetch(`/api/topcut/jobs/${jobId}/scenes`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits }),
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits, hookText }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Error (${r.status})`); }
       poll();
@@ -107,6 +109,18 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
           <p className="text-center text-[11px] text-white/40 mt-1">Previo en vivo — así saldrán los subtítulos (1 línea, centrados). No gasta render.</p>
         </div>
       )}
+
+      {/* TITULAR / GANCHO INICIAL editable (se ve grande al inicio del vídeo) */}
+      <div className="mb-4 rounded-xl border border-white/10 p-3 bg-white/[0.03]">
+        <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">🎬 Titular / Gancho inicial</div>
+        <input
+          value={hookText}
+          onChange={(e) => { setHookText(e.target.value); setHook((h) => (h ? { ...h, text: e.target.value } : h)); }}
+          placeholder="Frase de apertura grande…"
+          className="w-full bg-black/30 rounded-md px-3 py-2 text-sm font-semibold border border-white/10 focus:border-purple-400 outline-none"
+        />
+        <p className="text-[11px] text-white/40 mt-1">Sale grande los primeros segundos. Vacío = usa la primera frase del vídeo. (Míralo en el previo de arriba.)</p>
+      </div>
 
       {/* Barra de acciones */}
       <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 bg-black/40 backdrop-blur py-2 z-10">
