@@ -120,26 +120,26 @@ function PricingInner() {
     key: Producto; icon: string; name: string; tagline: string;
     grad: string; ring: string;
     monthly: { price: string; period: string };
-    yearly?: { price: string; period: string; note: string };
+    yearly?: { price: string; period: string; note: string; was: string };
     badge?: string; badgeBg?: string; badgeColor?: string;
   }[] = [
     {
       key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encontrá el contenido que explota.',
       grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
       monthly: { price: '$27', period: '/mes' },
-      yearly: { price: '$270', period: '/año', note: '🎉 ahorrás $54/año' },
+      yearly: { price: '$270', period: '/año', was: '$324', note: '🎉 ahorrás $54/año' },
     },
     {
       key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Editá tus videos solo con IA.',
       grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$57', period: '/mes' },
-      yearly: { price: '$570', period: '/año', note: '🎉 ahorrás $114/año' },
+      yearly: { price: '$570', period: '/año', was: '$684', note: '🎉 ahorrás $114/año' },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$67', period: '/mes' },
-      yearly: { price: '$670', period: '/año', note: '🎉 ahorrás $134/año' },
+      yearly: { price: '$670', period: '/año', was: '$804', note: '🎉 ahorrás $134/año' },
       badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
@@ -210,6 +210,12 @@ function PricingInner() {
                 <h2 className="text-xl font-bold mb-0.5">{c.name}</h2>
                 <p className="text-sm mb-4" style={{ color: '#999' }}>{c.tagline}</p>
 
+                {ciclo === 'yearly' && c.yearly && (
+                  <div className="flex items-baseline gap-1 mb-0.5" style={{ color: '#555' }}>
+                    <span className="text-lg line-through">{c.yearly.was}</span>
+                    <span className="text-xs">/año</span>
+                  </div>
+                )}
                 <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-5xl font-bold">{plan.price}</span>
                   <span className="text-sm" style={{ color: '#888' }}>{plan.period}</span>
