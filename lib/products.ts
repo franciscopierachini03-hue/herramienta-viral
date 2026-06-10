@@ -17,11 +17,11 @@ export const PRODUCT_IDS: Record<ProductKey, string> = {
   combo: 'prod_UfsmQSVdUE3OTu',    // "ViralADN ✕ TOPCUT — Combo"
 };
 
-// Montos esperados, en centavos (USD). Anual = 20% off del total de 12 meses.
+// Montos esperados, en centavos (USD). Anual = 2 meses gratis (pagás 10 de 12).
 export const PLAN_AMOUNTS: Record<ProductKey, Partial<Record<Ciclo, number>>> = {
-  viraladn: { monthly: 2700, yearly: 25900 }, // $27/mes · $259/año (−20%)  (NO el $47/$470 fundador)
-  topcut: { monthly: 5700, yearly: 54700 },   // $57/mes · $547/año (−20%)
-  combo: { monthly: 6700, yearly: 64300 },    // $67/mes · $643/año (−20%)
+  viraladn: { monthly: 2700, yearly: 27000 }, // $27/mes · $270/año  (NO el $47/$470 fundador)
+  topcut: { monthly: 5700, yearly: 57000 },   // $57/mes · $570/año
+  combo: { monthly: 6700, yearly: 67000 },    // $67/mes · $670/año
 };
 
 // Planes FUNDADORES (viejo ViralADN único) → desbloquean LAS DOS plataformas.

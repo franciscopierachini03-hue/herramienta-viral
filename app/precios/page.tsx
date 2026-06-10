@@ -127,19 +127,19 @@ function PricingInner() {
       key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encontrá el contenido que explota.',
       grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
       monthly: { price: '$27', period: '/mes' },
-      yearly: { price: '$259', period: '/año', note: '🎉 −20% · ahorrás $65/año' },
+      yearly: { price: '$270', period: '/año', note: '🎉 2 meses gratis · ahorrás $54/año' },
     },
     {
       key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Editá tus videos solo con IA.',
       grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$57', period: '/mes' },
-      yearly: { price: '$547', period: '/año', note: '🎉 −20% · ahorrás $137/año' },
+      yearly: { price: '$570', period: '/año', note: '🎉 2 meses gratis · ahorrás $114/año' },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$67', period: '/mes' },
-      yearly: { price: '$643', period: '/año', note: '🎉 −20% · ahorrás $161/año' },
+      yearly: { price: '$670', period: '/año', note: '🎉 2 meses gratis · ahorrás $134/año' },
       badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
@@ -205,7 +205,7 @@ function PricingInner() {
                         style={ciclo === ci
                           ? { background: c.grad, color: '#fff' }
                           : { background: 'transparent', color: '#888' }}>
-                        {ci === 'monthly' ? 'Mensual' : 'Anual −20%'}
+                        {ci === 'monthly' ? 'Mensual' : 'Anual'}
                       </button>
                     ))}
                   </div>
