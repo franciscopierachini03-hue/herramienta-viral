@@ -6,6 +6,7 @@ import { getBillingOverview } from '@/lib/stripe-admin';
 import DailyRevenueChart from './DailyRevenueChart';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
+import AdminResetPassword from './AdminResetPassword';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -415,6 +416,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
 
         {/* Envío masivo de accesos Legacy */}
         <SendAccessPanel />
+
+        {/* Restablecer contraseña de un usuario */}
+        <div className="mb-6">
+          <AdminResetPassword />
+        </div>
 
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">

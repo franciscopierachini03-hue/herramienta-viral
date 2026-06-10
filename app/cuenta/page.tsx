@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import OpenPortalButton from './OpenPortalButton';
+import ChangePasswordForm from './ChangePasswordForm';
 
 // /cuenta — vista de la cuenta del usuario:
 // - Datos personales
@@ -169,9 +170,8 @@ export default async function Cuenta() {
               <div className="font-mono text-xs">{profile?.phone || '—'}</div>
             </div>
           </div>
-          <div className="mt-4 text-xs" style={{ color: '#555' }}>
-            ¿Querés cambiar tu contraseña?{' '}
-            <Link href="/login?reason=reset" className="underline">Pedí una nueva acá →</Link>
+          <div className="mt-5 pt-5" style={{ borderTop: '1px solid #1f1f1f' }}>
+            <ChangePasswordForm />
           </div>
         </div>
 
