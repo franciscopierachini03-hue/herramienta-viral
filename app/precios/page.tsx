@@ -88,6 +88,16 @@ function PricingInner() {
   const [loading, setLoading] = useState<string | null>(null);
   // Ciclo global: un solo toggle arriba cambia las 3 tarjetas a la vez.
   const [ciclo, setCiclo] = useState<Ciclo>('monthly');
+  // Acceso del usuario logueado → para marcar el plan que YA tiene (no "Empezar").
+  const [access, setAccess] = useState<{ ok: boolean; viraladn: boolean; topcut: boolean } | null>(null);
+  useEffect(() => {
+    let cancel = false;
+    fetch('/api/access', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancel && d) setAccess({ ok: !!d.ok, viraladn: !!d.viraladn, topcut: !!d.topcut }); })
+      .catch(() => {});
+    return () => { cancel = true; };
+  }, []);
 
   // Resetear loading si el usuario vuelve con "atrás" (bfcache congela el estado).
   useEffect(() => {
@@ -190,6 +200,12 @@ function PricingInner() {
             const isCombo = c.key === 'combo';
             const plan = c.yearly && ciclo === 'yearly' ? c.yearly : c.monthly;
             const loadKey = `${c.key}-${ciclo}`;
+            // ¿Qué tiene el usuario? 'current' = es su plan · 'included' = lo tiene
+            // incluido (el combo incluye ViralADN y TOPCUT) · 'available' = puede comprarlo.
+            const both = !!access?.viraladn && !!access?.topcut;
+            const owned = c.key === 'combo' ? both : c.key === 'viraladn' ? !!access?.viraladn : !!access?.topcut;
+            const status: 'current' | 'included' | 'available' =
+              !access?.ok || !owned ? 'available' : (c.key !== 'combo' && both) ? 'included' : 'current';
             return (
               <div key={c.key} className="rounded-3xl p-7 relative flex flex-col"
                 style={{
@@ -197,14 +213,19 @@ function PricingInner() {
                   border: `1px solid ${focused || isCombo ? c.ring + '88' : '#222'}`,
                   boxShadow: focused || isCombo ? `0 0 50px ${c.ring}33` : 'none',
                 }}>
-                {c.badge && (
+                {status === 'current' ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
+                    style={{ background: '#22c55e', color: '#04210f' }}>✓ Tu plan actual</div>
+                ) : status === 'included' ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
+                    style={{ background: '#16271c', border: '1px solid #22c55e55', color: '#86efac' }}>Incluido en tu plan</div>
+                ) : c.badge ? (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
                     style={{ background: c.badgeBg, color: c.badgeColor }}>{c.badge}</div>
-                )}
-                {focused && !c.badge && (
+                ) : focused ? (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
                     style={{ background: c.ring, color: '#fff' }}>← lo que buscás</div>
-                )}
+                ) : null}
 
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: c.grad, boxShadow: `0 0 24px ${c.ring}44` }}>{c.icon}</div>
                 <h2 className="text-xl font-bold mb-0.5">{c.name}</h2>
@@ -233,14 +254,35 @@ function PricingInner() {
                   ))}
                 </ul>
 
-                <button
-                  onClick={() => handleCheckout(c.key, ciclo)}
-                  disabled={loading !== null}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
-                  style={{ background: c.grad, color: '#fff', boxShadow: `0 0 24px ${c.ring}44` }}>
-                  {loading === loadKey ? 'Redirigiendo...' : `Empezar · ${plan.price}${plan.period}`}
-                </button>
-                <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Pago seguro con Stripe</p>
+                {status === 'available' ? (
+                  <>
+                    <button
+                      onClick={() => handleCheckout(c.key, ciclo)}
+                      disabled={loading !== null}
+                      className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
+                      style={{ background: c.grad, color: '#fff', boxShadow: `0 0 24px ${c.ring}44` }}>
+                      {loading === loadKey ? 'Redirigiendo...' : `Empezar · ${plan.price}${plan.period}`}
+                    </button>
+                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Pago seguro con Stripe</p>
+                  </>
+                ) : status === 'current' ? (
+                  <>
+                    <Link href="/cuenta"
+                      className="w-full py-3.5 rounded-2xl text-sm font-bold text-center block transition-all"
+                      style={{ background: '#0e2a1a', border: '1px solid #22c55e66', color: '#86efac' }}>
+                      ✓ Tu plan actual · gestionar
+                    </Link>
+                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Lo cambiás o cancelás en Mi cuenta</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-full py-3.5 rounded-2xl text-sm font-bold text-center"
+                      style={{ background: '#101010', border: '1px solid #222', color: '#666' }}>
+                      ✓ Incluido en tu plan
+                    </div>
+                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Ya lo tenés con tu combo</p>
+                  </>
+                )}
               </div>
             );
           })}
