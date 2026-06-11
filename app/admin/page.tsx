@@ -869,6 +869,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                         {paidAmt === null
                           ? '—'
                           : <>{fmtUSD(paidAmt)}{paidAmt === 0 && <span className="text-[9px] ml-1" style={{ color: '#c4b5fd' }}>gratis</span>}</>}
+                        {sub?.product && sub.product !== '—' && (
+                          <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#a78bfa' }}>{sub.product}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
                         {renew

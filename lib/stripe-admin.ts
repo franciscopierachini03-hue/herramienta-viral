@@ -12,13 +12,15 @@
 // En cambio, pedir las facturas de CADA suscripción ViralADN (?subscription=)
 // trae el 100% de las nuestras, sin importar el ruido de 2Clicks.
 
+import { PRODUCT_IDS } from '@/lib/products';
+
 export type StripeSubscription = {
   id: string;
   customer: string;
   status: string;          // 'active', 'past_due', 'canceled', 'trialing'
   current_period_end: number;
   cancel_at_period_end: boolean;
-  items: { data: Array<{ price: { id: string; unit_amount: number | null; currency: string; recurring: { interval: string } | null } }> };
+  items: { data: Array<{ price: { id: string; unit_amount: number | null; currency: string; product?: string; recurring: { interval: string } | null } }> };
   discount?: { coupon?: { id?: string; name?: string } } | null;
   discounts?: unknown[] | null;
   metadata?: Record<string, string>;
@@ -42,6 +44,7 @@ export type SubscriberRow = {
   email: string;
   status: string;           // active / trialing / past_due / canceled
   plan: string;             // 'Mensual' | 'Anual' | '—'
+  product: string;          // 'ViralADN' | 'TOPCUT' | 'Combo' | '—'
   amountThisCycle: number;  // USD que paga ESTE ciclo: 0 (mes gratis) / 47 / 470
   totalPaid: number;        // USD cobrados históricamente a esta persona
   renewal: string | null;   // ISO de la próxima renovación (current_period_end)
@@ -81,9 +84,29 @@ async function stripeGet<T = unknown>(path: string, params: Record<string, strin
   return res.json() as Promise<T>;
 }
 
-function viralPriceIds(): string[] {
-  return [process.env.STRIPE_PRICE_MONTHLY, process.env.STRIPE_PRICE_YEARLY]
-    .map(s => (s || '').trim()).filter(Boolean);
+// Todos los price ids de NUESTROS 3 productos (ViralADN, TOPCUT, Combo), sin
+// importar el monto — para contar TODAS nuestras suscripciones, no solo el viejo
+// $47/$470. Los productos ajenos de la cuenta (2Clicks, etc.) quedan afuera.
+async function ourPriceIds(): Promise<string[]> {
+  const ids = new Set<string>();
+  // Respaldo: price ids legacy por env (por si el producto fue archivado).
+  for (const e of [process.env.STRIPE_PRICE_MONTHLY, process.env.STRIPE_PRICE_YEARLY]) {
+    const v = (e || '').trim(); if (v) ids.add(v);
+  }
+  // Todos los precios de cada uno de nuestros productos.
+  for (const product of Object.values(PRODUCT_IDS)) {
+    const page = await stripeGet<{ data: Array<{ id: string }> }>('prices', { product, limit: 100 });
+    for (const p of page?.data || []) if (p.id) ids.add(p.id);
+  }
+  return [...ids];
+}
+
+// Nombre del producto a partir del id de producto del precio de la suscripción.
+function productLabel(productId?: string): string {
+  if (productId === PRODUCT_IDS.viraladn) return 'ViralADN';
+  if (productId === PRODUCT_IDS.topcut) return 'TOPCUT';
+  if (productId === PRODUCT_IDS.combo) return 'Combo';
+  return '—';
 }
 
 // Corre fn sobre items con concurrencia limitada (no saturar Stripe).
@@ -167,7 +190,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) return zero(false, 'STRIPE_SECRET_KEY no configurado');
 
   try {
-    const prices = viralPriceIds();
+    const prices = await ourPriceIds();
 
     // 1) Suscripciones ViralADN (por price id; respaldo metadata).
     let ourSubs: StripeSubscription[] = [];
@@ -233,6 +256,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
         email: emailByCustomer.get(s.customer) || '',
         status: s.status,
         plan: plan.label,
+        product: productLabel(s.items?.data?.[0]?.price?.product),
         amountThisCycle,
         totalPaid: usd(paidBySub.get(s.id) || 0),
         renewal: s.current_period_end ? new Date(s.current_period_end * 1000).toISOString() : null,
