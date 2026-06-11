@@ -278,7 +278,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // customer Stripe → fila del suscriptor (cuánto paga + renovación), para
   // mostrarlo en cada fila de la tabla de usuarios de abajo.
   const subByCustomer = new Map<string, (typeof billing.subscribers)[number]>();
-  for (const s of billing.subscribers) subByCustomer.set(s.customer, s);
+  const subByEmail = new Map<string, (typeof billing.subscribers)[number]>();
+  for (const s of billing.subscribers) {
+    subByCustomer.set(s.customer, s);
+    if (s.email) subByEmail.set(s.email.toLowerCase(), s);
+  }
 
   // ── Ingreso diario del mes seleccionado (gráfico de línea) ──
   const nowD = new Date();
@@ -830,12 +834,17 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                   const pill = statusPill(p);
                   const isCourtesy = (p.redeemed_code || '').toUpperCase().startsWith('COURTESY');
                   const inTrialMonth = isInTrialMonth(p);
-                  const sub = p.stripe_customer_id ? subByCustomer.get(p.stripe_customer_id) : undefined;
+                  // Cruzamos por customer_id; si el perfil no lo guardó, probamos
+                  // por EMAIL (así aparece el pago igual). Sin sub por ningún lado → sin pago.
+                  const sub = (p.stripe_customer_id ? subByCustomer.get(p.stripe_customer_id) : undefined)
+                    || (p.email ? subByEmail.get(p.email.toLowerCase()) : undefined);
                   const renew = sub?.renewal ? new Date(sub.renewal) : null;
                   const renewDays = renew ? Math.ceil((renew.getTime() - Date.now()) / 86400000) : null;
                   // Lo que pagó: $0 si está en mes de prueba (cupón cubrió la factura),
                   // si no el monto de su última factura. Sin sub → "—".
                   const paidAmt = inTrialMonth ? 0 : (sub ? sub.amountThisCycle : null);
+                  // 'active' sin pago vinculado en Stripe ni código → anomalía a revisar.
+                  const activeNoPay = !sub && !inTrialMonth && !p.redeemed_code && p.subscription_status === 'active';
                   return (
                     <tr key={p.email} style={{ borderBottom: '1px solid #141414' }}>
                       <td className="px-4 py-3" style={{ color: '#eee' }}>
@@ -865,9 +874,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                           {pill.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs font-bold" style={{ color: paidAmt === null ? '#444' : paidAmt === 0 ? '#a78bfa' : '#86efac' }}>
+                      <td className="px-4 py-3 text-xs font-bold" style={{ color: paidAmt === null ? (activeNoPay ? '#fbbf24' : '#444') : paidAmt === 0 ? '#a78bfa' : '#86efac' }}>
                         {paidAmt === null
-                          ? '—'
+                          ? (activeNoPay ? '⚠️ activo sin pago' : '—')
                           : <>{fmtUSD(paidAmt)}{paidAmt === 0 && <span className="text-[9px] ml-1" style={{ color: '#c4b5fd' }}>gratis</span>}</>}
                         {sub?.product && sub.product !== '—' && (
                           <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#a78bfa' }}>{sub.product}</div>
