@@ -1,5 +1,22 @@
 import { NextRequest } from 'next/server';
 
+// Análisis de historial COMPLETO: canales grandes requieren decenas de pedidos
+// paginados → puede tardar más que los 15s default de Vercel.
+export const maxDuration = 300;
+
+// Topes de seguridad por plataforma (no límites de producto):
+//   YouTube  : 5.000 videos — cuota oficial: un canal de 5k ≈ 200 unidades de
+//              las 10.000 diarias. Sin tope, un canal de 100k videos fundiría
+//              la cuota del día en UN análisis.
+//   TikTok   : 1.000 videos — TikWM (gratis) entrega de a 35 con ~1-2s por
+//              página; más profundo = lentísimo y suele cortar a mitad.
+//   Instagram: ~300 reels — el proveedor entrega 12 por pedido y cada página
+//              consume la cuota MENSUAL de RapidAPI (300 ≈ 25 pedidos/análisis).
+const YT_MAX = 5000;
+const TT_MAX = 1000;
+const IG_MAX = 300;
+const TIME_BUDGET_MS = 150_000; // corte de seguridad global por análisis
+
 function fmt(n: string | number | undefined): string {
   if (!n) return '0';
   const num = typeof n === 'string' ? parseInt(n) : n;
@@ -75,27 +92,33 @@ async function getVideoStats(ids: string[], apiKey: string) {
     thumbnail: string; url: string; platform: string;
   }> = {};
 
-  // Batch en grupos de 50
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50).join(',');
-    const res = await fetch(`${base}/videos?part=snippet,statistics&id=${batch}&key=${apiKey}`);
-    const data = await res.json();
-    for (const v of (data.items || [])) {
-      results[v.id] = {
-        title: v.snippet?.title || '',
-        channel: v.snippet?.channelTitle || '',
-        views:    fmt(v.statistics?.viewCount),
-        likes:    fmt(v.statistics?.likeCount),
-        comments: fmt(v.statistics?.commentCount),
-        viewsRaw:    parseInt(v.statistics?.viewCount    || '0'),
-        likesRaw:    parseInt(v.statistics?.likeCount    || '0'),
-        commentsRaw: parseInt(v.statistics?.commentCount || '0'),
-        thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '',
-        url: `https://www.youtube.com/watch?v=${v.id}`,
-        platform: 'youtube',
-      };
+  // Batch en grupos de 50, con concurrencia (un historial de 5.000 videos son
+  // 100 páginas — secuencial tardaría minutos; en paralelo, segundos).
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) batches.push(ids.slice(i, i + 50));
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(8, batches.length || 1) }, async () => {
+    while (next < batches.length) {
+      const batch = batches[next++].join(',');
+      const res = await fetch(`${base}/videos?part=snippet,statistics&id=${batch}&key=${apiKey}`);
+      const data = await res.json();
+      for (const v of (data.items || [])) {
+        results[v.id] = {
+          title: v.snippet?.title || '',
+          channel: v.snippet?.channelTitle || '',
+          views:    fmt(v.statistics?.viewCount),
+          likes:    fmt(v.statistics?.likeCount),
+          comments: fmt(v.statistics?.commentCount),
+          viewsRaw:    parseInt(v.statistics?.viewCount    || '0'),
+          likesRaw:    parseInt(v.statistics?.likeCount    || '0'),
+          commentsRaw: parseInt(v.statistics?.commentCount || '0'),
+          thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '',
+          url: `https://www.youtube.com/watch?v=${v.id}`,
+          platform: 'youtube',
+        };
+      }
     }
-  }
+  }));
 
   return results;
 }
@@ -114,8 +137,11 @@ async function analyzeTikTok(username: string, _rapidApiKey: string) {
     cover?: string;
   }> = [];
 
+  // Historial completo (tope TT_MAX). TikWM entrega de a 35; si el servicio
+  // gratuito corta a mitad de camino, devolvemos lo acumulado (best effort).
   let cursor = '0';
-  for (let page = 0; page < 4 && items.length < 100; page++) {
+  const t0 = Date.now();
+  for (let page = 0; page < 40 && items.length < TT_MAX && Date.now() - t0 < TIME_BUDGET_MS / 2; page++) {
     const res = await fetch(
       `https://www.tikwm.com/api/user/posts?unique_id=@${uid}&count=35&cursor=${cursor}`,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
@@ -126,6 +152,7 @@ async function analyzeTikTok(username: string, _rapidApiKey: string) {
     }
     const data = await res.json();
     const batch = data?.data?.videos || [];
+    if (!batch.length && page > 0) break;
     items.push(...batch);
     if (!data?.data?.hasMore || !data?.data?.cursor) break;
     cursor = String(data.data.cursor);
@@ -212,21 +239,27 @@ async function analyzeInstagram(username: string, rapidApiKey: string) {
     } catch (e) { errors.push(`looter2/profile: ${(e as Error).message}`); }
   }
 
-  // 1️⃣ instagram-looter2 /reels?id=<numérico> — primera opción
+  // 1️⃣ instagram-looter2 /reels?id=<numérico> — primera opción, PAGINADO.
+  //    El proveedor entrega ~12 por pedido (aunque pidas más): seguimos el
+  //    max_id hasta IG_MAX. Ojo: cada página gasta cuota mensual de RapidAPI.
   if (rapidApiKey && numericId) {
     try {
-      const res = await fetch(
-        `https://instagram-looter2.p.rapidapi.com/reels?id=${numericId}&count=100`,
-        { headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } }
-      );
-      const data = await res.json();
-      const isQuota = data?.message?.toLowerCase?.().match(/exceeded|quota|plan/);
-      if (!isQuota) {
+      const acc: IGItem[] = [];
+      let maxId = '';
+      const t0 = Date.now();
+      for (let page = 0; page < 30 && acc.length < IG_MAX && Date.now() - t0 < TIME_BUDGET_MS / 2; page++) {
+        const url = `https://instagram-looter2.p.rapidapi.com/reels?id=${numericId}&count=100${maxId ? `&max_id=${encodeURIComponent(maxId)}` : ''}`;
+        const res = await fetch(url, { headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } });
+        const data = await res.json();
+        if (data?.message?.toLowerCase?.().match(/exceeded|quota|plan/)) { errors.push('looter2: cupo agotado'); break; }
         const items = unwrap(data?.data?.items || data?.items || []);
-        if (items.length) return items.map(it => normalizeIGItem(it, uid)).sort((a, b) => b.viewsRaw - a.viewsRaw);
-      } else {
-        errors.push('looter2: cupo agotado');
+        if (!items.length) break;
+        acc.push(...items);
+        const pg = data?.paging_info || data?.data?.paging_info;
+        if (!pg?.more_available || !pg?.max_id) break;
+        maxId = String(pg.max_id);
       }
+      if (acc.length) return acc.map(it => normalizeIGItem(it, uid)).sort((a, b) => b.viewsRaw - a.viewsRaw);
     } catch (e) { errors.push(`looter2: ${(e as Error).message}`); }
   }
 
@@ -290,14 +323,14 @@ export async function POST(req: NextRequest) {
       const playlistId = channel.contentDetails?.relatedPlaylists?.uploads;
       if (!playlistId) return Response.json({ error: 'No se pudo obtener los videos del canal.' }, { status: 500 });
 
-      const videoIds = await getUploadVideoIds(playlistId, apiKey, 100);
+      const videoIds = await getUploadVideoIds(playlistId, apiKey, YT_MAX);
       const statsMap = await getVideoStats(videoIds, apiKey);
 
       const videos = videoIds
         .map(id => statsMap[id])
         .filter(Boolean)
         .sort((a, b) => b.viewsRaw - a.viewsRaw)
-        .slice(0, 100);
+        .slice(0, YT_MAX);
 
       return Response.json({
         channel: {

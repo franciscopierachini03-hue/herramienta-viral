@@ -455,7 +455,7 @@ export default function Home() {
   const [loadingA, setLoadingA] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [analyzeSort, setAnalyzeSort] = useState<'best' | 'viewsRaw' | 'likesRaw' | 'commentsRaw' | 'sharesRaw' | 'savesRaw' | 'engagement'>('best');
-  const [analyzeTopN, setAnalyzeTopN] = useState<10 | 25 | 50 | 100 | 0>(25); // 0 = todos
+  const [analyzeTopN, setAnalyzeTopN] = useState<10 | 25 | 50 | 100 | 250 | 0>(25); // 0 = todos
   const [analyzeMinViews, setAnalyzeMinViews] = useState<number>(0);
 
   async function analizarPerfil() {
@@ -1468,9 +1468,9 @@ export default function Home() {
           {!analyzeResult && !loadingA && !analyzeError && (
             <div className="flex gap-3 mb-8">
               {[
-                { color: '#FF0000', label: 'YouTube', note: 'Top 100 videos' },
-                { color: '#69C9D0', label: 'TikTok', note: 'Top 50 videos' },
-                { color: '#C13584', label: 'Instagram', note: 'Top 50 reels' },
+                { color: '#FF0000', label: 'YouTube', note: 'Historial completo' },
+                { color: '#69C9D0', label: 'TikTok', note: 'Hasta 1.000 videos' },
+                { color: '#C13584', label: 'Instagram', note: 'Últimos ~300 reels' },
               ].map((p, i) => (
                 <div key={i} className="flex-1 rounded-2xl p-4 text-center" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
                   <span className="w-2 h-2 rounded-full inline-block mb-2" style={{ background: p.color }}></span>
@@ -1623,6 +1623,7 @@ export default function Home() {
                         { n: 25,  label: 'Top 25' },
                         { n: 50,  label: 'Top 50' },
                         { n: 100, label: 'Top 100' },
+                        { n: 250, label: 'Top 250' },
                         { n: 0,   label: 'Todos' },
                       ].map(opt => (
                         <button key={opt.n}
