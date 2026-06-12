@@ -193,17 +193,36 @@ async function analyzeInstagram(username: string, rapidApiKey: string) {
   const uid = username.replace(/^@/, '');
   const errors: string[] = [];
 
-  // 1️⃣ instagram-looter2 — primera opción (la que está agotada hoy)
+  const unwrap = (raw: Array<{ media?: IGItem } | IGItem>): IGItem[] =>
+    raw.map(r => ('media' in r && r.media ? r.media : r as IGItem));
+
+  // 0️⃣ username → user id NUMÉRICO. El proveedor cambió: /reels ya no acepta
+  //    el link/username — pide el id numérico que devuelve /profile.
+  let numericId = '';
   if (rapidApiKey) {
     try {
       const res = await fetch(
-        `https://instagram-looter2.p.rapidapi.com/reels?link=https://www.instagram.com/${uid}/&count=100`,
+        `https://instagram-looter2.p.rapidapi.com/profile?username=${encodeURIComponent(uid)}`,
+        { headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } }
+      );
+      const data = await res.json();
+      if (data?.message?.toLowerCase?.().match(/exceeded|quota|plan/)) errors.push('looter2: cupo agotado');
+      numericId = String(data?.id || data?.pk || '');
+      if (!numericId && data?.status === false) errors.push(`looter2/profile: ${data?.errorMessage || 'perfil no encontrado'}`);
+    } catch (e) { errors.push(`looter2/profile: ${(e as Error).message}`); }
+  }
+
+  // 1️⃣ instagram-looter2 /reels?id=<numérico> — primera opción
+  if (rapidApiKey && numericId) {
+    try {
+      const res = await fetch(
+        `https://instagram-looter2.p.rapidapi.com/reels?id=${numericId}&count=100`,
         { headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } }
       );
       const data = await res.json();
       const isQuota = data?.message?.toLowerCase?.().match(/exceeded|quota|plan/);
       if (!isQuota) {
-        const items: IGItem[] = data?.data?.items || data?.items || data?.data || [];
+        const items = unwrap(data?.data?.items || data?.items || []);
         if (items.length) return items.map(it => normalizeIGItem(it, uid)).sort((a, b) => b.viewsRaw - a.viewsRaw);
       } else {
         errors.push('looter2: cupo agotado');
@@ -211,19 +230,17 @@ async function analyzeInstagram(username: string, rapidApiKey: string) {
     } catch (e) { errors.push(`looter2: ${(e as Error).message}`); }
   }
 
-  // 2️⃣ instagram-api-fast-reliable-data-scraper — fallback principal
-  if (rapidApiKey) {
+  // 2️⃣ instagram-api-fast-reliable-data-scraper — fallback (también pide user_id numérico)
+  if (rapidApiKey && numericId) {
     try {
       const res = await fetch(
-        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/reels?username_or_id=${uid}&count=100`,
+        `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/reels?user_id=${numericId}&count=100`,
         { headers: { 'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com', 'x-rapidapi-key': rapidApiKey } }
       );
       const data = await res.json();
       const isQuota = data?.message?.toLowerCase?.().match(/exceeded|quota|plan/);
       if (!isQuota) {
-        // Esta API anida en data.items[].media o similar
-        const raw: Array<{ media?: IGItem } | IGItem> = data?.data?.items || data?.items || [];
-        const items: IGItem[] = raw.map(r => ('media' in r && r.media ? r.media : r as IGItem));
+        const items = unwrap(data?.data?.items || data?.items || []);
         if (items.length) return items.map(it => normalizeIGItem(it, uid)).sort((a, b) => b.viewsRaw - a.viewsRaw);
       } else {
         errors.push('fast-reliable: cupo agotado');
