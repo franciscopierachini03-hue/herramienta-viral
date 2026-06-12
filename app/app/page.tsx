@@ -145,7 +145,7 @@ function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTrans
       onMouseLeave={e => (e.currentTarget.style.borderColor = '#222')}
     >
       {/* Thumbnail */}
-      <div className="relative w-full bg-gray-900 shrink-0" style={{ aspectRatio: '16/9' }}>
+      <div className="relative w-full bg-[#101019] shrink-0" style={{ aspectRatio: '16/9' }}>
         {v.thumbnail
           ? <img src={proxyThumb(v.thumbnail, v.platform || 'youtube')} alt="" className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center text-gray-700 text-4xl">{icon}</div>
@@ -193,7 +193,7 @@ function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTrans
             {v.title}
           </p>
         </a>
-        <p className="text-xs mb-3 truncate" style={{ color: '#555' }}>{v.channel}</p>
+        <p className="text-xs mb-3 truncate" style={{ color: '#a1a1aa' }}>{v.channel}</p>
         <button
           onClick={onTranscribir}
           className="mt-auto w-full py-2 text-xs font-semibold rounded-xl transition-all duration-200"
@@ -221,7 +221,7 @@ function VideoCardVertical({ v, rank, onTranscribir }: { v: Video; rank: number;
 
   return (
     <div className="relative rounded-xl overflow-hidden group transition-all duration-200 hover:scale-[1.02]"
-      style={{ aspectRatio: '9/16', background: '#0a0a0a', border: '1px solid #1a1a1a' }}
+      style={{ aspectRatio: '9/16', background: '#0a0a0a', border: '1px solid #23232f' }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = color + '66')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}>
 
@@ -332,12 +332,12 @@ function AnalyzeCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTra
   return (
     <div
       className="group relative rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-0.5"
-      style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}
+      style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #23232f' }}
       onMouseEnter={e => (e.currentTarget.style.borderColor = color + '66')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = '#1f1f1f')}>
       {/* Thumbnail clickeable */}
       <a href={v.url} target="_blank" rel="noopener noreferrer"
-        className="relative block w-full bg-gray-900 shrink-0" style={{ aspectRatio: '9/16' }}>
+        className="relative block w-full bg-[#101019] shrink-0" style={{ aspectRatio: '9/16' }}>
         {v.thumbnail
           ? <img src={proxyThumb(v.thumbnail, plat)} alt="" className="absolute inset-0 w-full h-full object-cover" />
           : <div className="absolute inset-0 flex items-center justify-center text-gray-700 text-3xl">{PLAT_ICON[plat]}</div>
@@ -377,16 +377,16 @@ function AnalyzeCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTra
 
         {/* Stats principales */}
         <div className="grid grid-cols-3 gap-1 text-center">
-          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-            <div className="text-[9px]" style={{ color: '#555' }}>VISTAS</div>
+          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
+            <div className="text-[9px]" style={{ color: '#a1a1aa' }}>VISTAS</div>
             <div className="text-[11px] font-bold text-white">{v.views}</div>
           </div>
-          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-            <div className="text-[9px]" style={{ color: '#555' }}>LIKES</div>
+          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
+            <div className="text-[9px]" style={{ color: '#a1a1aa' }}>LIKES</div>
             <div className="text-[11px] font-bold text-white">{v.likes}</div>
           </div>
-          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-            <div className="text-[9px]" style={{ color: '#555' }}>COMENT</div>
+          <div className="rounded-lg py-1.5" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
+            <div className="text-[9px]" style={{ color: '#a1a1aa' }}>COMENT</div>
             <div className="text-[11px] font-bold text-white">{v.comments || '0'}</div>
           </div>
         </div>
@@ -394,12 +394,12 @@ function AnalyzeCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTra
         {/* Stats extra TikTok */}
         {plat === 'tiktok' && (v.shares || v.saves) && (
           <div className="grid grid-cols-2 gap-1 text-center">
-            <div className="rounded-lg py-1" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-              <span className="text-[9px]" style={{ color: '#555' }}>↗ </span>
+            <div className="rounded-lg py-1" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
+              <span className="text-[9px]" style={{ color: '#a1a1aa' }}>↗ </span>
               <span className="text-[10px] font-bold text-white">{v.shares || '0'}</span>
             </div>
-            <div className="rounded-lg py-1" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-              <span className="text-[9px]" style={{ color: '#555' }}>🔖 </span>
+            <div className="rounded-lg py-1" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
+              <span className="text-[9px]" style={{ color: '#a1a1aa' }}>🔖 </span>
               <span className="text-[10px] font-bold text-white">{v.saves || '0'}</span>
             </div>
           </div>
@@ -829,7 +829,7 @@ export default function Home() {
   const doneCount = results.filter(r => !r.loading).length;
 
   return (
-    <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
+    <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 90% 45% at 20% 0%, #1a0a2e 0%, transparent 55%), radial-gradient(ellipse 60% 30% at 90% 5%, #06243a 0%, transparent 50%), #070710' }}>
       <div className="max-w-3xl mx-auto px-6 pt-10 pb-20">
 
       <SessionGuard />
@@ -838,7 +838,7 @@ export default function Home() {
       <ProductNav active="viral" />
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
+      <div className="flex gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
         {[
           { id: 'transcribir', label: '⚡ Transcribir' },
           { id: 'virales',     label: '🔥 Virales' },
@@ -846,10 +846,10 @@ export default function Home() {
           { id: 'biblioteca',  label: `📚 Guiones${guiones.length > 0 ? ` · ${guiones.length}` : ''}` },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200"
+            className="flex-1 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:text-white"
             style={tab === t.id
-              ? { background: 'linear-gradient(135deg, #7c3aed33, #c1358433)', color: '#e2e2e2', border: '1px solid #7c3aed44', boxShadow: '0 0 12px #7c3aed22' }
-              : { background: 'transparent', color: '#444', border: '1px solid transparent' }
+              ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', border: '1px solid transparent', boxShadow: '0 4px 20px #7c3aed55' }
+              : { background: 'transparent', color: '#8b8b96', border: '1px solid transparent' }
             }>
             {t.label}
           </button>
@@ -859,25 +859,26 @@ export default function Home() {
       {/* ══ TRANSCRIBIR ══════════════════════════════════════ */}
       {tab === 'transcribir' && (
         <div>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-sm text-[#a1a1aa] mb-3">
             Pega uno o varios links (uno por línea) — detectamos la plataforma automáticamente
           </p>
 
           {/* Platform indicator */}
           <div className="flex gap-2 mb-4 min-h-8 items-center flex-wrap">
             {multiMode ? (
-              <span className="flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-gray-700 text-gray-400">
+              <span className="flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-[#2e2e3d] text-[#b4b4c0]">
                 {urlLines.length} links — se transcribirán uno por uno
               </span>
             ) : singlePlatform ? (
-              <span className="flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-white text-white">
+              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-white"
+                style={{ background: '#7c3aed1f', border: '1px solid #7c3aed88', boxShadow: '0 0 16px #7c3aed22' }}>
                 <span className="w-2 h-2 rounded-full inline-block" style={{ background: PLATFORM_INFO[singlePlatform].color }}></span>
                 {PLATFORM_INFO[singlePlatform].label} detectado ✓
               </span>
             ) : (
               <>
                 {(['youtube', 'tiktok', 'instagram'] as const).map(p => (
-                  <span key={p} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border border-gray-800 text-gray-600">
+                  <span key={p} className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border border-[#23232f] text-[#8b8b96]">
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: PLATFORM_INFO[p].color }}></span>
                     {PLATFORM_INFO[p].label}
                   </span>
@@ -888,7 +889,7 @@ export default function Home() {
 
           {/* Hint */}
           {singlePlatform && PLATFORM_INFO[singlePlatform].hint && (
-            <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 mb-3 text-xs text-gray-400">
+            <div className="bg-[#101019] border border-[#23232f] rounded-lg px-4 py-3 mb-3 text-xs text-[#b4b4c0]">
               💡 {PLATFORM_INFO[singlePlatform].hint}
             </div>
           )}
@@ -899,13 +900,15 @@ export default function Home() {
             onChange={e => { setUrlsText(e.target.value); setResults([]); setSavedIdx(new Set()); }}
             placeholder={'Pega aquí el link de YouTube, TikTok o Instagram...\n\nPara transcribir varios a la vez, pon un link por línea.'}
             rows={multiMode ? Math.min(urlLines.length + 2, 8) : 3}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm outline-none focus:border-gray-500 resize-none mb-3 font-mono"
+            className="w-full rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#7c3aed] resize-none mb-3 font-mono transition-colors"
+            style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#e4e4ea' }}
           />
 
           <button
             onClick={() => transcribirTodos()}
             disabled={isTranscribing || urlLines.length === 0}
-            className="w-full py-2.5 bg-white text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors mb-6">
+            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-40 hover:-translate-y-0.5 disabled:hover:translate-y-0 mb-6"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 6px 28px #7c3aed44' }}>
             {isTranscribing
               ? `Procesando ${doneCount}/${results.length}...`
               : urlLines.length > 1
@@ -920,7 +923,7 @@ export default function Home() {
               const isSaved = savedIdx.has(idx);
               const isError = r.isError;
               return (
-                <div key={idx} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div key={idx} className="bg-[#101019] border border-[#23232f] rounded-xl p-4">
                   {/* Header */}
                   <div className="flex items-center gap-2 mb-3">
                     {p ? (
@@ -933,7 +936,7 @@ export default function Home() {
                       <span className="text-xs text-red-400 shrink-0">Desconocido</span>
                     )}
                     <a href={r.url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-gray-600 truncate hover:text-gray-400 flex-1">
+                      className="text-xs text-[#8b8b96] truncate hover:text-[#b4b4c0] flex-1">
                       {r.url}
                     </a>
                   </div>
@@ -941,11 +944,11 @@ export default function Home() {
                   {/* Transcript */}
                   <div className="min-h-14 text-sm leading-relaxed whitespace-pre-wrap mb-3">
                     {r.loading ? (
-                      <span className="animate-pulse" style={{ color: '#555' }}>Transcribiendo...</span>
+                      <span className="animate-pulse" style={{ color: '#a1a1aa' }}>Transcribiendo...</span>
                     ) : isError ? (
-                      <div className="flex items-start gap-2 rounded-xl p-3" style={{ background: '#111', border: '1px solid #2a2a2a' }}>
+                      <div className="flex items-start gap-2 rounded-xl p-3" style={{ background: '#101019', border: '1px solid #2e2e3d' }}>
                         <span className="text-lg shrink-0">🔒</span>
-                        <p className="text-xs leading-relaxed" style={{ color: '#888' }}>
+                        <p className="text-xs leading-relaxed" style={{ color: '#b4b4c0' }}>
                           {friendlyError(r.transcript)}
                         </p>
                       </div>
@@ -959,12 +962,12 @@ export default function Home() {
                     <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => navigator.clipboard.writeText(r.transcript)}
-                        className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 hover:text-white text-gray-400 transition-all">
+                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] hover:text-white text-[#b4b4c0] transition-all">
                         📋 Copiar
                       </button>
                       <button
                         onClick={() => { setTranslateModal({ text: r.transcript }); setTranslateResult(''); setTranslateCopied(false); }}
-                        className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-purple-500 hover:text-purple-300 text-gray-400 transition-all">
+                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-purple-500 hover:text-purple-300 text-[#b4b4c0] transition-all">
                         🌍 Traducir
                       </button>
                       <button
@@ -973,7 +976,7 @@ export default function Home() {
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                           isSaved
                             ? 'border-green-800 text-green-400'
-                            : 'border-gray-700 hover:border-white hover:text-white text-gray-400'
+                            : 'border-[#2e2e3d] hover:border-white hover:text-white text-[#b4b4c0]'
                         }`}>
                         {isSaved ? '✅ Guardado' : '📚 Guardar'}
                       </button>
@@ -1005,7 +1008,7 @@ export default function Home() {
 
           {/* Search bar */}
           <div className="relative mb-6">
-            <div className="flex gap-2 p-1 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1f1f1f' }}>
+            <div className="flex gap-2 p-1 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
               <input value={tema} onChange={e => setTema(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && buscarVirales()}
                 placeholder="¿Qué tema quieres dominar? (fitness, dinero, negocios...)"
@@ -1022,11 +1025,11 @@ export default function Home() {
           {loadingV && (
             <div className="text-center py-12">
               <div className="inline-flex flex-col items-center gap-3">
-                <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#111', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
+                <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#101019', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#7c3aed' }}></span>
                   {loadingMsg || 'Analizando el tema con IA...'}
                 </div>
-                <p className="text-xs" style={{ color: '#444' }}>La búsqueda profunda puede tomar hasta 30 segundos</p>
+                <p className="text-xs" style={{ color: '#8b8b96' }}>La búsqueda profunda puede tomar hasta 30 segundos</p>
               </div>
             </div>
           )}
@@ -1035,8 +1038,8 @@ export default function Home() {
             && !errors.youtube && !errors.tiktok && !errors.instagram && (
             <div className="text-center py-16">
               <p className="text-4xl mb-3">🔥</p>
-              <p className="text-sm" style={{ color: '#444' }}>Escribe un tema y descubre qué está arrasando</p>
-              <p className="text-xs mt-1" style={{ color: '#333' }}>YouTube Shorts + TikTok + Instagram Reels</p>
+              <p className="text-sm" style={{ color: '#8b8b96' }}>Escribe un tema y descubre qué está arrasando</p>
+              <p className="text-xs mt-1" style={{ color: '#6b6b7a' }}>YouTube Shorts + TikTok + Instagram Reels</p>
             </div>
           )}
 
@@ -1066,14 +1069,14 @@ export default function Home() {
                       className="group flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
                       style={active
                         ? { background: `${t.color}1f`, color: t.color, border: `1px solid ${t.color}55`, boxShadow: `0 0 0 1px ${t.color}22` }
-                        : { background: '#0f0f0f', color: '#666', border: '1px solid #1a1a1a' }}>
+                        : { background: '#101019', color: '#a1a1aa', border: '1px solid #23232f' }}>
                       <span style={{ color: active ? t.color : '#555' }}>{t.icon}</span>
                       <span>{t.label}</span>
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded-md font-bold"
                         style={active
                           ? { background: `${t.color}33`, color: t.color }
-                          : { background: '#1a1a1a', color: '#555' }}>
+                          : { background: '#1a1a1a', color: '#a1a1aa' }}>
                         {t.count}
                       </span>
                     </button>
@@ -1104,7 +1107,7 @@ export default function Home() {
                       )}
                     </div>
                     {error ? (
-                      <div className="flex items-center gap-2 rounded-xl p-3 text-xs" style={{ background: '#111', border: '1px solid #222', color: '#666' }}>
+                      <div className="flex items-center gap-2 rounded-xl p-3 text-xs" style={{ background: '#101019', border: '1px solid #222', color: '#a1a1aa' }}>
                         <span>🔒</span> {friendlyError(error)}
                       </div>
                     ) : (
@@ -1131,17 +1134,17 @@ export default function Home() {
                   <span className="w-1.5 h-9 rounded-full" style={{ background: p.color, boxShadow: `0 0 16px ${p.color}88` }}></span>
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight" style={{ color: '#fff' }}>{p.label}</h2>
-                    <p className="text-xs mt-0.5" style={{ color: '#555' }}>
+                    <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>
                       {videos.length > 0 ? `Top ${videos.length} más virales` : error ? 'Error al cargar' : 'Sin resultados'}
                     </p>
                   </div>
                 </div>
                 {error ? (
-                  <div className="flex items-center gap-2 rounded-xl p-3 text-xs" style={{ background: '#111', border: '1px solid #222', color: '#666' }}>
+                  <div className="flex items-center gap-2 rounded-xl p-3 text-xs" style={{ background: '#101019', border: '1px solid #222', color: '#a1a1aa' }}>
                     <span>🔒</span> {friendlyError(error)}
                   </div>
                 ) : videos.length === 0 ? (
-                  <div className="text-center py-12 text-gray-600 text-sm">No se encontraron videos en {p.label} para este tema.</div>
+                  <div className="text-center py-12 text-[#8b8b96] text-sm">No se encontraron videos en {p.label} para este tema.</div>
                 ) : (
                   <div className="grid grid-cols-4 gap-2">
                     {videos.map((v, i) => (
@@ -1171,19 +1174,19 @@ export default function Home() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-sm font-medium">Mis guiones</p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-[#a1a1aa] mt-0.5">
                 {guiones.length === 0 ? 'Vacía' : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} · ${folders.length} carpeta${folders.length !== 1 ? 's' : ''}`}
               </p>
             </div>
             {guiones.length > 0 && (
               confirmDeleteAll ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">¿Borrar todo?</span>
+                  <span className="text-xs text-[#b4b4c0]">¿Borrar todo?</span>
                   <button onClick={borrarTodo} className="text-xs px-2 py-1 bg-red-900 border border-red-700 rounded text-red-300 hover:bg-red-800">Sí, borrar</button>
-                  <button onClick={() => setConfirmDeleteAll(false)} className="text-xs px-2 py-1 border border-gray-700 rounded text-gray-400 hover:text-white">Cancelar</button>
+                  <button onClick={() => setConfirmDeleteAll(false)} className="text-xs px-2 py-1 border border-[#2e2e3d] rounded text-[#b4b4c0] hover:text-white">Cancelar</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmDeleteAll(true)} className="text-xs text-gray-600 hover:text-red-400 transition-colors">
+                <button onClick={() => setConfirmDeleteAll(true)} className="text-xs text-[#8b8b96] hover:text-red-400 transition-colors">
                   Borrar todo
                 </button>
               )
@@ -1197,7 +1200,7 @@ export default function Home() {
               className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
               style={selectedFolderId === 'all'
                 ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}>
+                : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
               📚 Todas · {guiones.length}
             </button>
             <button
@@ -1205,7 +1208,7 @@ export default function Home() {
               className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
               style={selectedFolderId === null
                 ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}>
+                : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
               📄 Sin carpeta · {uncategorizedCount}
             </button>
 
@@ -1226,7 +1229,7 @@ export default function Home() {
                       }}
                       maxLength={80}
                       className="px-3 py-1.5 rounded-full text-xs font-medium outline-none"
-                      style={{ background: '#0f0f0f', border: '1px solid #7c3aed55', color: '#fff', width: '160px' }}
+                      style={{ background: '#101019', border: '1px solid #7c3aed55', color: '#fff', width: '160px' }}
                     />
                   ) : (
                     <button
@@ -1235,7 +1238,7 @@ export default function Home() {
                       className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
                       style={isActive
                         ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                        : { background: '#0f0f0f', border: '1px solid #1f1f1f', color: '#888' }}
+                        : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}
                       title="Doble clic para renombrar">
                       📁 {f.name} · {count}
                     </button>
@@ -1244,7 +1247,7 @@ export default function Home() {
                     <>
                       <button
                         onClick={() => setRenamingFolderId(f.id)}
-                        className="ml-1 text-xs text-gray-500 hover:text-white"
+                        className="ml-1 text-xs text-[#a1a1aa] hover:text-white"
                         title="Renombrar">
                         ✎
                       </button>
@@ -1254,7 +1257,7 @@ export default function Home() {
                             borrarFolder(f.id);
                           }
                         }}
-                        className="ml-1 text-xs text-gray-500 hover:text-red-400"
+                        className="ml-1 text-xs text-[#a1a1aa] hover:text-red-400"
                         title="Borrar carpeta">
                         ×
                       </button>
@@ -1289,28 +1292,28 @@ export default function Home() {
 
           {/* Contexto de la carpeta activa */}
           {selectedFolder && (
-            <p className="text-xs mb-3" style={{ color: '#555' }}>
+            <p className="text-xs mb-3" style={{ color: '#a1a1aa' }}>
               Viendo <span style={{ color: '#c4b5fd' }}>{selectedFolder.name}</span> · {visibleGuiones.length} guion{visibleGuiones.length !== 1 ? 'es' : ''}
             </p>
           )}
 
           {guiones.length === 0 ? (
-            <div className="text-center py-16 text-gray-600">
+            <div className="text-center py-16 text-[#8b8b96]">
               <p className="text-5xl mb-4">📚</p>
-              <p className="text-sm text-gray-500">Aún no tienes guiones guardados</p>
-              <p className="text-xs text-gray-600 mt-2 max-w-xs mx-auto leading-relaxed">
-                Transcribe un video y haz clic en <strong className="text-gray-500">&ldquo;Guardar en biblioteca&rdquo;</strong> para verlo aquí
+              <p className="text-sm text-[#a1a1aa]">Aún no tienes guiones guardados</p>
+              <p className="text-xs text-[#8b8b96] mt-2 max-w-xs mx-auto leading-relaxed">
+                Transcribe un video y haz clic en <strong className="text-[#a1a1aa]">&ldquo;Guardar en biblioteca&rdquo;</strong> para verlo aquí
               </p>
-              <button onClick={() => setTab('transcribir')} className="mt-5 px-4 py-2 border border-gray-700 rounded-lg text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-all">
+              <button onClick={() => setTab('transcribir')} className="mt-5 px-4 py-2 border border-[#2e2e3d] rounded-lg text-xs text-[#b4b4c0] hover:border-[#7c3aed88] hover:text-white transition-all">
                 Ir a Transcribir →
               </button>
             </div>
           ) : visibleGuiones.length === 0 ? (
-            <div className="text-center py-16 text-gray-600">
+            <div className="text-center py-16 text-[#8b8b96]">
               <p className="text-4xl mb-4">📁</p>
-              <p className="text-sm text-gray-500">Esta carpeta está vacía</p>
-              <p className="text-xs text-gray-600 mt-2 max-w-xs mx-auto leading-relaxed">
-                Movete a otra carpeta o usa el botón <strong className="text-gray-500">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo aquí
+              <p className="text-sm text-[#a1a1aa]">Esta carpeta está vacía</p>
+              <p className="text-xs text-[#8b8b96] mt-2 max-w-xs mx-auto leading-relaxed">
+                Movete a otra carpeta o usa el botón <strong className="text-[#a1a1aa]">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo aquí
               </p>
             </div>
           ) : (
@@ -1324,7 +1327,7 @@ export default function Home() {
                 const date = new Date(g.savedAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 
                 return (
-                  <div key={g.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors">
+                  <div key={g.id} className="bg-[#101019] border border-[#23232f] rounded-xl p-4 hover:border-[#2e2e3d] transition-colors">
                     {/* Header row */}
                     <div className="flex items-start gap-2 mb-2">
                       <div className="flex-1 min-w-0">
@@ -1347,12 +1350,12 @@ export default function Home() {
                             className="text-sm font-medium text-left hover:text-gray-300 transition-colors group w-full truncate"
                             title="Clic para renombrar">
                             {g.name}
-                            <span className="ml-1.5 text-gray-700 group-hover:text-gray-500 text-xs">✎</span>
+                            <span className="ml-1.5 text-gray-700 group-hover:text-[#a1a1aa] text-xs">✎</span>
                           </button>
                         )}
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: platColor }}></span>
-                          <span className="text-xs text-gray-600">{platLabel} · {date}</span>
+                          <span className="text-xs text-[#8b8b96]">{platLabel} · {date}</span>
                         </div>
                       </div>
                       <button
@@ -1364,13 +1367,13 @@ export default function Home() {
                     </div>
 
                     {/* Transcript preview */}
-                    <div className="text-xs text-gray-400 leading-relaxed mt-3 mb-3">
+                    <div className="text-xs text-[#b4b4c0] leading-relaxed mt-3 mb-3">
                       {isExpanded ? (
                         <p className="text-gray-300 whitespace-pre-wrap text-sm">{g.transcript}</p>
                       ) : (
                         <p>
                           {g.transcript.slice(0, 180)}
-                          {g.transcript.length > 180 && <span className="text-gray-600"> …</span>}
+                          {g.transcript.length > 180 && <span className="text-[#8b8b96]"> …</span>}
                         </p>
                       )}
                     </div>
@@ -1379,17 +1382,17 @@ export default function Home() {
                     <div className="flex gap-2 flex-wrap items-center">
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : g.id)}
-                        className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
+                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
                         {isExpanded ? 'Ver menos ↑' : 'Ver completo ↓'}
                       </button>
                       <button
                         onClick={() => navigator.clipboard.writeText(g.transcript)}
-                        className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
+                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
                         📋 Copiar guión
                       </button>
                       {g.url && (
                         <a href={g.url} target="_blank" rel="noopener noreferrer"
-                          className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
+                          className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
                           Ver video ↗
                         </a>
                       )}
@@ -1398,12 +1401,12 @@ export default function Home() {
                       <div className="relative">
                         <button
                           onClick={() => setMovePickerForId(movePickerForId === g.id ? null : g.id)}
-                          className="px-3 py-1.5 text-xs border border-gray-700 rounded-lg hover:border-gray-500 text-gray-400 hover:text-white transition-all">
+                          className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
                           📁 Mover a ▾
                         </button>
                         {movePickerForId === g.id && (
                           <div className="absolute z-10 mt-1 right-0 min-w-[180px] rounded-xl py-1 shadow-xl"
-                            style={{ background: '#0f0f0f', border: '1px solid #2a2a2a' }}>
+                            style={{ background: '#101019', border: '1px solid #2e2e3d' }}>
                             <button
                               onClick={() => moverGuion(g.id, null)}
                               className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
@@ -1421,7 +1424,7 @@ export default function Home() {
                               </button>
                             ))}
                             {folders.length === 0 && (
-                              <p className="px-3 py-1.5 text-xs" style={{ color: '#555' }}>
+                              <p className="px-3 py-1.5 text-xs" style={{ color: '#a1a1aa' }}>
                                 No tienes carpetas todavía
                               </p>
                             )}
@@ -1443,12 +1446,12 @@ export default function Home() {
       {/* ══ ANALIZAR PERFIL ══════════════════════════════════ */}
       {tab === 'analizar' && (
         <div className="max-w-3xl mx-auto px-6 pb-20">
-          <p className="text-xs mb-5" style={{ color: '#555' }}>
+          <p className="text-xs mb-5" style={{ color: '#a1a1aa' }}>
             Pega el link de cualquier perfil y te mostramos sus videos ordenados por vistas
           </p>
 
           {/* Input */}
-          <div className="flex gap-2 p-1 rounded-2xl mb-6" style={{ background: '#0f0f0f', border: '1px solid #1f1f1f' }}>
+          <div className="flex gap-2 p-1 rounded-2xl mb-6" style={{ background: '#101019', border: '1px solid #23232f' }}>
             <input
               value={analyzeUrl}
               onChange={e => { setAnalyzeUrl(e.target.value); setAnalyzeResult(null); setAnalyzeError(''); }}
@@ -1472,10 +1475,10 @@ export default function Home() {
                 { color: '#69C9D0', label: 'TikTok', note: 'Hasta 1.000 videos' },
                 { color: '#C13584', label: 'Instagram', note: 'Últimos ~300 reels' },
               ].map((p, i) => (
-                <div key={i} className="flex-1 rounded-2xl p-4 text-center" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
+                <div key={i} className="flex-1 rounded-2xl p-4 text-center" style={{ background: '#101019', border: '1px solid #23232f' }}>
                   <span className="w-2 h-2 rounded-full inline-block mb-2" style={{ background: p.color }}></span>
                   <p className="text-xs font-semibold text-white">{p.label}</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#444' }}>{p.note}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#8b8b96' }}>{p.note}</p>
                 </div>
               ))}
             </div>
@@ -1484,7 +1487,7 @@ export default function Home() {
           {/* Loading */}
           {loadingA && (
             <div className="text-center py-12">
-              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#111', border: '1px solid #1f1f1f', color: '#666' }}>
+              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl text-sm" style={{ background: '#101019', border: '1px solid #23232f', color: '#a1a1aa' }}>
                 <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#7c3aed' }}></span>
                 Analizando perfil...
               </div>
@@ -1493,7 +1496,7 @@ export default function Home() {
 
           {/* Error */}
           {analyzeError && (
-            <div className="flex items-center gap-3 rounded-2xl p-4 text-sm" style={{ background: '#111', border: '1px solid #222', color: '#666' }}>
+            <div className="flex items-center gap-3 rounded-2xl p-4 text-sm" style={{ background: '#101019', border: '1px solid #222', color: '#a1a1aa' }}>
               <span className="text-xl">🔒</span>
               <p className="text-xs leading-relaxed">{friendlyError(analyzeError)}</p>
             </div>
@@ -1539,13 +1542,13 @@ export default function Home() {
             return (
               <div>
                 {/* Channel header */}
-                <div className="flex items-center gap-3 mb-4 p-4 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
+                <div className="flex items-center gap-3 mb-4 p-4 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
                   {analyzeResult.channel.thumbnail && (
                     <img src={analyzeResult.channel.thumbnail} alt="" className="w-12 h-12 rounded-full" />
                   )}
                   <div>
                     <p className="text-base font-bold">{analyzeResult.channel.name}</p>
-                    <p className="text-xs" style={{ color: '#555' }}>{allVideos.length} videos analizados</p>
+                    <p className="text-xs" style={{ color: '#a1a1aa' }}>{allVideos.length} videos analizados</p>
                   </div>
                   <div className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: '#1a1a1a' }}>
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: PLAT_COLOR[plat] }}></span>
@@ -1561,10 +1564,10 @@ export default function Home() {
                     { label: 'Promedio vistas',  value: fmtNum(avgViews),      icon: '📊', color: '#22c55e' },
                     { label: 'Engagement avg',   value: avgEngagement.toFixed(2) + '%', icon: '⚡', color: '#eab308' },
                   ].map((s, i) => (
-                    <div key={i} className="rounded-2xl p-3" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
+                    <div key={i} className="rounded-2xl p-3" style={{ background: '#101019', border: '1px solid #23232f' }}>
                       <div className="flex items-center gap-1.5 mb-1">
                         <span style={{ color: s.color }}>{s.icon}</span>
-                        <span className="text-[10px] uppercase tracking-wider" style={{ color: '#555' }}>{s.label}</span>
+                        <span className="text-[10px] uppercase tracking-wider" style={{ color: '#a1a1aa' }}>{s.label}</span>
                       </div>
                       <div className="text-lg font-bold text-white">{s.value}</div>
                     </div>
@@ -1581,7 +1584,7 @@ export default function Home() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#a78bfa' }}>🏆 Más viral del perfil</div>
                       <p className="text-xs font-semibold truncate text-white">{topVideo.title}</p>
-                      <p className="text-[10px]" style={{ color: '#888' }}>
+                      <p className="text-[10px]" style={{ color: '#b4b4c0' }}>
                         {topVideo.views} vistas · {topVideo.likes} likes · {engagementPct(topVideo).toFixed(2)}% engagement
                       </p>
                     </div>
@@ -1596,10 +1599,10 @@ export default function Home() {
                 )}
 
                 {/* Filtros: Sort + Top N + Min views */}
-                <div className="rounded-2xl p-4 mb-5 flex flex-col gap-4" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+                <div className="rounded-2xl p-4 mb-5 flex flex-col gap-4" style={{ background: '#0a0a0a', border: '1px solid #23232f' }}>
                   {/* Sort */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#555' }}>Ordenar por</p>
+                    <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#a1a1aa' }}>Ordenar por</p>
                     <div className="flex gap-2 flex-wrap">
                       {SORT_OPTIONS.map(opt => (
                         <button key={opt.key}
@@ -1607,7 +1610,7 @@ export default function Home() {
                           className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
                           style={analyzeSort === opt.key
                             ? { background: '#7c3aed33', border: '1px solid #7c3aed66', color: '#c4b5fd' }
-                            : { background: '#111', border: '1px solid #1f1f1f', color: '#666' }}>
+                            : { background: '#101019', border: '1px solid #23232f', color: '#a1a1aa' }}>
                           {opt.label}
                         </button>
                       ))}
@@ -1616,7 +1619,7 @@ export default function Home() {
 
                   {/* Top N */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#555' }}>Mostrar</p>
+                    <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#a1a1aa' }}>Mostrar</p>
                     <div className="flex gap-2 flex-wrap">
                       {[
                         { n: 10,  label: 'Top 10' },
@@ -1631,7 +1634,7 @@ export default function Home() {
                           className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
                           style={analyzeTopN === opt.n
                             ? { background: '#22c55e22', border: '1px solid #22c55e55', color: '#86efac' }
-                            : { background: '#111', border: '1px solid #1f1f1f', color: '#666' }}>
+                            : { background: '#101019', border: '1px solid #23232f', color: '#a1a1aa' }}>
                           {opt.label}
                         </button>
                       ))}
@@ -1641,7 +1644,7 @@ export default function Home() {
                   {/* Min views slider */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-[10px] uppercase tracking-wider" style={{ color: '#555' }}>Vistas mínimas</p>
+                      <p className="text-[10px] uppercase tracking-wider" style={{ color: '#a1a1aa' }}>Vistas mínimas</p>
                       <p className="text-xs font-bold" style={{ color: analyzeMinViews > 0 ? '#facc15' : '#444' }}>
                         {analyzeMinViews === 0 ? 'sin filtro' : '≥ ' + fmtNum(analyzeMinViews)}
                       </p>
@@ -1656,7 +1659,7 @@ export default function Home() {
                       className="w-full"
                       style={{ accentColor: '#7c3aed' }}
                     />
-                    <div className="flex justify-between text-[9px] mt-1" style={{ color: '#444' }}>
+                    <div className="flex justify-between text-[9px] mt-1" style={{ color: '#8b8b96' }}>
                       <span>0</span>
                       <span>{fmtNum(maxViewsInSet)}</span>
                     </div>
@@ -1665,14 +1668,14 @@ export default function Home() {
 
                 {/* Resumen del filtro aplicado */}
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs" style={{ color: '#666' }}>
-                    Mostrando <span className="font-bold text-white">{display.length}</span> de <span className="text-gray-500">{allVideos.length}</span> videos
+                  <p className="text-xs" style={{ color: '#a1a1aa' }}>
+                    Mostrando <span className="font-bold text-white">{display.length}</span> de <span className="text-[#a1a1aa]">{allVideos.length}</span> videos
                   </p>
                   {(analyzeMinViews > 0 || analyzeTopN !== 25 || analyzeSort !== 'best') && (
                     <button
                       onClick={() => { setAnalyzeMinViews(0); setAnalyzeTopN(25); setAnalyzeSort('best'); }}
                       className="text-[10px] px-2 py-1 rounded-lg transition-all"
-                      style={{ background: '#111', border: '1px solid #222', color: '#888' }}>
+                      style={{ background: '#101019', border: '1px solid #222', color: '#b4b4c0' }}>
                       ↺ Reset filtros
                     </button>
                   )}
@@ -1680,7 +1683,7 @@ export default function Home() {
 
                 {/* Grid de cards con stats completas */}
                 {display.length === 0 ? (
-                  <div className="text-center py-12 text-sm" style={{ color: '#555' }}>
+                  <div className="text-center py-12 text-sm" style={{ color: '#a1a1aa' }}>
                     Ningún video pasa el filtro. Baja el mínimo de vistas o cambia el sort.
                   </div>
                 ) : (
@@ -1708,11 +1711,11 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #1a1a1a' }}>
               <div>
                 <h2 className="text-sm font-bold">🌍 Traducir guión</h2>
-                <p className="text-xs mt-0.5" style={{ color: '#555' }}>Selecciona el idioma destino</p>
+                <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>Selecciona el idioma destino</p>
               </div>
               <button onClick={() => setTranslateModal(null)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors hover:bg-white/10"
-                style={{ color: '#555' }}>×</button>
+                style={{ color: '#a1a1aa' }}>×</button>
             </div>
 
             {/* Language selector */}
@@ -1729,7 +1732,7 @@ export default function Home() {
                     className="flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all duration-200 text-center"
                     style={translateLang === lang.id
                       ? { background: '#7c3aed33', border: '1px solid #7c3aed66', color: '#c4b5fd' }
-                      : { background: '#111', border: '1px solid #1f1f1f', color: '#555' }}>
+                      : { background: '#101019', border: '1px solid #23232f', color: '#a1a1aa' }}>
                     <span className="text-2xl">{lang.flag}</span>
                     <span className="text-xs font-semibold">{lang.label}</span>
                   </button>
@@ -1753,9 +1756,9 @@ export default function Home() {
             {/* Result */}
             {(translating || translateResult) && (
               <div className="px-5 pb-5 flex-1 overflow-y-auto">
-                <div className="rounded-2xl p-4 min-h-24" style={{ background: '#0d0d0d', border: '1px solid #1a1a1a' }}>
+                <div className="rounded-2xl p-4 min-h-24" style={{ background: '#0d0d0d', border: '1px solid #23232f' }}>
                   {translating ? (
-                    <p className="text-xs animate-pulse" style={{ color: '#555' }}>Generando traducción...</p>
+                    <p className="text-xs animate-pulse" style={{ color: '#a1a1aa' }}>Generando traducción...</p>
                   ) : (
                     <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: '#d1d5db' }}>
                       {translateResult}
@@ -1769,7 +1772,7 @@ export default function Home() {
                     className="mt-3 w-full py-2.5 rounded-xl text-xs font-semibold transition-all"
                     style={translateCopied
                       ? { background: '#16a34a22', border: '1px solid #16a34a44', color: '#4ade80' }
-                      : { background: '#111', border: '1px solid #222', color: '#888' }}>
+                      : { background: '#101019', border: '1px solid #222', color: '#b4b4c0' }}>
                     {translateCopied ? '✅ Copiado!' : '📋 Copiar traducción'}
                   </button>
                 )}
@@ -1791,11 +1794,11 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold">📚 Guardar guión</h2>
-                <p className="text-xs mt-0.5" style={{ color: '#555' }}>¿En qué idioma lo guardamos?</p>
+                <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>¿En qué idioma lo guardamos?</p>
               </div>
               <button onClick={() => setSaveModal(null)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors hover:bg-white/10"
-                style={{ color: '#555' }}>×</button>
+                style={{ color: '#a1a1aa' }}>×</button>
             </div>
 
             {/* Options */}
@@ -1803,11 +1806,11 @@ export default function Home() {
               <button
                 onClick={() => { guardarGuion(saveModal.idx); setSaveModal(null); }}
                 className="w-full py-3 px-4 rounded-2xl text-sm font-medium text-left flex items-center gap-3 transition-all"
-                style={{ background: '#111', border: '1px solid #222', color: '#ccc' }}>
+                style={{ background: '#101019', border: '1px solid #222', color: '#ccc' }}>
                 <span className="text-xl">📄</span>
                 <div>
                   <div className="font-semibold text-white text-xs">Idioma original</div>
-                  <div className="text-xs" style={{ color: '#555' }}>Guardar tal como está</div>
+                  <div className="text-xs" style={{ color: '#a1a1aa' }}>Guardar tal como está</div>
                 </div>
               </button>
 
