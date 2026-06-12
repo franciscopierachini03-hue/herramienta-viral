@@ -458,6 +458,11 @@ export default function Home() {
   const [analyzeTopN, setAnalyzeTopN] = useState<10 | 25 | 50 | 100 | 250 | 0>(25); // 0 = todos
   const [analyzeMinViews, setAnalyzeMinViews] = useState<number>(0);
 
+  // Biblioteca — vista estratégica por carpetas
+  const [bibQuery, setBibQuery] = useState('');
+  const [bibSort, setBibSort] = useState<'recientes' | 'antiguos' | 'az' | 'plataforma'>('recientes');
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+
   async function analizarPerfil() {
     if (!analyzeUrl || loadingA) return;
     setLoadingA(true);
@@ -1160,22 +1165,165 @@ export default function Home() {
 
       {/* ══ BIBLIOTECA ═══════════════════════════════════════ */}
       {tab === 'biblioteca' && (() => {
-        // Filtrar guiones por la carpeta seleccionada
-        const visibleGuiones =
-          selectedFolderId === 'all' ? guiones
-          : selectedFolderId === null ? guiones.filter(g => !g.folderId)
-          : guiones.filter(g => g.folderId === selectedFolderId);
+        const q = bibQuery.trim().toLowerCase();
+        const matches = (g: Guion) => !q || g.name.toLowerCase().includes(q) || g.transcript.toLowerCase().includes(q);
+        const sortG = (arr: Guion[]) => {
+          const a = [...arr];
+          if (bibSort === 'antiguos') a.sort((x, y) => +new Date(x.savedAt) - +new Date(y.savedAt));
+          else if (bibSort === 'az') a.sort((x, y) => x.name.localeCompare(y.name, 'es'));
+          else if (bibSort === 'plataforma') a.sort((x, y) => (x.platform || '').localeCompare(y.platform || '') || (+new Date(y.savedAt) - +new Date(x.savedAt)));
+          else a.sort((x, y) => +new Date(y.savedAt) - +new Date(x.savedAt));
+          return a;
+        };
+        const sections = [
+          ...folders.map(f => ({
+            key: f.id, name: f.name, folder: f as Folder | null,
+            items: sortG(guiones.filter(g => g.folderId === f.id && matches(g))),
+            total: guiones.filter(g => g.folderId === f.id).length,
+          })),
+          {
+            key: '__none__', name: 'Sin carpeta', folder: null as Folder | null,
+            items: sortG(guiones.filter(g => !g.folderId && matches(g))),
+            total: guiones.filter(g => !g.folderId).length,
+          },
+        ];
+        const totalMatches = sections.reduce((n, s) => n + s.items.length, 0);
+        const toggleCollapse = (key: string) => setCollapsedIds(prev => {
+          const n = new Set(prev);
+          if (n.has(key)) n.delete(key); else n.add(key);
+          return n;
+        });
 
-        const uncategorizedCount = guiones.filter(g => !g.folderId).length;
-        const selectedFolder = folders.find(f => f.id === selectedFolderId);
+        const renderCard = (g: Guion) => {
+          const isExpanded = expandedId === g.id;
+          const isEditing = editingId === g.id;
+          const info = PLATFORM_INFO[g.platform as keyof typeof PLATFORM_INFO];
+          const platColor = info?.color ?? '#8b8b96';
+          const platLabel = info?.label ?? g.platform;
+          const date = new Date(g.savedAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
+          return (
+            <div key={g.id}
+              className={`bg-[#101019] border border-[#23232f] rounded-xl p-4 hover:border-[#7c3aed44] transition-colors ${isExpanded ? 'sm:col-span-2' : ''}`}>
+              {/* Header row */}
+              <div className="flex items-start gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      defaultValue={g.name}
+                      onBlur={e => { renameGuion(g.id, e.target.value || g.name); setEditingId(null); }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          renameGuion(g.id, (e.target as HTMLInputElement).value || g.name);
+                          setEditingId(null);
+                        }
+                      }}
+                      className="w-full rounded px-2 py-0.5 text-sm font-medium outline-none"
+                      style={{ background: '#0b0b14', border: '1px solid #7c3aed88', color: '#fff' }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setEditingId(g.id)}
+                      className="text-sm font-medium text-left hover:text-white transition-colors group w-full truncate"
+                      title="Clic para renombrar">
+                      {g.name}
+                      <span className="ml-1.5 text-[#3f3f4d] group-hover:text-[#a1a1aa] text-xs">✎</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: platColor }}></span>
+                    <span className="text-xs text-[#8b8b96]">{platLabel} · {date}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => eliminarGuion(g.id)}
+                  className="text-[#3f3f4d] hover:text-red-400 transition-colors text-xl leading-none shrink-0 ml-1"
+                  title="Eliminar">
+                  ×
+                </button>
+              </div>
+
+              {/* Transcript preview */}
+              <div className="text-xs text-[#b4b4c0] leading-relaxed mt-2 mb-3">
+                {isExpanded ? (
+                  <p className="whitespace-pre-wrap text-sm" style={{ color: '#d4d4dc' }}>{g.transcript}</p>
+                ) : (
+                  <p>
+                    {g.transcript.slice(0, 150)}
+                    {g.transcript.length > 150 && <span className="text-[#8b8b96]"> …</span>}
+                  </p>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 flex-wrap items-center">
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : g.id)}
+                  className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
+                  {isExpanded ? 'Ver menos ↑' : 'Ver completo ↓'}
+                </button>
+                <button
+                  onClick={() => navigator.clipboard.writeText(g.transcript)}
+                  className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
+                  📋 Copiar
+                </button>
+                {g.url && (
+                  <a href={g.url} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
+                    Ver video ↗
+                  </a>
+                )}
+
+                {/* Mover a carpeta */}
+                <div className="relative">
+                  <button
+                    onClick={() => setMovePickerForId(movePickerForId === g.id ? null : g.id)}
+                    className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
+                    📁 Mover a ▾
+                  </button>
+                  {movePickerForId === g.id && (
+                    <div className="absolute z-10 mt-1 right-0 min-w-[180px] rounded-xl py-1 shadow-xl"
+                      style={{ background: '#14141f', border: '1px solid #2e2e3d' }}>
+                      <button
+                        onClick={() => moverGuion(g.id, null)}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
+                        style={{ color: !g.folderId ? '#c4b5fd' : '#b4b4c0' }}>
+                        📄 Sin carpeta {!g.folderId && '✓'}
+                      </button>
+                      {folders.length > 0 && <div className="h-px my-1" style={{ background: '#23232f' }} />}
+                      {folders.map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => moverGuion(g.id, f.id)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors truncate"
+                          style={{ color: g.folderId === f.id ? '#c4b5fd' : '#b4b4c0' }}>
+                          📁 {f.name} {g.folderId === f.id && '✓'}
+                        </button>
+                      ))}
+                      {folders.length === 0 && (
+                        <p className="px-3 py-1.5 text-xs" style={{ color: '#a1a1aa' }}>
+                          No tienes carpetas todavía
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
 
         return (
         <div>
+          {/* ── Encabezado ──────────────────────────────────────── */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-sm font-medium">Mis guiones</p>
+              <p className="text-sm font-semibold">Mis guiones</p>
               <p className="text-xs text-[#a1a1aa] mt-0.5">
-                {guiones.length === 0 ? 'Vacía' : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} · ${folders.length} carpeta${folders.length !== 1 ? 's' : ''}`}
+                {guiones.length === 0
+                  ? 'Tu biblioteca está vacía'
+                  : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} · ${folders.length} carpeta${folders.length !== 1 ? 's' : ''}${q ? ` · ${totalMatches} resultado${totalMatches !== 1 ? 's' : ''}` : ''}`}
               </p>
             </div>
             {guiones.length > 0 && (
@@ -1193,110 +1341,58 @@ export default function Home() {
             )}
           </div>
 
-          {/* ── Pills de carpetas ─────────────────────────────────────── */}
-          <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-            <button
-              onClick={() => setSelectedFolderId('all')}
-              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-              style={selectedFolderId === 'all'
-                ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
-              📚 Todas · {guiones.length}
-            </button>
-            <button
-              onClick={() => setSelectedFolderId(null)}
-              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-              style={selectedFolderId === null
-                ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
-              📄 Sin carpeta · {uncategorizedCount}
-            </button>
-
-            {folders.map(f => {
-              const count = guiones.filter(g => g.folderId === f.id).length;
-              const isActive = selectedFolderId === f.id;
-              const isRenaming = renamingFolderId === f.id;
-              return (
-                <div key={f.id} className="shrink-0 flex items-center">
-                  {isRenaming ? (
-                    <input
-                      autoFocus
-                      defaultValue={f.name}
-                      onBlur={e => renombrarFolder(f.id, e.target.value || f.name)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') renombrarFolder(f.id, (e.target as HTMLInputElement).value || f.name);
-                        if (e.key === 'Escape') setRenamingFolderId(null);
-                      }}
-                      maxLength={80}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium outline-none"
-                      style={{ background: '#101019', border: '1px solid #7c3aed55', color: '#fff', width: '160px' }}
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setSelectedFolderId(f.id)}
-                      onDoubleClick={() => setRenamingFolderId(f.id)}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-                      style={isActive
-                        ? { background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }
-                        : { background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}
-                      title="Doble clic para renombrar">
-                      📁 {f.name} · {count}
-                    </button>
-                  )}
-                  {isActive && !isRenaming && (
-                    <>
-                      <button
-                        onClick={() => setRenamingFolderId(f.id)}
-                        className="ml-1 text-xs text-[#a1a1aa] hover:text-white"
-                        title="Renombrar">
-                        ✎
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`¿Borrar la carpeta "${f.name}"? Los guiones que tiene adentro pasarán a "Sin carpeta".`)) {
-                            borrarFolder(f.id);
-                          }
-                        }}
-                        className="ml-1 text-xs text-[#a1a1aa] hover:text-red-400"
-                        title="Borrar carpeta">
-                        ×
-                      </button>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Crear nueva carpeta */}
-            <div className="shrink-0 flex items-center gap-1">
-              <input
-                value={newFolderName}
-                onChange={e => setNewFolderName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') crearFolder(); }}
-                placeholder="+ Nueva carpeta"
-                maxLength={80}
-                className="px-3 py-1.5 rounded-full text-xs outline-none transition-all"
-                style={{ background: '#0a0a0a', border: '1px dashed #2a2a2a', color: '#aaa', width: '160px' }}
-              />
-              {newFolderName.trim() && (
-                <button
-                  onClick={crearFolder}
-                  disabled={creatingFolder}
-                  className="px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
-                  Crear
-                </button>
-              )}
+          {/* ── Toolbar: buscar · ordenar · nueva carpeta ───────── */}
+          {guiones.length > 0 && (
+            <div className="flex gap-2 mb-6 flex-wrap items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none">🔎</span>
+                <input
+                  value={bibQuery}
+                  onChange={e => setBibQuery(e.target.value)}
+                  placeholder="Buscar por nombre o contenido…"
+                  className="w-full rounded-xl pl-9 pr-8 py-2.5 text-sm outline-none focus:border-[#7c3aed] transition-colors"
+                  style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#e4e4ea' }}
+                />
+                {bibQuery && (
+                  <button onClick={() => setBibQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8b8b96] hover:text-white text-sm"
+                    title="Limpiar búsqueda">×</button>
+                )}
+              </div>
+              <select
+                value={bibSort}
+                onChange={e => setBibSort(e.target.value as typeof bibSort)}
+                className="rounded-xl px-3 py-2.5 text-xs outline-none cursor-pointer"
+                style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
+                <option value="recientes">↓ Más recientes</option>
+                <option value="antiguos">↑ Más antiguos</option>
+                <option value="az">A–Z</option>
+                <option value="plataforma">Por plataforma</option>
+              </select>
+              <div className="flex items-center gap-1">
+                <input
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') crearFolder(); }}
+                  placeholder="+ Nueva carpeta"
+                  maxLength={80}
+                  className="px-3 py-2.5 rounded-xl text-xs outline-none transition-all w-[150px] focus:border-[#7c3aed]"
+                  style={{ background: '#0b0b14', border: '1px dashed #2e2e3d', color: '#b4b4c0' }}
+                />
+                {newFolderName.trim() && (
+                  <button
+                    onClick={crearFolder}
+                    disabled={creatingFolder}
+                    className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
+                    Crear
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-
-          {/* Contexto de la carpeta activa */}
-          {selectedFolder && (
-            <p className="text-xs mb-3" style={{ color: '#a1a1aa' }}>
-              Viendo <span style={{ color: '#c4b5fd' }}>{selectedFolder.name}</span> · {visibleGuiones.length} guion{visibleGuiones.length !== 1 ? 'es' : ''}
-            </p>
           )}
 
+          {/* ── Contenido ───────────────────────────────────────── */}
           {guiones.length === 0 ? (
             <div className="text-center py-16 text-[#8b8b96]">
               <p className="text-5xl mb-4">📚</p>
@@ -1308,130 +1404,80 @@ export default function Home() {
                 Ir a Transcribir →
               </button>
             </div>
-          ) : visibleGuiones.length === 0 ? (
-            <div className="text-center py-16 text-[#8b8b96]">
-              <p className="text-4xl mb-4">📁</p>
-              <p className="text-sm text-[#a1a1aa]">Esta carpeta está vacía</p>
-              <p className="text-xs text-[#8b8b96] mt-2 max-w-xs mx-auto leading-relaxed">
-                Movete a otra carpeta o usa el botón <strong className="text-[#a1a1aa]">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo aquí
-              </p>
+          ) : q && totalMatches === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-4xl mb-4">🔎</p>
+              <p className="text-sm text-[#a1a1aa]">Sin resultados para &ldquo;{bibQuery}&rdquo;</p>
+              <button onClick={() => setBibQuery('')} className="mt-4 px-4 py-2 border border-[#2e2e3d] rounded-lg text-xs text-[#b4b4c0] hover:border-[#7c3aed88] hover:text-white transition-all">
+                Limpiar búsqueda
+              </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {visibleGuiones.map(g => {
-                const isExpanded = expandedId === g.id;
-                const isEditing = editingId === g.id;
-                const info = PLATFORM_INFO[g.platform as keyof typeof PLATFORM_INFO];
-                const platColor = info?.color ?? '#888';
-                const platLabel = info?.label ?? g.platform;
-                const date = new Date(g.savedAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
-
+            <div>
+              {sections.map(sec => {
+                if (q && sec.items.length === 0) return null;
+                const isCollapsed = collapsedIds.has(sec.key);
+                const isRenaming = sec.folder && renamingFolderId === sec.folder.id;
                 return (
-                  <div key={g.id} className="bg-[#101019] border border-[#23232f] rounded-xl p-4 hover:border-[#2e2e3d] transition-colors">
-                    {/* Header row */}
-                    <div className="flex items-start gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        {isEditing ? (
-                          <input
-                            autoFocus
-                            defaultValue={g.name}
-                            onBlur={e => { renameGuion(g.id, e.target.value || g.name); setEditingId(null); }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === 'Escape') {
-                                renameGuion(g.id, (e.target as HTMLInputElement).value || g.name);
-                                setEditingId(null);
+                  <div key={sec.key} className="mb-7">
+                    {/* Encabezado de sección */}
+                    <div className="flex items-center gap-2 mb-3">
+                      {isRenaming && sec.folder ? (
+                        <input
+                          autoFocus
+                          defaultValue={sec.folder.name}
+                          onBlur={e => renombrarFolder(sec.folder!.id, e.target.value || sec.folder!.name)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') renombrarFolder(sec.folder!.id, (e.target as HTMLInputElement).value || sec.folder!.name);
+                            if (e.key === 'Escape') setRenamingFolderId(null);
+                          }}
+                          maxLength={80}
+                          className="px-3 py-1 rounded-lg text-sm font-semibold outline-none"
+                          style={{ background: '#0b0b14', border: '1px solid #7c3aed88', color: '#fff', width: '220px' }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => toggleCollapse(sec.key)}
+                          className="flex items-center gap-2 text-sm font-semibold hover:text-[#c4b5fd] transition-colors"
+                          title={isCollapsed ? 'Expandir' : 'Colapsar'}>
+                          <span className="text-[#8b8b96] text-[10px] w-3">{isCollapsed ? '▶' : '▼'}</span>
+                          <span>{sec.folder ? '📁' : '📄'} {sec.name}</span>
+                          <span className="text-xs font-normal text-[#8b8b96]">
+                            · {q ? `${sec.items.length} de ${sec.total}` : sec.total}
+                          </span>
+                        </button>
+                      )}
+                      {sec.folder && !isRenaming && (
+                        <>
+                          <button
+                            onClick={() => setRenamingFolderId(sec.folder!.id)}
+                            className="text-xs text-[#8b8b96] hover:text-white transition-colors"
+                            title="Renombrar carpeta">✎</button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`¿Borrar la carpeta "${sec.folder!.name}"? Los guiones que tiene adentro pasarán a "Sin carpeta".`)) {
+                                borrarFolder(sec.folder!.id);
                               }
                             }}
-                            className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-sm font-medium outline-none focus:border-gray-400"
-                          />
-                        ) : (
-                          <button
-                            onClick={() => setEditingId(g.id)}
-                            className="text-sm font-medium text-left hover:text-gray-300 transition-colors group w-full truncate"
-                            title="Clic para renombrar">
-                            {g.name}
-                            <span className="ml-1.5 text-gray-700 group-hover:text-[#a1a1aa] text-xs">✎</span>
-                          </button>
-                        )}
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: platColor }}></span>
-                          <span className="text-xs text-[#8b8b96]">{platLabel} · {date}</span>
+                            className="text-xs text-[#8b8b96] hover:text-red-400 transition-colors"
+                            title="Borrar carpeta">×</button>
+                        </>
+                      )}
+                      <div className="flex-1 h-px" style={{ background: '#1d1d2a' }} />
+                    </div>
+
+                    {/* Guiones de la sección */}
+                    {!isCollapsed && (
+                      sec.items.length > 0 ? (
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          {sec.items.map(renderCard)}
                         </div>
-                      </div>
-                      <button
-                        onClick={() => eliminarGuion(g.id)}
-                        className="text-gray-700 hover:text-red-400 transition-colors text-xl leading-none shrink-0 ml-1"
-                        title="Eliminar">
-                        ×
-                      </button>
-                    </div>
-
-                    {/* Transcript preview */}
-                    <div className="text-xs text-[#b4b4c0] leading-relaxed mt-3 mb-3">
-                      {isExpanded ? (
-                        <p className="text-gray-300 whitespace-pre-wrap text-sm">{g.transcript}</p>
                       ) : (
-                        <p>
-                          {g.transcript.slice(0, 180)}
-                          {g.transcript.length > 180 && <span className="text-[#8b8b96]"> …</span>}
+                        <p className="text-xs text-[#8b8b96] pl-5">
+                          Carpeta vacía — usa <strong className="text-[#a1a1aa]">&ldquo;Mover a&rdquo;</strong> en un guion para traerlo aquí.
                         </p>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : g.id)}
-                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
-                        {isExpanded ? 'Ver menos ↑' : 'Ver completo ↓'}
-                      </button>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(g.transcript)}
-                        className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
-                        📋 Copiar guión
-                      </button>
-                      {g.url && (
-                        <a href={g.url} target="_blank" rel="noopener noreferrer"
-                          className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
-                          Ver video ↗
-                        </a>
-                      )}
-
-                      {/* Mover a carpeta */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setMovePickerForId(movePickerForId === g.id ? null : g.id)}
-                          className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
-                          📁 Mover a ▾
-                        </button>
-                        {movePickerForId === g.id && (
-                          <div className="absolute z-10 mt-1 right-0 min-w-[180px] rounded-xl py-1 shadow-xl"
-                            style={{ background: '#101019', border: '1px solid #2e2e3d' }}>
-                            <button
-                              onClick={() => moverGuion(g.id, null)}
-                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors"
-                              style={{ color: !g.folderId ? '#c4b5fd' : '#aaa' }}>
-                              📄 Sin carpeta {!g.folderId && '✓'}
-                            </button>
-                            {folders.length > 0 && <div className="h-px my-1" style={{ background: '#1a1a1a' }} />}
-                            {folders.map(f => (
-                              <button
-                                key={f.id}
-                                onClick={() => moverGuion(g.id, f.id)}
-                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors truncate"
-                                style={{ color: g.folderId === f.id ? '#c4b5fd' : '#aaa' }}>
-                                📁 {f.name} {g.folderId === f.id && '✓'}
-                              </button>
-                            ))}
-                            {folders.length === 0 && (
-                              <p className="px-3 py-1.5 text-xs" style={{ color: '#a1a1aa' }}>
-                                No tienes carpetas todavía
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                      )
+                    )}
                   </div>
                 );
               })}
@@ -1788,25 +1834,42 @@ export default function Home() {
           style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSaveModal(null); }}>
           <div className="w-full max-w-sm rounded-3xl p-5 flex flex-col gap-4"
-            style={{ background: '#0d0d0d', border: '1px solid #222' }}>
+            style={{ background: '#101019', border: '1px solid #23232f' }}>
 
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold">📚 Guardar guión</h2>
-                <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>¿En qué idioma lo guardamos?</p>
+                <p className="text-xs mt-0.5" style={{ color: '#a1a1aa' }}>Elige carpeta e idioma.</p>
               </div>
               <button onClick={() => setSaveModal(null)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-lg transition-colors hover:bg-white/10"
                 style={{ color: '#a1a1aa' }}>×</button>
             </div>
 
+            {/* Carpeta destino */}
+            {folders.length > 0 && (
+              <div>
+                <p className="text-xs mb-1.5" style={{ color: '#a1a1aa' }}>Guardar en</p>
+                <select
+                  value={selectedFolderId === 'all' || selectedFolderId === null ? '' : selectedFolderId}
+                  onChange={e => setSelectedFolderId(e.target.value || null)}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm outline-none cursor-pointer"
+                  style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#e4e4ea' }}>
+                  <option value="">📄 Sin carpeta</option>
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>📁 {f.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Options */}
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => { guardarGuion(saveModal.idx); setSaveModal(null); }}
                 className="w-full py-3 px-4 rounded-2xl text-sm font-medium text-left flex items-center gap-3 transition-all"
-                style={{ background: '#101019', border: '1px solid #222', color: '#ccc' }}>
+                style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#ccc' }}>
                 <span className="text-xl">📄</span>
                 <div>
                   <div className="font-semibold text-white text-xs">Idioma original</div>
