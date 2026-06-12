@@ -614,11 +614,21 @@ export default function Landing() {
                   <div className="phone" data-tilt>
                     <div className="ph-screen">
                       <span className="ph-notch" />
-                      <div className="scene scene-a"><div className="ph-person" /></div>
+                      {/* Para usar un frame real: reemplaza la URL de .scene-a en landing.css */}
+                      <div className="scene scene-a" />
                       <div className="scene scene-b"><span className="bchip">🎬 B-roll automático</span></div>
                       <div className="scanline" />
                       <p className="ph-cap"><span className="w">Esto</span><span className="w">cambia</span><span className="w">todo</span><span className="w">tu</span><span className="w">contenido</span></p>
-                      <span className="ph-handle">@tu.cuenta</span>
+                      <div className="ph-rail">
+                        <span className="ra">❤️<b>12.4K</b></span>
+                        <span className="ra">💬<b>348</b></span>
+                        <span className="ra">↗️<b>1.2K</b></span>
+                      </div>
+                      <div className="ph-meta">
+                        <p className="h">@tu.cuenta</p>
+                        <p className="c">Cómo edito mis reels con IA ✨ #contenido</p>
+                        <p className="m">🎵 audio original — tu.cuenta</p>
+                      </div>
                     </div>
                   </div>
 
