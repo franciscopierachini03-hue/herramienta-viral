@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     if (since < MIN_RESEND_MS) {
       const wait = Math.ceil((MIN_RESEND_MS - since) / 1000);
       return Response.json(
-        { error: `Esperá ${wait}s antes de pedir otro código.` },
+        { error: `Espera ${wait}s antes de pedir otro código.` },
         { status: 429 },
       );
     }
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     // Si ya hay cuenta verificada con ese email → bloquear
     if (existing?.email_verified) {
       return Response.json(
-        { error: 'Ya hay una cuenta con ese correo. Iniciá sesión.' },
+        { error: 'Ya hay una cuenta con ese correo. Inicia sesión.' },
         { status: 409 },
       );
     }

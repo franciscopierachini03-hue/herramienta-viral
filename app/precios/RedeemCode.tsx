@@ -41,7 +41,7 @@ export default function RedeemCode() {
       // Activado → ir a la app
       window.location.href = (data.redirect || '/app') + '?session=new';
     } catch {
-      setError('Error de conexión. Probá de nuevo.');
+      setError('Error de conexión. Prueba de nuevo.');
       setLoading(false);
     }
   }
@@ -54,7 +54,7 @@ export default function RedeemCode() {
           onClick={() => setOpen(true)}
           className="text-xs underline"
           style={{ color: '#888' }}>
-          ¿Tenés un código de invitación? +
+          ¿Tienes un código de invitación? +
         </button>
       </div>
     );
@@ -99,7 +99,7 @@ export default function RedeemCode() {
         </div>
       </form>
       <p className="text-[10px] text-center mt-3" style={{ color: '#555' }}>
-        Si no tenés código, suscribite arriba para acceso completo.
+        Si no tienes código, suscribite arriba para acceso completo.
       </p>
     </div>
   );

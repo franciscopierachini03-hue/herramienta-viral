@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react';
 //   • Cerrar sesión tras 15 min de INACTIVIDAD real.
 //   • Cerrar sesión al cerrar el navegador → ya lo garantizan las
 //     "session cookies" del middleware (mueren al cerrar el navegador),
-//     así que acá no hacemos nada en pagehide/visibilitychange.
+//     así que aquí no hacemos nada en pagehide/visibilitychange.
 //
 // Implementación de la inactividad: timestamp de última actividad +
 // chequeo periódico. Es más robusto que un setTimeout único porque

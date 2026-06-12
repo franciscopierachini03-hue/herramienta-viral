@@ -6,7 +6,7 @@
 //   • Llamadas chicas (chat, render, poll)  → proxy /api/topcut/* (este server
 //     reenvía a Hetzner agregando un ticket; el token NUNCA toca el browser).
 //   • Subida del video (grande, no pasa por Vercel) → va directa a Hetzner con
-//     un TICKET corto que firmamos acá solo para usuarios con suscripción.
+//     un TICKET corto que firmamos aquí solo para usuarios con suscripción.
 //
 // El ticket es un HMAC-SHA256 (estilo JWT compacto) con TTL corto. Hetzner lo
 // verifica con el MISMO secreto (VIDEO_SIGNING_SECRET) y rechaza lo inválido/
@@ -56,7 +56,7 @@ export async function requireTopcutUser(): Promise<{ email: string } | null> {
   const { data: { user } } = await supabase.auth.getUser();
   const email = user?.email;
 
-  // Modo dev (REQUIRE_AUTH != 1): el middleware deja pasar todo, acá también.
+  // Modo dev (REQUIRE_AUTH != 1): el middleware deja pasar todo, aquí también.
   if (process.env.REQUIRE_AUTH !== '1') return { email: email || 'dev' };
 
   if (!email) return null;

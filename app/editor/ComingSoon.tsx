@@ -56,14 +56,14 @@ export default function ComingSoon() {
           <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>5 días</span>
         </h1>
         <p className="text-sm mb-10" style={{ color: '#999', maxWidth: 460 }}>
-          Subís tu video y la IA lo edita sola: recorte, subtítulos animados, B-roll y música. Estamos afinando los últimos detalles.
+          Subes tu video y la IA lo edita sola: recorte, subtítulos animados, B-roll y música. Estamos afinando los últimos detalles.
         </p>
 
         {launched ? (
           <div className="rounded-3xl px-8 py-10" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e55' }}>
             <div className="text-5xl mb-3">🎉</div>
             <h2 className="text-2xl font-bold mb-1">¡Llegó el día!</h2>
-            <p className="text-sm" style={{ color: '#888' }}>Estamos activando TOPCUT. Volvé a entrar en unos minutos.</p>
+            <p className="text-sm" style={{ color: '#888' }}>Estamos activando TOPCUT. Vuelve a entrar en unos minutos.</p>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-3 sm:gap-4">

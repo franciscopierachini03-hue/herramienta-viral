@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // 4 horas y redirige a /admin. Si no, manda a /admin?wrong=1.
 //
 // La cookie es httpOnly + secure + sameSite=lax — no la puede leer JS y
-// solo viaja por HTTPS. Vive 4 horas, después tenés que volver a poner el PIN.
+// solo viaja por HTTPS. Vive 4 horas, después tienes que volver a poner el PIN.
 
 const COOKIE_NAME = 'admin_pin_ok';
 const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 horas en segundos

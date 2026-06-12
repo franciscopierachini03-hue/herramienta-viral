@@ -1,9 +1,9 @@
 'use client';
 
 // Chat de ideas de ViralADN — método de 3 preguntas:
-//   1) ¿A qué te dedicás hoy? (nicho)
+//   1) ¿A qué te dedicas hoy? (nicho)
 //   2) ¿Qué es lo que más te apasiona hoy? (pilar 1)
-//   3) ¿Qué es lo que más amás hoy? (pilar 2)
+//   3) ¿Qué es lo que más amas hoy? (pilar 2)
 // Con eso la IA devuelve 15 palabras CLAVE (de a una palabra) como chips
 // clicables. Al tocar un chip, se dispara la búsqueda (via onPick).
 
@@ -12,9 +12,9 @@ import { useState, useRef, useEffect } from 'react';
 type Msg = { role: 'user' | 'assistant'; content: string; terms?: string[] };
 type Answers = { dedico: string; apasiona: string; amo: string };
 
-const Q1 = 'Te ayudo a armar tu lista de palabras 🔥 Respondé 3 cosas (una por una):\n\n1️⃣ ¿A qué te dedicás hoy en día? (tu nicho)';
+const Q1 = 'Te ayudo a armar tu lista de palabras 🔥 Responde 3 cosas (una por una):\n\n1️⃣ ¿A qué te dedicas hoy en día? (tu nicho)';
 const Q2 = '2️⃣ ¿Qué es lo que MÁS te apasiona hoy en día?';
-const Q3 = '3️⃣ Y por último: ¿qué es lo que más amás hoy?';
+const Q3 = '3️⃣ Y por último: ¿qué es lo que más amas hoy?';
 
 export default function IdeasChat({ onPick }: { onPick: (term: string) => void }) {
   const [open, setOpen] = useState(true);
@@ -40,9 +40,9 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
       if (!r.ok) throw new Error(j.error || 'error');
       const terms: string[] = Array.isArray(j.terms) ? j.terms : [];
       shownRef.current = [...shownRef.current, ...terms];
-      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Acá tenés tus palabras:', terms }]);
+      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Aquí tienes tus palabras:', terms }]);
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Probá de nuevo en un momento.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Prueba de nuevo en un momento.' }]);
     } finally {
       setBusy(false);
     }
@@ -76,16 +76,16 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
     setStep(0);
     setAns({ dedico: '', apasiona: '', amo: '' });
     shownRef.current = [];
-    setMessages([{ role: 'assistant', content: 'Dale, arrancamos de nuevo 🔥\n\n1️⃣ ¿A qué te dedicás hoy en día? (tu nicho)' }]);
+    setMessages([{ role: 'assistant', content: 'Listo, arrancamos de nuevo 🔥\n\n1️⃣ ¿A qué te dedicas hoy en día? (tu nicho)' }]);
   }
 
-  const placeholder = step < 3 ? 'Escribí tu respuesta…' : 'Pedí más o ajustá (ej: más de fitness)…';
+  const placeholder = step < 3 ? 'Escribe tu respuesta…' : 'Pide más o ajusta (ej: más de fitness)…';
 
   return (
     <div className="rounded-2xl mb-5 overflow-hidden" style={{ background: 'linear-gradient(145deg, #120c1f, #0b0b0b)', border: '1px solid #7c3aed44' }}>
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
         <span className="flex items-center gap-2 text-sm font-bold text-white">
-          <span>💡</span> ¿No sabés qué buscar? Respondé 3 preguntas y te doy tu lista
+          <span>💡</span> ¿No sabes qué buscar? Responde 3 preguntas y te doy tu lista
         </span>
         <span className="text-xs" style={{ color: '#888' }}>{open ? 'Ocultar ▲' : 'Mostrar ▼'}</span>
       </button>
@@ -157,7 +157,7 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
               className="px-4 rounded-xl text-sm font-bold disabled:opacity-40"
               style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
           </div>
-          {step === 3 && <p className="text-[11px] mt-2" style={{ color: '#555' }}>Tocá una palabra 🔎 y se busca sola.</p>}
+          {step === 3 && <p className="text-[11px] mt-2" style={{ color: '#555' }}>Toca una palabra 🔎 y se busca sola.</p>}
         </div>
       )}
     </div>

@@ -9,7 +9,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 // remaining = total - taken, capeado a [0, total]
 //
 // El baseline (FOUNDER_BASELINE_TAKEN) sirve para que el contador no arranque
-// en "50 disponibles" cuando lanzás — podés ponerlo en, ej, 18 y el contador
+// en "50 disponibles" cuando lanzas — puedes ponerlo en, ej, 18 y el contador
 // va a mostrar "Quedan 32 lugares" desde el primer día. Si después se suman
 // clientes pagos, baja proporcional.
 //

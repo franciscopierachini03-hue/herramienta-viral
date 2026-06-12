@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) {
-    return Response.json({ error: 'Tenés que iniciar sesión.' }, { status: 401 });
+    return Response.json({ error: 'Tienes que iniciar sesión.' }, { status: 401 });
   }
 
   // Buscar el customer + subscription de ViralADN en profiles.
@@ -42,7 +42,7 @@ export async function POST(_req: NextRequest) {
   // → no hay suscripción Stripe que gestionar.
   if (!customerId || !profile?.stripe_subscription_id) {
     return Response.json({
-      error: 'Tu acceso no tiene una suscripción de pago en Stripe (entraste con código o cortesía). No hay nada que gestionar acá.',
+      error: 'Tu acceso no tiene una suscripción de pago en Stripe (entraste con código o cortesía). No hay nada que gestionar aquí.',
       redirect: '/cuenta',
     }, { status: 404 });
   }

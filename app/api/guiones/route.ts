@@ -35,13 +35,13 @@ El desarrollo. Da el valor prometido en el hook. Reglas:
 
 [CTA]
 El cierre. Claro, específico, con razón para actuar:
-- Diles exactamente qué hacer ("Guardá esto para no olvidarlo")
+- Diles exactamente qué hacer ("Guarda esto para no olvidarlo")
 - Dales un motivo ("porque te va a pasar cuando menos lo esperes")
 - Una sola acción — no des tres opciones
 
 REGLAS IMPORTANTES:
 - El guión debe sonar hablado, no escrito
-- Adaptá el vocabulario, ritmo y energía al estilo de la persona
+- Adapta el vocabulario, ritmo y energía al estilo de la persona
 - Si la persona usa palabras en inglés, úsalas también
 - Si es informal, sé informal. Si es serio, sé serio.
 - Nunca uses palabras de relleno genéricas como "en conclusión" o "cabe destacar"
@@ -49,7 +49,7 @@ REGLAS IMPORTANTES:
 
 Devuelve SOLO el guión como texto corrido, listo para leer y grabar.
 Sin encabezados, sin etiquetas, sin secciones marcadas. Solo el texto que diría la persona.
-Separás el hook, body y cta con una línea en blanco entre cada parte, pero sin ningún título ni etiqueta.
+Separas el hook, body y cta con una línea en blanco entre cada parte, pero sin ningún título ni etiqueta.
 El guión tiene que poder leerse de corrido como si fuera una sola pieza.`;
 
 export async function POST(req: NextRequest) {
@@ -64,12 +64,12 @@ TEMA DEL VIDEO: ${tema}
 
 TONO: ${tono || 'natural y conversacional'}
 
-${estilo?.trim() ? `CÓMO HABLA ESTA PERSONA (analizá su estilo y replicalo):
+${estilo?.trim() ? `CÓMO HABLA ESTA PERSONA (analiza su estilo y replicalo):
 ---
 ${estilo.trim()}
 ---` : ''}
 
-Escribí el guión viral completo con HOOK, BODY y CTA que suene exactamente como esta persona hablando sobre este tema.
+Escribe el guión viral completo con HOOK, BODY y CTA que suene exactamente como esta persona hablando sobre este tema.
 `.trim();
 
   const stream = await getOpenAI().chat.completions.create({

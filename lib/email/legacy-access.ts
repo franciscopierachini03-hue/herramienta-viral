@@ -24,19 +24,19 @@ export function legacyAccessHtml(code: string): string {
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tu acceso a ViralADN</title></head>
 <body style="margin:0;padding:0;background-color:#080808;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tu primer mes gratis en ViralADN. Usá tu código en el checkout.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tu primer mes gratis en ViralADN. Usa tu código en el checkout.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#080808;"><tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
   <tr><td align="center" style="background-color:#7c3aed;background-image:linear-gradient(135deg,#7c3aed,#c13584);border-radius:20px 20px 0 0;padding:40px 30px 32px;">
     <div style="font-size:30px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">ViralADN</div>
-    <div style="font-size:13px;color:#f0e6ff;margin-top:6px;">Encontrá lo viral. Creá contenido que explota.</div>
+    <div style="font-size:13px;color:#f0e6ff;margin-top:6px;">Encuentra lo viral. Crea contenido que explota.</div>
   </td></tr>
 
   <tr><td style="background-color:#0f0f0f;padding:36px 32px 8px;border-left:1px solid #1f1f1f;border-right:1px solid #1f1f1f;">
     <h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">Tu primer mes es gratis 🚀</h1>
     <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#bbbbbb;">Como parte de la comunidad <strong style="color:#ffffff;">Legacy</strong>, te damos acceso completo a <strong style="color:#c4b5fd;">ViralADN</strong> — la herramienta que usan los creadores para encontrar el contenido más viral de YouTube, TikTok e Instagram y convertirlo en guiones listos para grabar.</p>
-    <p style="margin:0;font-size:15px;line-height:1.65;color:#bbbbbb;">Con tu código exclusivo, el <strong style="color:#ffffff;">primer mes te sale $0</strong>. Cancelás cuando quieras antes de que termine — sin compromiso.</p>
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#bbbbbb;">Con tu código exclusivo, el <strong style="color:#ffffff;">primer mes te sale $0</strong>. Cancelas cuando quieras antes de que termine — sin compromiso.</p>
   </td></tr>
 
   <tr><td style="background-color:#0f0f0f;padding:28px 32px;border-left:1px solid #1f1f1f;border-right:1px solid #1f1f1f;">
@@ -52,10 +52,10 @@ export function legacyAccessHtml(code: string): string {
     <p style="margin:0 0 20px;font-size:13px;color:#888888;">Te toma menos de 2 minutos.</p>
   </td></tr>
 
-  ${stepRow('1', 'Entrá a los planes', `Abrí <a href="${PRECIOS_URL}" style="color:#c4b5fd;text-decoration:underline;">viraladn.com/precios</a> desde el botón de abajo.`)}
-  ${stepRow('2', 'Elegí el plan Mensual', `Tocá <strong style="color:#ffffff;">&ldquo;Empezar por $47/mes&rdquo;</strong>. Te lleva al checkout seguro de Stripe.`)}
-  ${stepRow('3', 'Aplicá tu código', `En el checkout tocá <span style="color:#c4b5fd;font-weight:700;">&ldquo;Añadir código de promoción&rdquo;</span> y escribí <strong style="color:#c4b5fd;">${c}</strong>. El total del primer mes pasa a <strong style="color:#22c55e;">$0</strong>.`)}
-  ${stepRow('4', 'Completá y entrá', `Cargás tus datos (el primer mes es <strong style="color:#22c55e;">$0</strong>), creás tu cuenta y entrás a la herramienta. Listo.`, '#22c55e')}
+  ${stepRow('1', 'Entra a los planes', `Abre <a href="${PRECIOS_URL}" style="color:#c4b5fd;text-decoration:underline;">viraladn.com/precios</a> desde el botón de abajo.`)}
+  ${stepRow('2', 'Elige el plan Mensual', `Toca <strong style="color:#ffffff;">&ldquo;Empezar por $47/mes&rdquo;</strong>. Te lleva al checkout seguro de Stripe.`)}
+  ${stepRow('3', 'Aplica tu código', `En el checkout toca <span style="color:#c4b5fd;font-weight:700;">&ldquo;Añadir código de promoción&rdquo;</span> y escribe <strong style="color:#c4b5fd;">${c}</strong>. El total del primer mes pasa a <strong style="color:#22c55e;">$0</strong>.`)}
+  ${stepRow('4', 'Completa y entra', `Cargas tus datos (el primer mes es <strong style="color:#22c55e;">$0</strong>), creas tu cuenta y entras a la herramienta. Listo.`, '#22c55e')}
 
   <tr><td align="center" style="background-color:#0f0f0f;padding:8px 32px 36px;border-left:1px solid #1f1f1f;border-right:1px solid #1f1f1f;">
     <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#7c3aed;background-image:linear-gradient(135deg,#7c3aed,#c13584);border-radius:14px;">
@@ -64,7 +64,7 @@ export function legacyAccessHtml(code: string): string {
   </td></tr>
 
   <tr><td align="center" style="background-color:#0a0a0a;padding:26px 32px;border:1px solid #1f1f1f;border-top:none;border-radius:0 0 20px 20px;">
-    <p style="margin:0 0 6px;font-size:13px;color:#888888;">¿Dudas? Respondé este correo y te ayudamos.</p>
+    <p style="margin:0 0 6px;font-size:13px;color:#888888;">¿Dudas? Responde este correo y te ayudamos.</p>
     <p style="margin:0;font-size:11px;color:#555555;">© 2026 ViralADN · Hecho para creadores que toman en serio su crecimiento</p>
   </td></tr>
 
@@ -97,20 +97,20 @@ export function legacyAccessText(code: string): string {
   return [
     'Tu acceso a ViralADN — comunidad Legacy',
     '',
-    'Como parte de Legacy, tenés acceso completo a ViralADN: la herramienta para',
+    'Como parte de Legacy, tienes acceso completo a ViralADN: la herramienta para',
     'encontrar el contenido más viral de YouTube, TikTok e Instagram y convertirlo',
     'en guiones listos para grabar.',
     '',
     'Cómo activarlo:',
-    '1. Entrá a https://www.viraladn.com/precios',
-    '2. Elegí el plan Mensual ($47/mes) y tocá Empezar.',
-    `3. En el checkout, en "Añadir código de promoción", escribí: ${c}`,
-    '4. Completá tus datos y entrás a la herramienta.',
+    '1. Entra a https://www.viraladn.com/precios',
+    '2. Elige el plan Mensual ($47/mes) y toca Empezar.',
+    `3. En el checkout, en "Añadir código de promoción", escribe: ${c}`,
+    '4. Completa tus datos y entras a la herramienta.',
     '',
-    'Tu primer mes queda sin costo con ese código. Cancelás cuando quieras.',
+    'Tu primer mes queda sin costo con ese código. Cancelas cuando quieras.',
     '',
     'ViralADN · viraladn.com',
-    'Para darte de baja, respondé este correo con "Baja".',
+    'Para darte de baja, responde este correo con "Baja".',
   ].join('\n');
 }
 

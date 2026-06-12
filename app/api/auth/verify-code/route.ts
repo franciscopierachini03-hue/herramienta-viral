@@ -76,15 +76,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (!profile.pending_code || !profile.pending_code_expires_at) {
-    return Response.json({ error: 'No hay un código activo. Pedí uno nuevo.' }, { status: 400 });
+    return Response.json({ error: 'No hay un código activo. Pide uno nuevo.' }, { status: 400 });
   }
 
   if (new Date(profile.pending_code_expires_at).getTime() < Date.now()) {
-    return Response.json({ error: 'El código venció. Pedí uno nuevo.' }, { status: 400 });
+    return Response.json({ error: 'El código venció. Pide uno nuevo.' }, { status: 400 });
   }
 
   if ((profile.pending_code_attempts || 0) >= MAX_ATTEMPTS) {
-    return Response.json({ error: 'Demasiados intentos. Pedí un código nuevo.' }, { status: 429 });
+    return Response.json({ error: 'Demasiados intentos. Pide un código nuevo.' }, { status: 429 });
   }
 
   if (profile.pending_code !== code) {

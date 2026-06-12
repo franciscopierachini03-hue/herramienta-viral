@@ -102,7 +102,7 @@ export default function Historial() {
           <div className="rounded-3xl p-12 text-center" style={{ background: '#0c0c0c', border: '1px dashed #2a2a2a' }}>
             <div className="text-5xl mb-3">🎬</div>
             <h3 className="text-lg font-bold mb-1">Todavía no editaste ningún video</h3>
-            <p className="text-sm mb-5" style={{ color: '#888' }}>Cuando edites uno con TOPCUT, te va a quedar acá guardado por 30 días.</p>
+            <p className="text-sm mb-5" style={{ color: '#888' }}>Cuando edites uno con TOPCUT, te va a quedar aquí guardado por 30 días.</p>
             <Link href="/editor" className="inline-block px-5 py-3 rounded-2xl text-sm font-bold"
               style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>Editar mi primer video</Link>
           </div>

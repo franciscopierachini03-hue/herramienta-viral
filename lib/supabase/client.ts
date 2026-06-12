@@ -1,7 +1,7 @@
 // Cliente de Supabase para el navegador.
 // Usa la publishable key — segura para exponer al frontend.
 // Si en el futuro activamos Row Level Security (RLS), las políticas se aplican
-// automáticamente a las queries hechas desde acá.
+// automáticamente a las queries hechas desde aquí.
 import { createBrowserClient } from '@supabase/ssr';
 
 export function createClient() {

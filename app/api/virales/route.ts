@@ -36,7 +36,7 @@ function stripTags(t: string) {
 }
 
 // Detecta títulos en alfabetos no-latinos (hindi/devanagari, árabe, chino,
-// japonés, coreano, tailandés, cirílico). El contenido en esos idiomas no le
+// japones, coreano, tailandés, cirílico). El contenido en esos idiomas no le
 // sirve a la audiencia ES/EN/PT (no lo pueden leer ni adaptar), así que lo
 // descartamos antes de que se cuele — incluso en el relleno adaptativo, que
 // no pasa por el scoring de IA.
@@ -291,7 +291,7 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
         response_format: { type: 'json_object' },
         messages: [{
           role: 'system',
-          content: `Eres un experto en hashtags virales que usan creators GRANDES (1M+ followers). Dado un tema, generás 4 grupos de hashtags para construir un pool de búsqueda profundo.
+          content: `Eres un experto en hashtags virales que usan creators GRANDES (1M+ followers). Dado un tema, generas 4 grupos de hashtags para construir un pool de búsqueda profundo.
 
 Formato ESTRICTO JSON:
 {"es":["k1","k2","k3","k4","k5","k6","k7","k8"],"en":["k1","k2","k3","k4","k5","k6"],"pt":["k1","k2","k3","k4"],"ru":["k1","k2"],"de":["k1","k2"],"fr":["k1","k2"],"it":["k1","k2"],"ja":["k1","k2"]}
@@ -306,8 +306,8 @@ REGLAS NO NEGOCIABLES:
 - Frases cortas, 1-2 palabras (van después de #)
 - Sin espacios largos, sin "como hacer", sin artículos
 - TODOS los keywords deben ser de la MISMA familia conceptual del tema. Si el tema es "dinero", NO pongas "5amroutine" o "gymmotivation" aunque se cruce a veces — eso lo filtramos diferente.
-- Excluí explícitamente nichos técnicos especializados (trading técnico, análisis bursátil, criptos detalladas) salvo que el tema los pida directamente
-- Excluí lifestyle desconectado (5amroutine, gymworkout, fooddiet) salvo que el tema sea ese
+- Excluye explícitamente nichos técnicos especializados (trading técnico, análisis bursátil, criptos detalladas) salvo que el tema los pida directamente
+- Excluye lifestyle desconectado (5amroutine, gymworkout, fooddiet) salvo que el tema sea ese
 - RU en cirílico nativo, DE/FR/IT con palabras reales del idioma. JA en hiragana/katakana/kanji
 - Si el tema es muy nicho regional, igual completar todos los idiomas con la mejor traducción que exista
 
@@ -365,7 +365,7 @@ async function visionRescore(
     const userContent: Array<Record<string, unknown>> = [];
     userContent.push({
       type: 'text',
-      text: `Tema buscado: "${tema}"\n\nCalificá cada video del 0 al 10 según qué tan replicable es por un creador para crecer en su nicho.\n\nReglas:\n- 0-2: Banner/promo de curso/mentoría, anuncio de producto, llamada a comprar/agendar\n- 3-4: Lifestyle vacío (autos, mansiones, viajes), motivación genérica sin método\n- 5-6: Habla del tema pero superficial o muy básico\n- 7-8: Consejo claro y aplicable, framework concreto, lección extraíble\n- 9-10: Mentor con autoridad, números/datos específicos, framework completo\n\nDevolvé SOLO un array JSON: [{"i":0,"s":7},{"i":1,"s":3},...] (i=índice 0-based, s=score 0-10).`,
+      text: `Tema buscado: "${tema}"\n\nCalifica cada video del 0 al 10 según qué tan replicable es por un creador para crecer en su nicho.\n\nReglas:\n- 0-2: Banner/promo de curso/mentoría, anuncio de producto, llamada a comprar/agendar\n- 3-4: Lifestyle vacío (autos, mansiones, viajes), motivación genérica sin método\n- 5-6: Habla del tema pero superficial o muy básico\n- 7-8: Consejo claro y aplicable, framework concreto, lección extraíble\n- 9-10: Mentor con autoridad, números/datos específicos, framework completo\n\nDevuelve SOLO un array JSON: [{"i":0,"s":7},{"i":1,"s":3},...] (i=índice 0-based, s=score 0-10).`,
     });
     batch.forEach((c, i) => {
       userContent.push({ type: 'text', text: `[${i}] @${c.channel} — "${c.title.slice(0, 150)}"` });
@@ -379,7 +379,7 @@ async function visionRescore(
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'Sos un curador experto de contenido viral. Evaluás videos cortos para creadores que quieren replicar fórmulas que funcionan.' },
+            { role: 'system', content: 'Eres un curador experto de contenido viral. Evalúas videos cortos para creadores que quieren replicar fórmulas que funcionan.' },
             { role: 'user', content: userContent },
           ],
           response_format: { type: 'json_object' },
@@ -1080,7 +1080,7 @@ async function searchViaApify(
     // clockworks/tiktok-scraper — usa el motor de búsqueda nativo de TikTok.
     // Lanzamos DOS pasadas en paralelo para maximizar cobertura:
     //   A) searchQueries — búsqueda de texto (lo que ve la gente al tipear)
-    //   B) hashtags     — feed de hashtag (cazá los virales que crecen
+    //   B) hashtags     — feed de hashtag (caza los virales que crecen
     //                     dentro de un tag, no necesariamente con la
     //                     palabra exacta en el caption)
     const allKeywords = [...esKeywords, ...enKeywords, ...ptKeywords, ...ruKeywords, ...deKeywords, ...frKeywords, ...itKeywords, ...jaKeywords];
@@ -1612,7 +1612,7 @@ ESCALA 0-10
 - Drama, chisme, vida personal sin enseñanza
 - Lifestyle de lujo sin contenido (autos, mansiones, viajes)
 - Clickbait vacío: "No vas a creer", "Mira esto", "Esto cambió mi vida" sin sustancia
-- Idiomas no soportados (hindi, árabe, chino, japonés, coreano, tailandés, etc.) → SIEMPRE 0
+- Idiomas no soportados (hindi, árabe, chino, japones, coreano, tailandés, etc.) → SIEMPRE 0
 
 😐 3-4 IRRELEVANTE
 - Menciona el tema solo de paso
@@ -1669,7 +1669,7 @@ REGLAS NO NEGOCIABLES
 4. **Adyacencia ESTRICTA:** un reel de un creator de motivación que habla de "trends de caviar" NO califica para "motivación". Solo cuenta como adyacente si el contenido TRANSFIERE al tema buscado (ej: para "motivación" → disciplina, hábitos, mindset SI demuestran cómo motivarse).
 3. Sé ULTRA ESTRICTO con la relevancia al tema. Ante la duda, baja el score 2 puntos.
 4. ES/EN/PT: puntúa con la misma vara — NO favorezcas español.
-5. Otros idiomas (hindi, árabe, chino, japonés, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
+5. Otros idiomas (hindi, árabe, chino, japones, coreano, tailandés, vietnamita, indonesio, ruso, etc.) → score 0 sin excepciones.
 6. Hashtags y emojis no aportan score: evalúa el contenido del título.
 7. Autoridad del creador OBLIGATORIA para 7+: el @autor debe sonar a empresa real, mentor reconocido, marca consolidada o experto. Cuentas genéricas (nombres aleatorios, números al final, "official" sin contexto, "tips_xyz") → máximo 4.
 8. Clickbait vacío sin payload concreto → máximo 3.
@@ -2138,7 +2138,7 @@ export async function POST(req: NextRequest) {
     const recentSearches = await countRecentSearches(userEmail);
     if (recentSearches >= SEARCH_RATE_LIMIT) {
       return Response.json({
-        error: `Límite de ${SEARCH_RATE_LIMIT} búsquedas por día alcanzado. Volvé mañana o aprovechá los resultados que ya tenés guardados.`,
+        error: `Límite de ${SEARCH_RATE_LIMIT} búsquedas por día alcanzado. Vuelve mañana o aprovecha los resultados que ya tienes guardados.`,
       }, { status: 429 });
     }
   }
@@ -2396,7 +2396,7 @@ export async function POST(req: NextRequest) {
     // Si Apify funcionó pero no hay videos del tema → mensaje claro, no RapidAPI
     if (apifyWorkedButEmpty) {
       return Response.json({
-        error: `No encontramos reels virales en Instagram para "${tema}". Probá un tema más popular o buscá en TikTok/YouTube.`,
+        error: `No encontramos reels virales en Instagram para "${tema}". Prueba un tema más popular o busca en TikTok/YouTube.`,
       }, { status: 422 });
     }
 

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) {
-    return Response.json({ error: 'Tenés que iniciar sesión.' }, { status: 401 });
+    return Response.json({ error: 'Tienes que iniciar sesión.' }, { status: 401 });
   }
 
   // 1. Verificar la contraseña actual.
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   const { error: updErr } = await supabase.auth.updateUser({ password: String(newPassword) });
   if (updErr) {
     console.error('[change-password]', updErr);
-    return Response.json({ error: 'No pudimos cambiar la contraseña. Probá de nuevo.' }, { status: 500 });
+    return Response.json({ error: 'No pudimos cambiar la contraseña. Prueba de nuevo.' }, { status: 500 });
   }
 
   return Response.json({ ok: true });

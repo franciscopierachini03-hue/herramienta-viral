@@ -5,8 +5,8 @@ import { sendLegacyAccessBatch } from '@/lib/email/legacy-access';
 // POST /api/admin/send-access
 //
 // Envío masivo del correo de acceso Legacy (branded, con el código de descuento
-// que la persona pone en el checkout de Stripe). Pegás una lista de emails +
-// elegís el código → Resend manda el correo a cada uno.
+// que la persona pone en el checkout de Stripe). Pegas una lista de emails +
+// eliges el código → Resend manda el correo a cada uno.
 //
 // Solo accesible para admins. No crea cuentas — solo envía el correo.
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   // Tope de seguridad por request (para no exceder el timeout).
   if (valid.length > 500) {
     return Response.json({
-      error: `Demasiados emails (${valid.length}). Mandá de a 500 como máximo por tanda.`,
+      error: `Demasiados emails (${valid.length}). Manda de a 500 como máximo por tanda.`,
     }, { status: 400 });
   }
 

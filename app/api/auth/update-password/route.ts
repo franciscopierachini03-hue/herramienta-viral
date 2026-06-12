@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // POST /api/auth/update-password { password }
 //
 // El usuario llega a /reset-password con sesión recién creada por el callback
-// (Supabase intercambió el code del correo por una cookie). Acá actualizamos
+// (Supabase intercambió el code del correo por una cookie). Aquí actualizamos
 // la contraseña del user logueado.
 
 export async function POST(req: NextRequest) {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return Response.json(
-      { error: 'Tu link expiró. Pedí uno nuevo desde "Olvidé mi contraseña".' },
+      { error: 'Tu link expiró. Pide uno nuevo desde "Olvidé mi contraseña".' },
       { status: 401 },
     );
   }
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('[auth/update-password]', error);
     return Response.json(
-      { error: 'No pudimos actualizar la contraseña. Probá de nuevo.' },
+      { error: 'No pudimos actualizar la contraseña. Prueba de nuevo.' },
       { status: 500 },
     );
   }

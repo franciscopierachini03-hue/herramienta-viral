@@ -132,7 +132,7 @@ async function detectMistakes(words: WordTS[], transcript: string): Promise<RawC
     .map(w => `${w.start.toFixed(1)}:${w.word.replace(/\s/g, '_')}`)
     .join(' ');
 
-  const prompt = `Sos un editor de video profesional EXPERTO en detectar errores de habla. Tu trabajo es encontrar exactamente dónde la persona se equivocó para cortarlo.
+  const prompt = `Eres un editor de video profesional EXPERTO en detectar errores de habla. Tu trabajo es encontrar exactamente dónde la persona se equivocó para cortarlo.
 
 DETECTÁ estos casos con precisión quirúrgica:
 1. FALSE START: empieza una frase, se traba y la vuelve a empezar (ej: "yo fui a... yo fui al super")
@@ -146,10 +146,10 @@ REGLAS CRÍTICAS:
 - El timestamp de END debe ser JUSTO donde termina el error y empieza la parte limpia
 - NO incluyas la parte correcta — solo lo que hay que eliminar
 - NO marques pausas normales entre oraciones
-- Sé conservador: solo marcá lo que estás 100% seguro que es un error
-- Si una frase se repite exactamente, marcá la PRIMERA instancia para cortar
+- Sé conservador: solo marca lo que estás 100% seguro que es un error
+- Si una frase se repite exactamente, marca la PRIMERA instancia para cortar
 
-Respondé SOLO con JSON válido, sin markdown:
+Responde SOLO con JSON válido, sin markdown:
 {
   "mistakes": [
     { "start": 4.2, "end": 6.8, "reason": "false start — reinicia la frase" },
@@ -157,7 +157,7 @@ Respondé SOLO con JSON válido, sin markdown:
   ]
 }
 
-Si no hay errores claros, devolvé: { "mistakes": [] }
+Si no hay errores claros, devuelve: { "mistakes": [] }
 
 Transcript completo: "${transcript.slice(0, 2000)}"
 
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
 
   if (file.size > 24 * 1024 * 1024)
     return Response.json(
-      { error: 'El audio extraído es demasiado grande (>24MB). Cortá el video en partes de máximo 15 min.' },
+      { error: 'El audio extraído es demasiado grande (>24MB). Corta el video en partes de máximo 15 min.' },
       { status: 413 }
     );
 
@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
       model: 'gpt-4o-mini',
       messages: [{
         role: 'user',
-        content: `Sos un experto en contenido viral para redes sociales. Analizá este transcript y respondé SOLO con JSON válido sin markdown:
+        content: `Eres un experto en contenido viral para redes sociales. Analiza este transcript y responde SOLO con JSON válido sin markdown:
 
 {
   "hook_enhanced": "versión mejorada y más impactante de lo que dice al inicio (MAX 8 palabras, en mayúsculas, tipo TikTok). Basate en el sentido de las primeras palabras, no las inventes de cero.",
@@ -313,10 +313,10 @@ export async function POST(req: NextRequest) {
 }
 
 REGLAS para broll_queries:
-- Generá exactamente 6 queries en inglés, una por cada slot de B-Roll que aparecerá en el video
+- Genera exactamente 6 queries en inglés, una por cada slot de B-Roll que aparecerá en el video
 - Cada query debe ser DIFERENTE y representar visualmente lo que se dice en esa parte del video
 - Usa términos concretos y visuales (ej: "person working laptop coffee shop", "city buildings sunrise", "gym workout motivation")
-- Evitá términos abstractos — pensá en qué imagen refuerza cada momento del discurso
+- Evita términos abstractos — piensa en qué imagen refuerza cada momento del discurso
 - El orden importa: las queries van de inicio a fin del video
 
 Primeras palabras del video (hook): "${openingText}"

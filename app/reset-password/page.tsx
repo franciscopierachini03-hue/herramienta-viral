@@ -5,7 +5,7 @@ import { useState } from 'react';
 import PasswordInput from '../_components/PasswordInput';
 
 // Esta página la abre el usuario tras clickear el link "Olvidé mi contraseña"
-// del correo. Cuando llegan acá, Supabase ya intercambió el code en
+// del correo. Cuando llegan aquí, Supabase ya intercambió el code en
 // /auth/callback y la cookie de sesión está seteada.
 //
 // Si la cookie expiró o el link es inválido, /api/auth/update-password
@@ -48,7 +48,7 @@ export default function ResetPassword() {
       setDone(true);
       setTimeout(() => { window.location.href = '/app?session=new'; }, 1500);
     } catch {
-      setError('Error de conexión. Probá de nuevo.');
+      setError('Error de conexión. Prueba de nuevo.');
       setLoading(false);
     }
   }
@@ -79,7 +79,7 @@ export default function ResetPassword() {
               <>
                 <h2 className="text-2xl font-bold mb-2">Nueva contraseña</h2>
                 <p className="text-sm mb-6" style={{ color: '#888' }}>
-                  Elegí una contraseña nueva y volvemos a entrar.
+                  Elige una contraseña nueva y volvemos a entrar.
                 </p>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-3">

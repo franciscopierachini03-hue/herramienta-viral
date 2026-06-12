@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     metaPlan = producto === 'combo' ? `combo-${ciclo}` : producto;
     if (!priceId) {
       return Response.json(
-        { error: `Todavía no encontramos el precio de "${producto}" (${ciclo}) en Stripe. Revisá que el producto y el monto existan.` },
+        { error: `Todavía no encontramos el precio de "${producto}" (${ciclo}) en Stripe. Revisa que el producto y el monto existan.` },
         { status: 503 },
       );
     }

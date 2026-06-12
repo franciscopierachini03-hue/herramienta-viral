@@ -33,7 +33,7 @@ export default function AdminResetPassword() {
   return (
     <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
       <div className="text-sm font-bold mb-1">🔑 Restablecer contraseña de un usuario</div>
-      <p className="text-xs mb-3" style={{ color: '#888' }}>Ponés el email y una contraseña nueva, y se la pasás a la persona (sirve para los que no pueden entrar).</p>
+      <p className="text-xs mb-3" style={{ color: '#888' }}>Pones el email y una contraseña nueva, y se la pasas a la persona (sirve para los que no pueden entrar).</p>
       <form onSubmit={submit} className="flex flex-col gap-2.5 max-w-md">
         <input type="email" placeholder="email del usuario" value={email} onChange={e => setEmail(e.target.value)}
           className="rounded-xl px-3 py-2.5 text-sm outline-none" style={inputStyle} />

@@ -10,7 +10,7 @@
 //   3. Contexto ("de qué va tu video") + instrucciones de animación
 //   4. PREVIO: el cerebro arma un PLAN (hook, subtítulos, animación, b-roll,
 //      música) SIN renderizar todavía → se muestra como storyboard
-//   5. Chat: la persona le pide ajustes al cerebro ("animá palabra por palabra",
+//   5. Chat: la persona le pide ajustes al cerebro ("anima palabra por palabra",
 //      "textos más grandes") → el PLAN se actualiza en vivo
 //   6. Editar: con el plan aprobado, recién ahí se renderiza → descargar
 //
@@ -61,7 +61,7 @@ const TOPCUT_LIVE = process.env.NEXT_PUBLIC_TOPCUT_LIVE !== '0';
 
 // Las llamadas chicas (chat, render, poll) van por el proxy mismo-origen
 // /api/topcut/* (el token viaja del lado server). La subida del video va
-// DIRECTA a Hetzner con un ticket corto que pedimos acá (Vercel no deja
+// DIRECTA a Hetzner con un ticket corto que pedimos aquí (Vercel no deja
 // proxyear archivos grandes). El ticket solo se emite a usuarios con acceso.
 type Ticket = { token: string; api: string; planAvailable: boolean };
 async function getTicket(): Promise<Ticket> {
@@ -186,7 +186,7 @@ export default function Topcut() {
         if (cancel) return;
         const res = j && typeof j.result === 'string' ? (j.result.startsWith('http') ? j.result : `${API}${j.result}`) : '';
         if (res) { setPlanId(jobId); setResultUrl(res); setStep('done'); }
-        else { setStep('error'); setError('Este video ya no se puede editar (pasó el tiempo). Editá uno nuevo.'); }
+        else { setStep('error'); setError('Este video ya no se puede editar (pasó el tiempo). Edita uno nuevo.'); }
       })
       .catch(() => { if (!cancel) { setStep('error'); setError('No pude cargar el video para editarlo.'); } });
     return () => { cancel = true; };
@@ -360,7 +360,7 @@ export default function Topcut() {
 
     let ticket: Ticket;
     try { ticket = await getTicket(); }
-    catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
+    catch { fail('No pudimos verificar tu acceso. Vuelve a iniciar sesión.'); return; }
 
     // Si el backend todavía no tiene el modo previo, NO subimos el video al pedo
     // a /api/plan: vamos directo al flujo que sí funciona (una sola subida).
@@ -384,7 +384,7 @@ export default function Topcut() {
     xhr.open('POST', `${ticket.api}/api/plan`);
     if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
     xhr.timeout = 20 * 60 * 1000;
-    xhr.ontimeout = () => fail('La subida tardó demasiado. Probá con un video más corto o revisá tu conexión.');
+    xhr.ontimeout = () => fail('La subida tardó demasiado. Prueba con un video más corto o revisa tu conexión.');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -392,7 +392,7 @@ export default function Topcut() {
           const j = JSON.parse(xhr.responseText);
           setPlanId(j.planId || j.id || '');
           setPlan(j.plan || j);
-          setMessages([{ role: 'brain', text: j.reply || 'Acá tenés el previo de tu edición. Pedime los cambios que quieras (animaciones, tamaño, color, música) y lo ajusto antes de renderizar.' }]);
+          setMessages([{ role: 'brain', text: j.reply || 'Aquí tienes el previo de tu edición. Pídeme los cambios que quieras (animaciones, tamaño, color, música) y lo ajusto antes de renderizar.' }]);
           setStep('studio');
         } catch { fail('Respuesta inválida del servidor (plan).'); }
       } else if (xhr.status === 404 || xhr.status === 501) {
@@ -423,7 +423,7 @@ export default function Topcut() {
       if (j.plan) setPlan(j.plan);
       setMessages((m) => [...m, { role: 'brain', text: j.reply || 'Listo, actualicé el previo con ese cambio.' }]);
     } catch {
-      setMessages((m) => [...m, { role: 'brain', text: 'No pude aplicar ese cambio (el backend todavía no tiene el chat de edición). Igual podés editar el video con el previo actual.' }]);
+      setMessages((m) => [...m, { role: 'brain', text: 'No pude aplicar ese cambio (el backend todavía no tiene el chat de edición). Igual puedes editar el video con el previo actual.' }]);
     } finally {
       setChatBusy(false);
     }
@@ -464,7 +464,7 @@ export default function Topcut() {
       ticket = pre;
     } else {
       try { ticket = await getTicket(); }
-      catch { fail('No pudimos verificar tu acceso. Volvé a iniciar sesión.'); return; }
+      catch { fail('No pudimos verificar tu acceso. Vuelve a iniciar sesión.'); return; }
     }
 
     const segs = segments.map((s) => ({ start: r3(s.start), end: r3(s.end) }));
@@ -481,7 +481,7 @@ export default function Topcut() {
     xhr.setRequestHeader('content-type', file.type || 'video/mp4');
     if (ticket.token) xhr.setRequestHeader('authorization', `Bearer ${ticket.token}`);
     xhr.timeout = 20 * 60 * 1000;
-    xhr.ontimeout = () => fail('La subida tardó demasiado. Probá con un video más corto o revisá tu conexión.');
+    xhr.ontimeout = () => fail('La subida tardó demasiado. Prueba con un video más corto o revisa tu conexión.');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -598,7 +598,7 @@ export default function Topcut() {
 
   // El acceso a TOPCUT lo gatea el layout server-side (app/editor/layout.tsx):
   // admin o quien pagó TOPCUT/combo entra; al resto lo manda directo a /precios.
-  // Acá ya podemos renderizar el editor.
+  // Aquí ya podemos renderizar el editor.
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
       <div className="px-6 pt-10 pb-2 max-w-6xl mx-auto w-full">
@@ -652,10 +652,10 @@ export default function Topcut() {
           <>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">
-                Subí tu video.{' '}
+                Sube tu video.{' '}
                 <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>La IA lo edita.</span>
               </h2>
-              <p className="text-sm" style={{ color: '#999' }}>Recortás (sacás los errores), le contás de qué va, y el cerebro arma la edición. Vos aprobás el previo antes de renderizar.</p>
+              <p className="text-sm" style={{ color: '#999' }}>Recortas (sacas los errores), le cuentas de qué va, y el cerebro arma la edición. Tú apruebas el previo antes de renderizar.</p>
               <Link href="/editor/historial" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-2xl text-xs font-bold"
                 style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>📁 Mis videos editados</Link>
             </div>
@@ -670,8 +670,8 @@ export default function Topcut() {
                 ? { borderColor: '#a855f7', background: '#a855f70d', boxShadow: '0 0 40px #a855f722' }
                 : { borderColor: '#2a2a2a', background: '#0c0c0c' }}>
               <div className="text-6xl mb-4">{isDragging ? '📂' : '🎬'}</div>
-              <h3 className="text-lg font-bold mb-1">Soltá tu video acá</h3>
-              <p className="text-sm mb-5" style={{ color: '#666' }}>o hacé clic para elegirlo</p>
+              <h3 className="text-lg font-bold mb-1">Suelta tu video aquí</h3>
+              <p className="text-sm mb-5" style={{ color: '#666' }}>o haz clic para elegirlo</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 {['MP4', 'MOV', 'AVI', 'MKV'].map((f) => (
                   <span key={f} className="text-[10px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#555' }}>{f}</span>
@@ -680,7 +680,7 @@ export default function Topcut() {
             </div>
 
             <div className="grid grid-cols-4 gap-2 mt-6">
-              {[{ icon: '✂️', label: 'Recortás' }, { icon: '💬', label: 'Das contexto' }, { icon: '🤖', label: 'Chateás' }, { icon: '✨', label: 'Aprobás' }].map((f) => (
+              {[{ icon: '✂️', label: 'Recortas' }, { icon: '💬', label: 'Das contexto' }, { icon: '🤖', label: 'Chateas' }, { icon: '✨', label: 'Apruebas' }].map((f) => (
                 <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
                   <span className="text-xl">{f.icon}</span>
                   <span className="text-[10px]" style={{ color: '#666' }}>{f.label}</span>
@@ -693,15 +693,15 @@ export default function Topcut() {
         {/* ── 2. TRIM (por trozos) ────────────────────── */}
         {step === 'trim' && (
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
-            <h3 className="text-xl font-bold mb-1">✂️ Recortá y sacá lo que no sirve</h3>
+            <h3 className="text-xl font-bold mb-1">✂️ Recorta y saca lo que no sirve</h3>
             <p className="text-sm mb-5" style={{ color: '#888' }}>
-              Movés el video al punto del error → <b style={{ color: '#c4b5fd' }}>✂️ Cortar acá</b> (antes y después del error) → en la lista de abajo tocás <b style={{ color: '#f87171' }}>🗑️ Quitar</b> en ese trozo. Sacás partes del medio, del principio o del final.
+              Mueves el video al punto del error → <b style={{ color: '#c4b5fd' }}>✂️ Cortar aquí</b> (antes y después del error) → en la lista de abajo tocas <b style={{ color: '#f87171' }}>🗑️ Quitar</b> en ese trozo. Sacas partes del medio, del principio o del final.
             </p>
 
             <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate}
               controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #222', background: '#000' }} />
 
-            {/* timeline — arrastrá la línea para elegir dónde cortar */}
+            {/* timeline — arrastra la línea para elegir dónde cortar */}
             <div
               onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
               className="relative h-12 rounded-xl overflow-hidden mb-1.5 select-none"
@@ -741,7 +741,7 @@ export default function Topcut() {
               </div>
             )}
 
-            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastrá la línea ⚪ por el video (o por la onda de audio) para elegir el punto exacto. Los picos altos son voz fuerte; los valles, silencios.</p>
+            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastra la línea ⚪ por el video (o por la onda de audio) para elegir el punto exacto. Los picos altos son voz fuerte; los valles, silencios.</p>
 
             {/* controles */}
             <div className="flex items-center gap-2 flex-wrap mb-4">
@@ -749,7 +749,7 @@ export default function Topcut() {
                 className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>◀ 0.1s</button>
               <button onClick={splitAtPlayhead} disabled={!canSplit}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
-                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar acá ({fmt(playhead)})</button>
+                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar aquí ({fmt(playhead)})</button>
               <button onClick={() => nudge(0.1)} title="Adelante 0.1s"
                 className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>0.1s ▶</button>
               <button onClick={undo} disabled={!history.length}
@@ -761,7 +761,7 @@ export default function Topcut() {
             </div>
 
             {/* lista de trozos — cada uno con su botón Quitar (sin seleccionar antes) */}
-            <p className="text-[11px] mb-2" style={{ color: '#888' }}>Estos son los pedazos que QUEDAN en el video. Tocá <b style={{ color: '#f87171' }}>🗑️ Quitar</b> para sacar el que no sirve.</p>
+            <p className="text-[11px] mb-2" style={{ color: '#888' }}>Estos son los pedazos que QUEDAN en el video. Toca <b style={{ color: '#f87171' }}>🗑️ Quitar</b> para sacar el que no sirve.</p>
             <div className="flex flex-col gap-1.5 mb-3">
               {segments.map((s, i) => (
                 <div key={i}
@@ -774,7 +774,7 @@ export default function Topcut() {
                   <button onClick={() => deleteSeg(i)} disabled={segments.length <= 1}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-30 shrink-0"
                     style={{ background: '#2a0f0f', border: '1px solid #5c1414', color: '#f87171' }}
-                    title={segments.length <= 1 ? 'No podés quitar el único trozo' : 'Quitar este trozo del video'}>🗑️ Quitar</button>
+                    title={segments.length <= 1 ? 'No puedes quitar el único trozo' : 'Quitar este trozo del video'}>🗑️ Quitar</button>
                 </div>
               ))}
             </div>
@@ -794,7 +794,7 @@ export default function Topcut() {
         {/* ── 3. BRIEF ────────────────────────────────── */}
         {step === 'brief' && (
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
-            <h3 className="text-xl font-bold mb-1">💬 Contanos de tu video</h3>
+            <h3 className="text-xl font-bold mb-1">💬 Cuéntanos de tu video</h3>
             <p className="text-sm mb-5" style={{ color: '#888' }}>Cuanto mejor el contexto, mejor le pega el cerebro con el hook, los subtítulos y el b-roll.</p>
 
             <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿De qué va el video?</label>
@@ -803,7 +803,7 @@ export default function Topcut() {
               className="w-full rounded-2xl px-4 py-3 text-sm mb-5 resize-none outline-none"
               style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
 
-            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿Cómo querés las animaciones de texto? <span style={{ color: '#555', fontWeight: 400 }}>(opcional)</span></label>
+            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿Cómo quieres las animaciones de texto? <span style={{ color: '#555', fontWeight: 400 }}>(opcional)</span></label>
             <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={600} rows={2}
               placeholder="Ej: que los subtítulos aparezcan palabra por palabra, grandes, abajo del centro, blancos con resalte."
               className="w-full rounded-2xl px-4 py-3 text-sm mb-6 resize-none outline-none"
@@ -860,7 +860,7 @@ export default function Topcut() {
               <button onClick={startRender} className="w-full mt-5 py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>
                 ✨ Editar video con este plan
               </button>
-              <p className="text-[11px] text-center mt-2" style={{ color: '#555' }}>El render recién corre cuando le das acá.</p>
+              <p className="text-[11px] text-center mt-2" style={{ color: '#555' }}>El render recién corre cuando le das aquí.</p>
             </div>
 
             {/* CHAT con el cerebro */}
@@ -888,7 +888,7 @@ export default function Topcut() {
               <div className="flex gap-2">
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder="Ej: animá los textos palabra por palabra"
+                  placeholder="Ej: anima los textos palabra por palabra"
                   className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
                 <button onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
               </div>
@@ -905,7 +905,7 @@ export default function Topcut() {
         {step === 'studio' && planId && (
           <div className="mt-4 rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
             <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: '#666' }}>
-              Edición manual — ajustá cada escena (subtítulo, B-roll, zoom) y renderizá
+              Edición manual — ajusta cada escena (subtítulo, B-roll, zoom) y renderiza
             </p>
             <ScenePanel jobId={planId} videoUrl={videoUrl} />
           </div>
@@ -980,7 +980,7 @@ export default function Topcut() {
 
             {/* CHAT POST-EDICIÓN: pedir cambios y volver a renderizar */}
             <div className="mt-6 pt-5 text-left" style={{ borderTop: '1px solid #1f1f1f' }}>
-              <div className="text-sm font-bold mb-1">💬 ¿Querés cambiar algo?</div>
+              <div className="text-sm font-bold mb-1">💬 ¿Quieres cambiar algo?</div>
               <p className="text-[11px] mb-3" style={{ color: '#777' }}>Pedile a la IA el ajuste y vuelve a renderizar (~2-3 min).</p>
               <div className="flex gap-2">
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}

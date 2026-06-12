@@ -125,7 +125,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <div className="mt-2" style={{ color: '#666' }}>
               {adminCount === 0
                 ? 'La variable ADMIN_EMAILS está vacía o no existe en Vercel.'
-                : 'Si tu email no aparece arriba (mismo dominio), agregalo a ADMIN_EMAILS y redeployá.'}
+                : 'Si tu email no aparece arriba (mismo dominio), agrégalo a ADMIN_EMAILS y redeploya.'}
             </div>
           </div>
           <Link href="/app" className="text-sm underline" style={{ color: '#c4b5fd' }}>
@@ -170,7 +170,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           <div className="rounded-3xl p-8 text-center"
             style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
             <div className="text-5xl mb-3">🔑</div>
-            <h1 className="text-xl font-bold mb-2">Ingresá el PIN</h1>
+            <h1 className="text-xl font-bold mb-2">Ingresa el PIN</h1>
             <p className="text-sm mb-6" style={{ color: '#888' }}>
               Capa extra de seguridad para abrir el panel.
             </p>
@@ -178,7 +178,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             {wrong === '1' && (
               <div className="rounded-xl p-3 text-xs mb-4"
                 style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
-                PIN incorrecto. Probá de nuevo.
+                PIN incorrecto. Prueba de nuevo.
               </div>
             )}
             {wrong === 'noconfig' && (
@@ -825,7 +825,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center" style={{ color: '#555' }}>
                     {all.length === 0
-                      ? 'No hay usuarios todavía. Cuando alguien se registre va a aparecer acá.'
+                      ? 'No hay usuarios todavía. Cuando alguien se registre va a aparecer aquí.'
                       : 'No hay resultados con esos filtros.'}
                   </td>
                 </tr>

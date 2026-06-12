@@ -18,10 +18,10 @@ const FEATURES: Record<Producto, string[]> = {
     '📚 Biblioteca de guiones ilimitada',
   ],
   topcut: [
-    '✂️ Subís tu video y se edita solo con IA',
-    '🎯 Recorte por trozos: sacá errores del medio, inicio o final',
+    '✂️ Subes tu video y se edita solo con IA',
+    '🎯 Recorte por trozos: saca errores del medio, inicio o final',
     '💬 Subtítulos animados (gancho + palabra por palabra)',
-    '🎬 B-roll automático que acompaña lo que decís',
+    '🎬 B-roll automático que acompaña lo que dices',
     '🎵 Música de fondo elegida por el cerebro',
     '📁 Historial de tus videos por 30 días',
     '🚀 Hasta 40 videos por mes',
@@ -29,7 +29,7 @@ const FEATURES: Record<Producto, string[]> = {
   combo: [
     '🧬 TODO ViralADN: búsqueda viral + guiones + ideas',
     '✂️ TODO TOPCUT: editor con IA, 40 videos/mes',
-    '⚡ Encontrá el contenido y editalo en un solo lugar',
+    '⚡ Encuentra el contenido y edítalo en un solo lugar',
     '💸 Más barato que pagar los dos por separado',
     '🚀 Acceso a todo lo nuevo de las dos plataformas',
   ],
@@ -47,7 +47,7 @@ function ContextBanner() {
         <div className="rounded-2xl p-5 text-center" style={{ background: 'linear-gradient(135deg, #7c3aed22, #c1358422)', border: '1px solid #7c3aed66' }}>
           <div className="text-3xl mb-2">⏰</div>
           <h3 className="text-lg font-bold mb-1">Tu prueba gratuita terminó</h3>
-          <p className="text-sm" style={{ color: '#c4b5fd' }}>Elegí tu plan abajo y seguí encontrando (y editando) contenido viral todos los días.</p>
+          <p className="text-sm" style={{ color: '#c4b5fd' }}>Elige tu plan abajo y sigue encontrando (y editando) contenido viral todos los días.</p>
         </div>
       </div>
     );
@@ -56,7 +56,7 @@ function ContextBanner() {
     return (
       <div className="max-w-2xl mx-auto px-6 mb-6">
         <div className="rounded-2xl p-4 text-center text-sm" style={{ background: '#92400e22', border: '1px solid #92400e44', color: '#fde68a' }}>
-          🔒 Para entrar necesitás suscribirte primero. Elegí tu plan abajo.
+          🔒 Para entrar necesitas suscribirte primero. Elige tu plan abajo.
         </div>
       </div>
     );
@@ -65,7 +65,7 @@ function ContextBanner() {
     return (
       <div className="max-w-2xl mx-auto px-6 mb-6">
         <div className="rounded-2xl p-4 text-center text-sm" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d44', color: '#fca5a5' }}>
-          Cancelaste el pago. Cuando quieras volver, estamos acá.
+          Cancelaste el pago. Cuando quieras volver, estamos aquí.
         </div>
       </div>
     );
@@ -118,10 +118,10 @@ function PricingInner() {
       const data = await res.json();
       if (res.status === 401) { window.location.assign('/login?signup=1&next=/precios'); return; }
       if (data.url) { window.location.assign(data.url); return; }
-      alert(data.error || 'No se pudo crear la sesión de pago. Probá de nuevo.');
+      alert(data.error || 'No se pudo crear la sesión de pago. Prueba de nuevo.');
       setLoading(null);
     } catch {
-      alert('Error de conexión. Intentá de nuevo.');
+      alert('Error de conexión. Intenta de nuevo.');
       setLoading(null);
     }
   }
@@ -134,22 +134,22 @@ function PricingInner() {
     badge?: string; badgeBg?: string; badgeColor?: string;
   }[] = [
     {
-      key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encontrá el contenido que explota.',
+      key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encuentra el contenido que explota.',
       grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
       monthly: { price: '$27', period: '/mes' },
-      yearly: { price: '$270', period: '/año', was: '$324', note: '🎉 ahorrás $54/año' },
+      yearly: { price: '$270', period: '/año', was: '$324', note: '🎉 ahorras $54/año' },
     },
     {
-      key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Editá tus videos solo con IA.',
+      key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Edita tus videos solo con IA.',
       grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$57', period: '/mes' },
-      yearly: { price: '$570', period: '/año', was: '$684', note: '🎉 ahorrás $114/año' },
+      yearly: { price: '$570', period: '/año', was: '$684', note: '🎉 ahorras $114/año' },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
       monthly: { price: '$67', period: '/mes' },
-      yearly: { price: '$670', period: '/año', was: '$804', note: '🎉 ahorrás $134/año' },
+      yearly: { price: '$670', period: '/año', was: '$804', note: '🎉 ahorras $134/año' },
       badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
@@ -163,7 +163,7 @@ function PricingInner() {
           <img src="/logo-mark.svg" alt="ViralADN" width={36} height={36} style={{ filter: 'drop-shadow(0 0 14px #7c3aed55)' }} />
           <span className="text-lg font-bold">ViralADN</span>
         </Link>
-        <Link href="/login" className="text-sm" style={{ color: '#888' }}>¿Ya tenés cuenta? Entrá →</Link>
+        <Link href="/login" className="text-sm" style={{ color: '#888' }}>¿Ya tienes cuenta? Entra →</Link>
       </nav>
 
       <div className="pt-10"><ContextBanner /></div>
@@ -171,10 +171,10 @@ function PricingInner() {
       {/* HEADER */}
       <section className="text-center px-6 pt-2 pb-10 max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
-          Elegí tu{' '}
+          Elige tu{' '}
           <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>herramienta.</span>
         </h1>
-        <p className="text-base" style={{ color: '#888' }}>Buscá lo viral, editá con IA, o llevate las dos. Cancelás cuando quieras.</p>
+        <p className="text-base" style={{ color: '#888' }}>Busca lo viral, edita con IA, o llévate las dos. Cancelas cuando quieras.</p>
       </section>
 
       {/* TOGGLE GLOBAL Mensual / Anual — cambia las 3 tarjetas a la vez */}
@@ -224,7 +224,7 @@ function PricingInner() {
                     style={{ background: c.badgeBg, color: c.badgeColor }}>{c.badge}</div>
                 ) : focused ? (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap"
-                    style={{ background: c.ring, color: '#fff' }}>← lo que buscás</div>
+                    style={{ background: c.ring, color: '#fff' }}>← lo que buscas</div>
                 ) : null}
 
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: c.grad, boxShadow: `0 0 24px ${c.ring}44` }}>{c.icon}</div>
@@ -243,7 +243,7 @@ function PricingInner() {
                 </div>
                 {c.yearly && ciclo === 'yearly'
                   ? <p className="text-xs mb-5" style={{ color: '#22c55e' }}>{c.yearly.note}</p>
-                  : <p className="text-xs mb-5" style={{ color: '#666' }}>cancelás cuando quieras</p>}
+                  : <p className="text-xs mb-5" style={{ color: '#666' }}>cancelas cuando quieras</p>}
 
                 <ul className="flex flex-col gap-2.5 mb-6 flex-1">
                   {FEATURES[c.key].map((f, i) => (
@@ -272,7 +272,7 @@ function PricingInner() {
                       style={{ background: '#0e2a1a', border: '1px solid #22c55e66', color: '#86efac' }}>
                       ✓ Tu plan actual · gestionar
                     </Link>
-                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Lo cambiás o cancelás en Mi cuenta</p>
+                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Lo cambias o cancelas en Mi cuenta</p>
                   </>
                 ) : (
                   <>
@@ -280,7 +280,7 @@ function PricingInner() {
                       style={{ background: '#101010', border: '1px solid #222', color: '#666' }}>
                       ✓ Incluido en tu plan
                     </div>
-                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Ya lo tenés con tu combo</p>
+                    <p className="text-xs text-center mt-3" style={{ color: '#555' }}>Ya lo tienes con tu combo</p>
                   </>
                 )}
               </div>
@@ -290,16 +290,16 @@ function PricingInner() {
 
         {/* Nota fundadores */}
         <p className="text-center text-xs mt-8" style={{ color: '#666' }}>
-          ¿Ya pagabas el plan de $47? Sos <b style={{ color: '#c4b5fd' }}>miembro fundador</b> — mantenés acceso a las dos plataformas sin pagar de más.
+          ¿Ya pagabas el plan de $47? Eres <b style={{ color: '#c4b5fd' }}>miembro fundador</b> — mantienes acceso a las dos plataformas sin pagar de más.
         </p>
 
         {/* FAQ */}
         <div className="mt-8 flex flex-col gap-3 max-w-2xl mx-auto">
           {[
-            { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. Cancelás desde tu cuenta en un click. El acceso sigue activo hasta el final del período pagado.' },
+            { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. Cancelas desde tu cuenta en un click. El acceso sigue activo hasta el final del período pagado.' },
             { q: '¿Qué incluye el combo?', a: 'Las dos plataformas completas: ViralADN (búsqueda viral + guiones) y TOPCUT (editor con IA, 40 videos/mes). Sale más barato que pagar los dos por separado.' },
             { q: '¿Cuántos videos puedo editar en TOPCUT?', a: 'Hasta 40 videos por mes. De sobra para publicar todos los días.' },
-            { q: '¿Y si ya pagaba el plan de $47?', a: 'Quedás como miembro fundador: mantenés acceso a ViralADN y a TOPCUT sin cambiar nada.' },
+            { q: '¿Y si ya pagaba el plan de $47?', a: 'Quedas como miembro fundador: mantienes acceso a ViralADN y a TOPCUT sin cambiar nada.' },
           ].map((f, i) => (
             <details key={i} className="rounded-2xl p-4 cursor-pointer" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
               <summary className="text-sm font-semibold list-none flex justify-between items-center">{f.q}<span style={{ color: '#666' }}>+</span></summary>

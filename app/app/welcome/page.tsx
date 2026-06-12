@@ -113,7 +113,7 @@ export default async function Welcome({
           <p className="text-lg mb-3">No pudimos confirmar tu pago todavía.</p>
           <p className="text-sm mb-6" style={{ color: '#888' }}>
             Si Stripe te cobró, tu acceso se va a activar automáticamente
-            en unos minutos. Si esto no se resuelve, escribinos.
+            en unos minutos. Si esto no se resuelve, escríbenos.
           </p>
           <a href="/precios" className="text-sm underline" style={{ color: '#aaa' }}>← Volver</a>
         </div>
@@ -131,7 +131,7 @@ export default async function Welcome({
   }
 
   // Si no está logueado → mandarlo a crear cuenta con el email de Stripe
-  // pre-cargado. El session_id se preserva en el `next` para volver acá.
+  // pre-cargado. El session_id se preserva en el `next` para volver aquí.
   if (!user?.email) {
     const next = encodeURIComponent(`/app/welcome?session_id=${session_id}`);
     const hint = encodeURIComponent(sessionEmail);
@@ -146,7 +146,7 @@ export default async function Welcome({
   }
 
   // 4. Extraer info del descuento (si hubo) y la suscripción.
-  // Si usó un código promocional (ej: "LegacyPanama"), lo capturamos acá —
+  // Si usó un código promocional (ej: "LegacyPanama"), lo capturamos aquí —
   // el cupón de Stripe se consume al instante, así que esta es la única chance
   // de saber DE DÓNDE vino ese pago.
   const subscriptionObj = typeof session.subscription === 'object' ? session.subscription : null;

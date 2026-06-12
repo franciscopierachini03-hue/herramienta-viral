@@ -122,13 +122,13 @@ export async function POST(req: NextRequest) {
       // Si ya existe, mostrar mensaje claro.
       if (createErr.message?.toLowerCase().includes('already')) {
         return Response.json(
-          { error: 'Ya hay una cuenta con ese correo. Iniciá sesión.' },
+          { error: 'Ya hay una cuenta con ese correo. Inicia sesión.' },
           { status: 409 },
         );
       }
       console.error('[auth/signup] createUser:', createErr);
       return Response.json(
-        { error: 'No pudimos crear la cuenta. Probá de nuevo.' },
+        { error: 'No pudimos crear la cuenta. Prueba de nuevo.' },
         { status: 500 },
       );
     }
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
       }
       console.error('[auth/login] error:', error);
       return Response.json(
-        { error: 'No pudimos iniciar sesión. Probá de nuevo.' },
+        { error: 'No pudimos iniciar sesión. Prueba de nuevo.' },
         { status: 500 },
       );
     }

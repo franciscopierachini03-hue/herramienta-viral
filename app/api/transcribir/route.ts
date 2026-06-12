@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     const count = await countRecentTranscriptions(userEmail);
     if (count >= RATE_LIMIT_PER_DAY) {
       return Response.json({
-        error: `Llegaste al límite de ${RATE_LIMIT_PER_DAY} transcripciones por día. Volvé mañana o avisá al admin si necesitás más.`
+        error: `Llegaste al límite de ${RATE_LIMIT_PER_DAY} transcripciones por día. Vuelve mañana o avisa al admin si necesitas más.`
       }, { status: 429 });
     }
   }
@@ -294,11 +294,11 @@ export async function POST(req: NextRequest) {
     // Error específico según qué falló:
     if (supadataExhausted) {
       return Response.json({
-        error: 'El servicio de transcripción agotó su cuota mensual. Probá con TikTok o Instagram, o esperá al reset del próximo mes.'
+        error: 'El servicio de transcripción agotó su cuota mensual. Prueba con TikTok o Instagram, o espera al reset del próximo mes.'
       }, { status: 503 });
     }
     return Response.json({
-      error: 'Este video no tiene subtítulos disponibles. Probá con un Short que tenga CC habilitado, o con TikTok/Instagram.'
+      error: 'Este video no tiene subtítulos disponibles. Prueba con un Short que tenga CC habilitado, o con TikTok/Instagram.'
     }, { status: 422 });
   }
 
@@ -521,7 +521,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Detectar si TODOS los proveedores fallaron por cupo agotado para dar
-    // un mensaje específico (en vez de "probá con otro reel" que confunde
+    // un mensaje específico (en vez de "prueba con otro reel" que confunde
     // cuando el problema es facturación, no el reel).
     const allQuotaExhausted = quotaCount >= 2 ||
       debug.some(d => d.includes('hard limit') || d.includes('cupo agotado'));
@@ -533,16 +533,16 @@ export async function POST(req: NextRequest) {
 
     if (allQuotaExhausted || apifyExhausted) {
       return Response.json({
-        error: 'Los servicios de transcripción de Instagram agotaron su cuota mensual. Avisá al admin para renovar el plan.'
+        error: 'Los servicios de transcripción de Instagram agotaron su cuota mensual. Avisa al admin para renovar el plan.'
       }, { status: 503 });
     }
     if (debug.some(d => d.includes('groq'))) {
       return Response.json({
-        error: 'No pudimos transcribir este reel ahora. Puede que el audio sea muy corto o no tenga voz. Probá con otro.'
+        error: 'No pudimos transcribir este reel ahora. Puede que el audio sea muy corto o no tenga voz. Prueba con otro.'
       }, { status: 502 });
     }
     return Response.json({
-      error: 'No pudimos encontrarlo en este momento. Probá de nuevo en un rato o con otro reel.'
+      error: 'No pudimos encontrarlo en este momento. Prueba de nuevo en un rato o con otro reel.'
     }, { status: 502 });
   }
 

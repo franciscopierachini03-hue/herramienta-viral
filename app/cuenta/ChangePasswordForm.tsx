@@ -33,7 +33,7 @@ export default function ChangePasswordForm() {
         setMsg({ ok: false, text: d.error || 'No se pudo cambiar.' });
       }
     } catch {
-      setMsg({ ok: false, text: 'Error de conexión. Probá de nuevo.' });
+      setMsg({ ok: false, text: 'Error de conexión. Prueba de nuevo.' });
     } finally {
       setBusy(false);
     }

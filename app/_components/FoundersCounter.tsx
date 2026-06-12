@@ -40,7 +40,7 @@ export default function FoundersCounter({ variant = 'pill' }: { variant?: 'pill'
     return (
       <div className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full"
         style={{ background: '#92400e22', border: '1px solid #92400e44', color: '#fde68a' }}>
-        ⚠️ Cupos de lanzamiento agotados — sumate a la lista de espera
+        ⚠️ Cupos de lanzamiento agotados — súmate a la lista de espera
       </div>
     );
   }

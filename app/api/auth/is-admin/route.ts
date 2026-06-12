@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // Devuelve { isAdmin: boolean } según el email del user logueado.
 
 // Owner permanente — backup para no quedar afuera por un typo en ADMIN_EMAILS.
-// La plantilla pública tiene esta lista vacía. Acá la tenemos sólo en este repo.
+// La plantilla pública tiene esta lista vacía. Aquí la tenemos sólo en este repo.
 const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
 
 export async function GET() {

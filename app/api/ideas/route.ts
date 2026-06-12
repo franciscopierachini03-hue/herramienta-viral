@@ -1,8 +1,8 @@
 // POST /api/ideas
 // Asistente de ViralADN basado en el método de 3 preguntas:
-//   1) ¿A qué te dedicás hoy? (nicho)
+//   1) ¿A qué te dedicas hoy? (nicho)
 //   2) ¿Qué es lo que más te apasiona hoy? (pilar 1)
-//   3) ¿Qué es lo que más amás hoy? (pilar 2)
+//   3) ¿Qué es lo que más amas hoy? (pilar 2)
 // Con eso la IA (Groq) devuelve 15 palabras CLAVE de UNA sola palabra para
 // escribir directo en el buscador y encontrar contenido viral del nicho.
 
@@ -11,9 +11,9 @@ import { createClient } from '@/lib/supabase/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SYSTEM = `Actuás como un experto en crecimiento orgánico en redes sociales (Instagram y TikTok), especializado en detectar patrones de contenido viral. Tu trabajo es dar palabras clave para BUSCAR contenido que ya está funcionando.
+const SYSTEM = `Actúas como un experto en crecimiento orgánico en redes sociales (Instagram y TikTok), especializado en detectar patrones de contenido viral. Tu trabajo es dar palabras clave para BUSCAR contenido que ya está funcionando.
 
-Devolvés SIEMPRE este JSON exacto, sin texto fuera del JSON:
+Devuelves SIEMPRE este JSON exacto, sin texto fuera del JSON:
 {"reply":"una frase corta y cercana","terms":["palabra1","palabra2", ... 15 en total ...]}
 
 Reglas DURAS para "terms":
@@ -21,7 +21,7 @@ Reglas DURAS para "terms":
 - UNA SOLA palabra cada una. Sin frases, sin espacios, sin "#", sin explicaciones.
 - Directamente relacionadas con contenido que YA es viral en ese nicho.
 - Palabras que un creador usaría para encontrar tendencias, hooks y formatos que funcionan.
-- Evitá palabras genéricas sin intención (ej: "video", "viral", "fyp", "contenido").
+- Evita palabras genéricas sin intención (ej: "video", "viral", "fyp", "contenido").
 - En español salvo que el nicho use términos en inglés que se buscan así.`;
 
 function buildUserPrompt(dedico: string, apasiona: string, amo: string, exclude: string[], extra: string): string {
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
     const reply = typeof parsed.reply === 'string' && parsed.reply.trim()
       ? parsed.reply.trim()
-      : 'Acá tenés palabras para buscar contenido viral de tu nicho:';
+      : 'Aquí tienes palabras para buscar contenido viral de tu nicho:';
 
     const seen = new Set(exclude.map(x => x.toLowerCase()));
     const terms = (Array.isArray(parsed.terms) ? parsed.terms : [])

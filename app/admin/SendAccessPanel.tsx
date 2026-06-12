@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 // Panel para enviar el correo de acceso Legacy (branded, con código de descuento)
-// a una lista de emails. Pegás emails + elegís el código → Resend los manda.
+// a una lista de emails. Pegas emails + eliges el código → Resend los manda.
 
 const CODES = ['LegacyPeru', 'LegacyQuito', 'LegacyBogota', 'LegacyPanama'];
 
@@ -21,8 +21,8 @@ export default function SendAccessPanel() {
   async function send() {
     if (loading) return;
     if (!finalCode) { setResult('⚠️ Falta el código.'); return; }
-    if (emailCount === 0) { setResult('⚠️ Pegá al menos un email.'); return; }
-    if (!confirm(`Vas a enviar el correo de acceso con el código "${finalCode}" a ${emailCount} email(s). ¿Confirmás?`)) return;
+    if (emailCount === 0) { setResult('⚠️ Pega al menos un email.'); return; }
+    if (!confirm(`Vas a enviar el correo de acceso con el código "${finalCode}" a ${emailCount} email(s). ¿Confirmas?`)) return;
 
     setLoading(true);
     setResult(null);
@@ -67,7 +67,7 @@ export default function SendAccessPanel() {
       </div>
 
       <p className="text-xs mb-3" style={{ color: '#888' }}>
-        Pegá los emails (separados por coma, espacio o salto de línea). Cada uno recibe el correo branded con el código que elijas para poner en Stripe.
+        Pega los emails (separados por coma, espacio o salto de línea). Cada uno recibe el correo branded con el código que elijas para poner en Stripe.
       </p>
 
       <textarea
@@ -108,7 +108,7 @@ export default function SendAccessPanel() {
       </div>
 
       <p className="text-[10px] mt-3" style={{ color: '#555' }}>
-        ⚠️ Confirmá que el código exista en Stripe (cupón &ldquo;Mes gratis Viral ADN&rdquo;) antes de enviar. Máx 500 por tanda.
+        ⚠️ Confirma que el código exista en Stripe (cupón &ldquo;Mes gratis Viral ADN&rdquo;) antes de enviar. Máx 500 por tanda.
       </p>
     </div>
   );

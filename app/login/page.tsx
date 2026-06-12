@@ -76,7 +76,7 @@ function Login() {
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {
-        setError('Error de conexión. Probá de nuevo.');
+        setError('Error de conexión. Prueba de nuevo.');
         setLoading(false);
       }
       return;
@@ -112,10 +112,10 @@ function Login() {
           setLoading(false);
           return;
         }
-        setInfo(`Te enviamos un código de 6 dígitos a ${email}. Revisá también spam.`);
+        setInfo(`Te enviamos un código de 6 dígitos a ${email}. Revisa también spam.`);
         setMode('signup-verify');
       } catch {
-        setError('Error de conexión. Probá de nuevo.');
+        setError('Error de conexión. Prueba de nuevo.');
       }
       setLoading(false);
       return;
@@ -149,7 +149,7 @@ function Login() {
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {
-        setError('Error de conexión. Probá de nuevo.');
+        setError('Error de conexión. Prueba de nuevo.');
         setLoading(false);
       }
       return;
@@ -171,7 +171,7 @@ function Login() {
         setInfo(`Si ${email} está registrado, te enviamos un código.`);
         setMode('forgot-verify');
       } catch {
-        setError('Error de conexión. Probá de nuevo.');
+        setError('Error de conexión. Prueba de nuevo.');
       }
       setLoading(false);
       return;
@@ -209,7 +209,7 @@ function Login() {
         const sep = target.includes('?') ? '&' : '?';
         window.location.href = `${target}${sep}session=new`;
       } catch {
-        setError('Error de conexión. Probá de nuevo.');
+        setError('Error de conexión. Prueba de nuevo.');
         setLoading(false);
       }
       return;
@@ -264,28 +264,28 @@ function Login() {
               <div className="rounded-xl p-3 text-xs mb-4"
                 style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
                 {reason === 'idle'
-                  ? 'Cerramos tu sesión por inactividad. Volvé a entrar para seguir.'
-                  : 'Por seguridad, cerramos tu sesión al cerrar la pestaña. Volvé a entrar.'}
+                  ? 'Cerramos tu sesión por inactividad. Vuelve a entrar para seguir.'
+                  : 'Por seguridad, cerramos tu sesión al cerrar la pestaña. Vuelve a entrar.'}
               </div>
             )}
 
             <h2 className="text-2xl font-bold mb-2">
-              {mode === 'signup' ? 'Empezá tu prueba'
-                : mode === 'signup-verify' ? 'Confirmá tu correo'
+              {mode === 'signup' ? 'Empieza tu prueba'
+                : mode === 'signup-verify' ? 'Confirma tu correo'
                 : mode === 'login' ? 'Bienvenido de vuelta'
                 : mode === 'forgot' ? 'Recuperar contraseña'
-                : 'Ingresá el código'}
+                : 'Ingresa el código'}
             </h2>
             <p className="text-sm mb-6" style={{ color: '#888' }}>
               {mode === 'signup'
-                ? 'Completá tus datos. Te mandamos un código para confirmar.'
+                ? 'Completa tus datos. Te mandamos un código para confirmar.'
                 : mode === 'signup-verify'
                 ? `Te enviamos un código a ${email}. Tiene 6 dígitos y vence en 15 min.`
                 : mode === 'login'
-                ? 'Ingresá con tu correo y contraseña.'
+                ? 'Ingresa con tu correo y contraseña.'
                 : mode === 'forgot'
                 ? 'Te mandamos un código por correo para cambiar tu contraseña.'
-                : `Pegá el código que te enviamos a ${email} y elegí una nueva contraseña.`}
+                : `Pega el código que te enviamos a ${email} y elige una nueva contraseña.`}
             </p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -403,9 +403,9 @@ function Login() {
               {mode === 'login' && failedAttempts >= 1 && (
                 <div className="rounded-xl p-3 text-xs"
                   style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
-                  Si no recordás tu contraseña,{' '}
+                  Si no recuerdas tu contraseña,{' '}
                   <button type="button" onClick={() => switchMode('forgot')} className="font-bold underline">
-                    pedí una nueva acá
+                    pide una nueva aquí
                   </button>.
                 </div>
               )}
@@ -448,7 +448,7 @@ function Login() {
                 style={{ borderTop: '1px solid #1f1f1f', color: '#888' }}>
                 {mode === 'login' ? (
                   <>
-                    ¿Todavía no tenés cuenta?{' '}
+                    ¿Todavía no tienes cuenta?{' '}
                     <button type="button" onClick={() => switchMode('signup')}
                       className="font-semibold underline" style={{ color: '#c4b5fd' }}>
                       Crear cuenta →
@@ -456,7 +456,7 @@ function Login() {
                   </>
                 ) : (
                   <>
-                    ¿Ya tenés cuenta?{' '}
+                    ¿Ya tienes cuenta?{' '}
                     <button type="button" onClick={() => switchMode('login')}
                       className="font-semibold underline" style={{ color: '#c4b5fd' }}>
                       Iniciar sesión →

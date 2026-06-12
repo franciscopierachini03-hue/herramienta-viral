@@ -51,7 +51,7 @@ export default function Guiones() {
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name !== 'AbortError') {
-        setScript('Error al generar. Intentá de nuevo.');
+        setScript('Error al generar. Intenta de nuevo.');
       }
     } finally {
       setLoading(false);
@@ -116,7 +116,7 @@ export default function Guiones() {
               Tu estilo <span style={{ color: '#2a2a2a' }}>(opcional)</span>
             </label>
             <p className="text-[10px] leading-relaxed" style={{ color: '#3a3a3a' }}>
-              Pegá algo que hayas escrito o dicho — un caption, una historia, como le hablarías a un amigo. Cuanto más natural, mejor lo replica.
+              Pega algo que hayas escrito o dicho — un caption, una historia, como le hablarías a un amigo. Cuanto más natural, mejor lo replica.
             </p>
             <textarea
               value={estilo}
@@ -157,8 +157,8 @@ export default function Guiones() {
           {!script && !loading && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
               <span className="text-5xl">✍️</span>
-              <p className="text-sm font-semibold" style={{ color: '#2a2a2a' }}>Tu guión aparece acá</p>
-              <p className="text-xs" style={{ color: '#1e1e1e' }}>Completá el tema y hacé clic en Crear guión viral</p>
+              <p className="text-sm font-semibold" style={{ color: '#2a2a2a' }}>Tu guión aparece aquí</p>
+              <p className="text-xs" style={{ color: '#1e1e1e' }}>Completa el tema y haz clic en Crear guión viral</p>
             </div>
           )}
 

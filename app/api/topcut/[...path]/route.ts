@@ -2,7 +2,7 @@
 //
 // Reenvía SOLO las llamadas chicas (chat, render, poll de jobs) al backend de
 // render, agregando el ticket del lado server. El token nunca toca el browser
-// y al ser mismo-origen no hay CORS. La subida del video NO pasa por acá
+// y al ser mismo-origen no hay CORS. La subida del video NO pasa por aquí
 // (Vercel corta el body); esa va directa con el ticket de /api/topcut/ticket.
 //
 // No es un proxy abierto: solo se permiten los sub-paths del allowlist.

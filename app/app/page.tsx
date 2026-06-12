@@ -79,33 +79,33 @@ function friendlyError(raw: string): string {
   const e = raw.toLowerCase();
   // Cuotas / proveedores caídos → mensaje suave, sin jerga técnica
   if (e.includes('cupo') || e.includes('agotado') || e.includes('quota') || e.includes('exceeded')) {
-    return 'No pudimos encontrarlo en este momento. Probá de nuevo en un rato.';
+    return 'No pudimos encontrarlo en este momento. Prueba de nuevo en un rato.';
   }
   if (e.includes('privado') || e.includes('private') || e.includes('not found') || e.includes('no encontrado') || e.includes('eliminado')) {
-    return 'Este video es privado o fue eliminado. Probá con uno público.';
+    return 'Este video es privado o fue eliminado. Prueba con uno público.';
   }
   if (e.includes('no reconoció') || e.includes('no válido')) {
     return 'No reconocimos este link. Asegurate de copiarlo entero desde la app.';
   }
   if (e.includes('no se encontró') || e.includes('no pudimos encontrarlo')) {
-    return 'No pudimos encontrarlo en este momento. Probá con otro link o esperá un momento.';
+    return 'No pudimos encontrarlo en este momento. Prueba con otro link o espera un momento.';
   }
   if (e.includes('conexión') || e.includes('connection') || e.includes('network') || e.includes('fetch')) {
-    return 'Problema de conexión. Verificá tu internet e intentá de nuevo.';
+    return 'Problema de conexión. Verifica tu internet e intenta de nuevo.';
   }
   if (e.includes('falta') && e.includes('key')) {
-    return 'Error de configuración del servidor. Contactá al soporte.';
+    return 'Error de configuración del servidor. Contacta al soporte.';
   }
-  // Errores específicos por causa raíz (más útiles que "probá con otro")
+  // Errores específicos por causa raíz (más útiles que "prueba con otro")
   if (e.includes('cuota mensual') || e.includes('saturad')) {
     return raw; // El server ya devolvió un mensaje bueno, pasalo tal cual
   }
   if (e.includes('subtítulos disponibles') || e.includes('cc habilitado')) {
     return raw;
   }
-  if (e.includes('youtube')) return 'No pudimos obtener este video de YouTube. Probá con otro.';
-  if (e.includes('tiktok')) return 'No pudimos obtener este video de TikTok. Probá con otro.';
-  if (e.includes('instagram')) return 'No pudimos obtener este reel de Instagram. Probá con otro.';
+  if (e.includes('youtube')) return 'No pudimos obtener este video de YouTube. Prueba con otro.';
+  if (e.includes('tiktok')) return 'No pudimos obtener este video de TikTok. Prueba con otro.';
+  if (e.includes('instagram')) return 'No pudimos obtener este reel de Instagram. Prueba con otro.';
   // Mostrar el error real para facilitar el diagnóstico
   return raw.replace(/^(tiktok|instagram|youtube):\s*/i, '');
 }
@@ -1310,7 +1310,7 @@ export default function Home() {
               <p className="text-4xl mb-4">📁</p>
               <p className="text-sm text-gray-500">Esta carpeta está vacía</p>
               <p className="text-xs text-gray-600 mt-2 max-w-xs mx-auto leading-relaxed">
-                Movete a otra carpeta o usá el botón <strong className="text-gray-500">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo acá
+                Movete a otra carpeta o usa el botón <strong className="text-gray-500">&ldquo;Mover a&rdquo;</strong> de un guion para traerlo aquí
               </p>
             </div>
           ) : (
@@ -1422,7 +1422,7 @@ export default function Home() {
                             ))}
                             {folders.length === 0 && (
                               <p className="px-3 py-1.5 text-xs" style={{ color: '#555' }}>
-                                No tenés carpetas todavía
+                                No tienes carpetas todavía
                               </p>
                             )}
                           </div>
@@ -1681,7 +1681,7 @@ export default function Home() {
                 {/* Grid de cards con stats completas */}
                 {display.length === 0 ? (
                   <div className="text-center py-12 text-sm" style={{ color: '#555' }}>
-                    Ningún video pasa el filtro. Bajá el mínimo de vistas o cambiá el sort.
+                    Ningún video pasa el filtro. Baja el mínimo de vistas o cambia el sort.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">

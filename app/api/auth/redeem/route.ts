@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) {
-    return Response.json({ error: 'Tenés que iniciar sesión primero.' }, { status: 401 });
+    return Response.json({ error: 'Tienes que iniciar sesión primero.' }, { status: 401 });
   }
 
   // 2. Validar el código
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       .split(',').map(s => s.trim()).filter(Boolean).length;
     console.warn(`[redeem] código rechazado: "${code}" — INVITE_CODES tiene ${configuredCodes} códigos configurados`);
     return Response.json({
-      error: 'Código no válido o expirado. Si pensás que debería funcionar, contactá al equipo.',
+      error: 'Código no válido o expirado. Si piensas que debería funcionar, contacta al equipo.',
     }, { status: 400 });
   }
 
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
   if (profile?.subscription_status === 'active') {
     return Response.json({
-      error: 'Ya tenés una suscripción activa. No necesitás canjear un código.',
+      error: 'Ya tienes una suscripción activa. No necesitas canjear un código.',
     }, { status: 400 });
   }
 
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
   if (upsertErr) {
     console.error('[redeem]', upsertErr);
-    return Response.json({ error: 'No pudimos activar el código. Probá de nuevo.' }, { status: 500 });
+    return Response.json({ error: 'No pudimos activar el código. Prueba de nuevo.' }, { status: 500 });
   }
 
   return Response.json({

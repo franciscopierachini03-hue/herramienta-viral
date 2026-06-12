@@ -33,7 +33,7 @@ function shellEmail(opts: { title: string; preheader: string; body: string }): s
         <div style="font-size:20px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#c13584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:24px;">ViralADN</div>
         ${opts.body}
         <div style="margin-top:32px;padding-top:24px;border-top:1px solid #1f1f1f;font-size:11px;color:#666;line-height:1.6;">
-          Si no pediste esto, ignorá este correo. Tu cuenta sigue segura.<br/>
+          Si no pediste esto, ignora este correo. Tu cuenta sigue segura.<br/>
           ViralADN · <a href="https://viraladn.com" style="color:#888;">viraladn.com</a>
         </div>
       </td></tr>
@@ -55,9 +55,9 @@ function codeBlock(code: string): string {
 export async function sendVerificationCode(email: string, code: string, name?: string) {
   const greet = name ? `Hola ${name},` : 'Hola,';
   const body = `
-    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Confirmá tu correo</h1>
+    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Confirma tu correo</h1>
     <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0 0 8px;">${greet}</p>
-    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Usá este código para confirmar tu cuenta de ViralADN:</p>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Usa este código para confirmar tu cuenta de ViralADN:</p>
     ${codeBlock(code)}
     <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">Ingresalo en la pantalla donde lo solicitaste para terminar de crear tu cuenta.</p>
   `;
@@ -76,13 +76,13 @@ export async function sendVerificationCode(email: string, code: string, name?: s
 
 export async function sendPasswordResetCode(email: string, code: string) {
   const body = `
-    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Recuperá tu contraseña</h1>
-    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Pediste cambiar la contraseña de tu cuenta. Usá este código para confirmar que sos vos:</p>
+    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Recupera tu contraseña</h1>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Pediste cambiar la contraseña de tu cuenta. Usa este código para confirmar que eres tú:</p>
     ${codeBlock(code)}
-    <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">Si no pediste esto, podés ignorar el correo — nadie podrá acceder sin el código.</p>
+    <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">Si no pediste esto, puedes ignorar el correo — nadie podrá acceder sin el código.</p>
   `;
   const html = shellEmail({
-    title: 'Recuperá tu contraseña',
+    title: 'Recupera tu contraseña',
     preheader: `Tu código de recuperación es ${code}.`,
     body,
   });

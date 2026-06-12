@@ -17,7 +17,7 @@ export const PRODUCT_IDS: Record<ProductKey, string> = {
   combo: 'prod_UfsmQSVdUE3OTu',    // "ViralADN ✕ TOPCUT — Combo"
 };
 
-// Montos esperados, en centavos (USD). Anual = 2 meses gratis (pagás 10 de 12).
+// Montos esperados, en centavos (USD). Anual = 2 meses gratis (pagas 10 de 12).
 export const PLAN_AMOUNTS: Record<ProductKey, Partial<Record<Ciclo, number>>> = {
   viraladn: { monthly: 2700, yearly: 27000 }, // $27/mes · $270/año  (NO el $47/$470 fundador)
   topcut: { monthly: 5700, yearly: 57000 },   // $57/mes · $570/año
