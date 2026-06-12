@@ -41,7 +41,7 @@ export async function getAccess(): Promise<Access> {
   const email = user.email;
   const { data: profile } = await supabase
     .from('profiles')
-    .select('stripe_customer_id, name, subscription_status, trial_ends_at')
+    .select('stripe_customer_id, name, subscription_status, trial_ends_at, redeemed_code')
     .eq('email', email)
     .maybeSingle();
 
@@ -58,6 +58,19 @@ export async function getAccess(): Promise<Access> {
   const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
   const trialActive = !!trialEndsAt && trialEndsAt.getTime() > Date.now();
   if (profile?.subscription_status === 'trialing' && trialActive) ent.viraladn = true;
+
+  // Cuentas activadas por CÓDIGO sin suscripción de Stripe (cortesías como
+  // COURTESY_ONELIFE, accesos manuales): status 'active' + redeemed_code y
+  // ninguna sub que les dé permisos. Acceso a ViralADN mientras siga vigente
+  // (o sin vencimiento). Sin esto quedaban con todo bloqueado → "pagá".
+  if (
+    !ent.viraladn && !ent.topcut &&
+    profile?.subscription_status === 'active' &&
+    profile?.redeemed_code &&
+    (trialActive || !trialEndsAt)
+  ) {
+    ent.viraladn = true;
+  }
 
   return { email, name, admin: false, ent };
 }
