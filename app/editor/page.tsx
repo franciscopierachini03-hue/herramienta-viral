@@ -626,13 +626,13 @@ export default function Topcut() {
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
                     style={i <= sIdx
-                      ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }
-                      : { background: '#141414', border: '1px solid #222', color: '#555' }}>
+                      ? { background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }
+                      : { background: '#101019', border: '1px solid #23232f', color: '#8b8b96' }}>
                     {i < sIdx ? '✓' : i + 1}
                   </span>
-                  <span className="text-xs hidden sm:inline" style={{ color: i <= sIdx ? '#c4b5fd' : '#555' }}>{label}</span>
+                  <span className="text-xs hidden sm:inline" style={{ color: i <= sIdx ? '#67e8f9' : '#555' }}>{label}</span>
                 </div>
-                {i < STEPS.length - 1 && <span className="w-6 h-px" style={{ background: i < sIdx ? '#a855f7' : '#222' }} />}
+                {i < STEPS.length - 1 && <span className="w-6 h-px" style={{ background: i < sIdx ? '#22d3ee' : '#222' }} />}
               </div>
             ))}
           </div>
@@ -640,11 +640,11 @@ export default function Topcut() {
 
         {/* ── 1. UPLOAD ───────────────────────────────── */}
         {step === 'loading' && (
-          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22d3ee44' }}>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto"
-              style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>🎬</div>
+              style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', boxShadow: '0 0 40px #22d3ee44', animation: 'tcpulse 2s ease-in-out infinite' }}>🎬</div>
             <h3 className="text-lg font-bold mb-1">Cargando tu video…</h3>
-            <p className="text-sm" style={{ color: '#888' }}>Lo abrimos para que le pidas cambios.</p>
+            <p className="text-sm" style={{ color: '#b4b4c0' }}>Lo abrimos para que le pidas cambios.</p>
           </div>
         )}
 
@@ -653,11 +653,12 @@ export default function Topcut() {
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">
                 Sube tu video.{' '}
-                <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>La IA lo edita.</span>
+                <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(135deg, #67e8f9, #60a5fa)' }}>La IA lo edita.</span>
               </h2>
-              <p className="text-sm" style={{ color: '#999' }}>Recortas (sacas los errores), le cuentas de qué va, y el cerebro arma la edición. Tú apruebas el previo antes de renderizar.</p>
-              <Link href="/editor/historial" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-2xl text-xs font-bold"
-                style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>📁 Mis videos editados</Link>
+              <p className="text-sm max-w-xl mx-auto" style={{ color: '#b4b4c0' }}>Recortas (sacas los errores), le cuentas de qué va, y el cerebro arma la edición. Tú apruebas el previo antes de renderizar.</p>
+              <Link href="/editor/historial"
+                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-2xl text-xs font-bold transition-all hover:-translate-y-0.5"
+                style={{ background: '#101019', border: '1px solid #22d3ee44', color: '#67e8f9' }}>📁 Mis videos editados</Link>
             </div>
 
             <div
@@ -665,25 +666,43 @@ export default function Topcut() {
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={(e) => { e.preventDefault(); setIsDragging(false); onFile(e.dataTransfer.files?.[0]); }}
-              className="border-2 border-dashed rounded-3xl p-16 cursor-pointer text-center transition-all"
+              className="group border-2 border-dashed rounded-3xl p-14 cursor-pointer text-center transition-all duration-300 border-[#23232f] bg-[#0b0b14] hover:border-[#22d3ee66] hover:bg-[#0c1018]"
               style={isDragging
-                ? { borderColor: '#a855f7', background: '#a855f70d', boxShadow: '0 0 40px #a855f722' }
-                : { borderColor: '#2a2a2a', background: '#0c0c0c' }}>
-              <div className="text-6xl mb-4">{isDragging ? '📂' : '🎬'}</div>
-              <h3 className="text-lg font-bold mb-1">Suelta tu video aquí</h3>
-              <p className="text-sm mb-5" style={{ color: '#666' }}>o haz clic para elegirlo</p>
+                ? { borderColor: '#22d3ee', background: '#22d3ee0d', boxShadow: '0 0 60px #22d3ee22', transform: 'scale(1.01)' }
+                : undefined}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-5 mx-auto transition-transform duration-300 group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', boxShadow: '0 0 36px #22d3ee33' }}>
+                {isDragging ? '✂️' : '🎬'}
+              </div>
+              <h3 className="text-lg font-bold mb-1">{isDragging ? '¡Suéltalo!' : 'Suelta tu video aquí'}</h3>
+              <p className="text-sm mb-6" style={{ color: '#a1a1aa' }}>o haz clic para elegirlo desde tu computadora</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 {['MP4', 'MOV', 'AVI', 'MKV'].map((f) => (
-                  <span key={f} className="text-[10px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#555' }}>{f}</span>
+                  <span key={f} className="text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full" style={{ background: '#101019', border: '1px solid #23232f', color: '#8b8b96' }}>{f}</span>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 mt-6">
-              {[{ icon: '✂️', label: 'Recortas' }, { icon: '💬', label: 'Das contexto' }, { icon: '🤖', label: 'Chateas' }, { icon: '✨', label: 'Apruebas' }].map((f) => (
-                <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
-                  <span className="text-xl">{f.icon}</span>
-                  <span className="text-[10px]" style={{ color: '#666' }}>{f.label}</span>
+            {/* Mini flujo: qué pasa después de soltar el video */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-6">
+              {[
+                { n: '1', icon: '✂️', label: 'Recortas', desc: 'fuera los errores' },
+                { n: '2', icon: '💬', label: 'Das contexto', desc: 'le cuentas de qué va' },
+                { n: '3', icon: '🤖', label: 'Chateas', desc: 'pides los cambios' },
+                { n: '4', icon: '✨', label: 'Apruebas', desc: 'y se renderiza' },
+              ].map((f) => (
+                <div key={f.label} className="flex flex-col items-center gap-2 p-4 rounded-2xl text-center transition-all hover:-translate-y-0.5"
+                  style={{ background: '#101019', border: '1px solid #23232f' }}>
+                  <div className="relative">
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+                      style={{ background: '#22d3ee14', border: '1px solid #22d3ee33' }}>{f.icon}</span>
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                      style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)' }}>{f.n}</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-white">{f.label}</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: '#8b8b96' }}>{f.desc}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -694,24 +713,24 @@ export default function Topcut() {
         {step === 'trim' && (
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
             <h3 className="text-xl font-bold mb-1">✂️ Recorta y saca lo que no sirve</h3>
-            <p className="text-sm mb-5" style={{ color: '#888' }}>
-              Mueves el video al punto del error → <b style={{ color: '#c4b5fd' }}>✂️ Cortar aquí</b> (antes y después del error) → en la lista de abajo tocas <b style={{ color: '#f87171' }}>🗑️ Quitar</b> en ese trozo. Sacas partes del medio, del principio o del final.
+            <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
+              Mueves el video al punto del error → <b style={{ color: '#67e8f9' }}>✂️ Cortar aquí</b> (antes y después del error) → en la lista de abajo tocas <b style={{ color: '#f87171' }}>🗑️ Quitar</b> en ese trozo. Sacas partes del medio, del principio o del final.
             </p>
 
             <video ref={videoRef} src={videoUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTimeUpdate}
-              controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #222', background: '#000' }} />
+              controls className="w-full rounded-2xl mb-4 mx-auto" style={{ maxHeight: 360, border: '1px solid #23232f', background: '#000' }} />
 
             {/* timeline — arrastra la línea para elegir dónde cortar */}
             <div
               onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
               className="relative h-12 rounded-xl overflow-hidden mb-1.5 select-none"
-              style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
+              style={{ background: '#0b0b14', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
               {segments.map((s, i) => (
                 <div key={i}
                   className="absolute top-0 bottom-0 flex items-center justify-center transition-all pointer-events-none"
                   style={{
                     left: `${(s.start / dur) * 100}%`, width: `${((s.end - s.start) / dur) * 100}%`,
-                    background: selSeg === i ? 'linear-gradient(135deg, #c084fc, #f472b6)' : 'linear-gradient(135deg, #7c3aed, #c13584)',
+                    background: selSeg === i ? 'linear-gradient(135deg, #c084fc, #f472b6)' : 'linear-gradient(135deg, #0e7490, #2563eb)',
                     borderLeft: '2px solid #080808', borderRight: '2px solid #080808',
                     boxShadow: selSeg === i ? 'inset 0 0 0 2px #fff' : 'none',
                   }}>
@@ -722,7 +741,7 @@ export default function Topcut() {
               <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, transform: 'translateX(-50%)' }}>
                 <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2" style={{ width: 2, background: '#fff', boxShadow: '0 0 8px #fff' }} />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: 18, height: 18, background: '#fff', border: '3px solid #a855f7', boxShadow: '0 0 10px #a855f7' }} />
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#a855f7', color: '#fff', whiteSpace: 'nowrap' }}>{fmt(playhead)}</div>
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: '#22d3ee', color: '#fff', whiteSpace: 'nowrap' }}>{fmt(playhead)}</div>
               </div>
             </div>
 
@@ -731,9 +750,9 @@ export default function Topcut() {
               <div
                 onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd}
                 className="relative h-16 rounded-xl overflow-hidden mb-1.5 select-none flex items-end gap-px"
-                style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
+                style={{ background: '#0b0b14', border: '1px solid #1f1f1f', cursor: 'ew-resize', touchAction: 'none' }}>
                 {waveLoading
-                  ? <div className="w-full text-center text-[11px] self-center" style={{ color: '#555' }}>Analizando audio…</div>
+                  ? <div className="w-full text-center text-[11px] self-center" style={{ color: '#8b8b96' }}>Analizando audio…</div>
                   : waveBars}
                 {!waveLoading && (
                   <div className="absolute top-0 bottom-0 w-0.5 pointer-events-none" style={{ left: `${(playhead / dur) * 100}%`, background: '#fff', boxShadow: '0 0 6px #fff' }} />
@@ -741,35 +760,35 @@ export default function Topcut() {
               </div>
             )}
 
-            <p className="text-[11px] mb-3" style={{ color: '#666' }}>Arrastra la línea ⚪ por el video (o por la onda de audio) para elegir el punto exacto. Los picos altos son voz fuerte; los valles, silencios.</p>
+            <p className="text-[11px] mb-3" style={{ color: '#a1a1aa' }}>Arrastra la línea ⚪ por el video (o por la onda de audio) para elegir el punto exacto. Los picos altos son voz fuerte; los valles, silencios.</p>
 
             {/* controles */}
             <div className="flex items-center gap-2 flex-wrap mb-4">
               <button onClick={() => nudge(-0.1)} title="Atrás 0.1s"
-                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>◀ 0.1s</button>
+                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#101019', border: '1px solid #23232f', color: '#67e8f9' }}>◀ 0.1s</button>
               <button onClick={splitAtPlayhead} disabled={!canSplit}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
-                style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>✂️ Cortar aquí ({fmt(playhead)})</button>
+                style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }}>✂️ Cortar aquí ({fmt(playhead)})</button>
               <button onClick={() => nudge(0.1)} title="Adelante 0.1s"
-                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#c4b5fd' }}>0.1s ▶</button>
+                className="px-2.5 py-2 rounded-xl text-xs font-bold" style={{ background: '#101019', border: '1px solid #23232f', color: '#67e8f9' }}>0.1s ▶</button>
               <button onClick={undo} disabled={!history.length}
                 className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30"
-                style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>↩ Deshacer</button>
+                style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>↩ Deshacer</button>
               <button onClick={playResult}
                 className="px-3 py-2 rounded-xl text-xs font-bold ml-auto"
-                style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#c4b5fd' }}>▶ Ver resultado</button>
+                style={{ background: '#101019', border: '1px solid #23232f', color: '#67e8f9' }}>▶ Ver resultado</button>
             </div>
 
             {/* lista de trozos — cada uno con su botón Quitar (sin seleccionar antes) */}
-            <p className="text-[11px] mb-2" style={{ color: '#888' }}>Estos son los pedazos que QUEDAN en el video. Toca <b style={{ color: '#f87171' }}>🗑️ Quitar</b> para sacar el que no sirve.</p>
+            <p className="text-[11px] mb-2" style={{ color: '#b4b4c0' }}>Estos son los pedazos que QUEDAN en el video. Toca <b style={{ color: '#f87171' }}>🗑️ Quitar</b> para sacar el que no sirve.</p>
             <div className="flex flex-col gap-1.5 mb-3">
               {segments.map((s, i) => (
                 <div key={i}
                   className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs"
-                  style={{ background: selSeg === i ? '#7c3aed22' : '#0c0c0c', border: `1px solid ${selSeg === i ? '#7c3aed55' : '#1a1a1a'}` }}>
+                  style={{ background: selSeg === i ? '#22d3ee18' : '#0c0c0c', border: `1px solid ${selSeg === i ? '#22d3ee55' : '#1a1a1a'}` }}>
                   <button onClick={() => { setSelSeg(i); setPreviewing(false); seekTo(s.start); }}
                     className="text-left flex-1 truncate" title="Ir a este trozo" style={{ color: '#ccc' }}>
-                    <b style={{ color: '#fff' }}>Trozo {i + 1}</b>: {fmt(s.start)} – {fmt(s.end)} <span style={{ color: '#666' }}>({fmt(s.end - s.start)})</span>
+                    <b style={{ color: '#fff' }}>Trozo {i + 1}</b>: {fmt(s.start)} – {fmt(s.end)} <span style={{ color: '#a1a1aa' }}>({fmt(s.end - s.start)})</span>
                   </button>
                   <button onClick={() => deleteSeg(i)} disabled={segments.length <= 1}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-30 shrink-0"
@@ -779,14 +798,14 @@ export default function Topcut() {
               ))}
             </div>
 
-            <div className="text-xs mb-6" style={{ color: '#888' }}>
-              Quedan <b style={{ color: '#c4b5fd' }}>{segments.length}</b> trozo{segments.length !== 1 ? 's' : ''} · <b style={{ color: '#c4b5fd' }}>{fmt(keptDur)}</b> en total
+            <div className="text-xs mb-6" style={{ color: '#b4b4c0' }}>
+              Quedan <b style={{ color: '#67e8f9' }}>{segments.length}</b> trozo{segments.length !== 1 ? 's' : ''} · <b style={{ color: '#67e8f9' }}>{fmt(keptDur)}</b> en total
               {removedDur > 0.05 && <> · sacaste <b style={{ color: '#f472b6' }}>{fmt(removedDur)}</b></>}
             </div>
 
             <div className="flex gap-3">
-              <button onClick={reset} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>Cambiar video</button>
-              <button onClick={() => setStep('brief')} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>Continuar →</button>
+              <button onClick={reset} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>Cambiar video</button>
+              <button onClick={() => setStep('brief')} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff', boxShadow: '0 0 24px #22d3ee44' }}>Continuar →</button>
             </div>
           </div>
         )}
@@ -795,34 +814,34 @@ export default function Topcut() {
         {step === 'brief' && (
           <div className="rounded-3xl p-6 sm:p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed33' }}>
             <h3 className="text-xl font-bold mb-1">💬 Cuéntanos de tu video</h3>
-            <p className="text-sm mb-5" style={{ color: '#888' }}>Cuanto mejor el contexto, mejor le pega el cerebro con el hook, los subtítulos y el b-roll.</p>
+            <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>Cuanto mejor el contexto, mejor le pega el cerebro con el hook, los subtítulos y el b-roll.</p>
 
-            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿De qué va el video?</label>
+            <label className="block text-xs font-bold mb-2" style={{ color: '#67e8f9' }}>¿De qué va el video?</label>
             <textarea value={context} onChange={(e) => setContext(e.target.value)} maxLength={600} rows={3}
               placeholder="Ej: Reel sobre cómo empezar a invertir con poco dinero. Tono motivacional, directo, para gente joven."
               className="w-full rounded-2xl px-4 py-3 text-sm mb-5 resize-none outline-none"
-              style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+              style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#fff' }} />
 
-            <label className="block text-xs font-bold mb-2" style={{ color: '#c4b5fd' }}>¿Cómo quieres las animaciones de texto? <span style={{ color: '#555', fontWeight: 400 }}>(opcional)</span></label>
+            <label className="block text-xs font-bold mb-2" style={{ color: '#67e8f9' }}>¿Cómo quieres las animaciones de texto? <span style={{ color: '#8b8b96', fontWeight: 400 }}>(opcional)</span></label>
             <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={600} rows={2}
               placeholder="Ej: que los subtítulos aparezcan palabra por palabra, grandes, abajo del centro, blancos con resalte."
               className="w-full rounded-2xl px-4 py-3 text-sm mb-6 resize-none outline-none"
-              style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
+              style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#fff' }} />
 
             <div className="flex gap-3">
-              <button onClick={() => setStep('trim')} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>← Volver</button>
-              <button onClick={generatePlan} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>Generar previo ✨</button>
+              <button onClick={() => setStep('trim')} className="px-5 py-3 rounded-2xl text-sm font-bold" style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>← Volver</button>
+              <button onClick={generatePlan} className="flex-1 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff', boxShadow: '0 0 24px #22d3ee44' }}>Generar previo ✨</button>
             </div>
           </div>
         )}
 
         {/* ── 3b. PLANNING (spinner) ──────────────────── */}
         {step === 'planning' && (
-          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+          <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22d3ee44' }}>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto"
-              style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>🧠</div>
+              style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', boxShadow: '0 0 40px #22d3ee44', animation: 'tcpulse 2s ease-in-out infinite' }}>🧠</div>
             <h3 className="text-lg font-bold mb-1">Armando tu previo…</h3>
-            <p className="text-sm" style={{ color: '#888' }}>{uploadPct < 100 ? `Subiendo video ${uploadPct}%` : 'El cerebro está analizando tu video.'}</p>
+            <p className="text-sm" style={{ color: '#b4b4c0' }}>{uploadPct < 100 ? `Subiendo video ${uploadPct}%` : 'El cerebro está analizando tu video.'}</p>
             {uploadPct < 100 && (
               <div className="h-2 rounded-full overflow-hidden mt-4" style={{ background: '#1a1a1a' }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${uploadPct}%`, background: 'linear-gradient(90deg, #a855f7, #ec4899)' }} />
@@ -835,7 +854,7 @@ export default function Topcut() {
         {step === 'studio' && (
           <div className="grid md:grid-cols-2 gap-4">
             {/* PREVIO (storyboard) */}
-            <div className="rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+            <div className="rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22d3ee44' }}>
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-lg">🎬</span>
                 <h3 className="text-base font-bold">Previo de tu edición</h3>
@@ -843,24 +862,24 @@ export default function Topcut() {
               {planCards.length > 0 ? (
                 <div className="flex flex-col gap-2.5">
                   {planCards.map((c) => (
-                    <div key={c.label} className="flex items-start gap-3 px-4 py-3 rounded-2xl" style={{ background: '#0c0c0c', border: '1px solid #1a1a1a' }}>
+                    <div key={c.label} className="flex items-start gap-3 px-4 py-3 rounded-2xl" style={{ background: '#0b0b14', border: '1px solid #23232f' }}>
                       <span className="text-base">{c.icon}</span>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#666' }}>{c.label}</div>
+                        <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#a1a1aa' }}>{c.label}</div>
                         <div className="text-sm" style={{ color: '#ddd' }}>{String(c.val)}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <pre className="text-xs whitespace-pre-wrap rounded-2xl p-4" style={{ background: '#0c0c0c', border: '1px solid #1a1a1a', color: '#aaa' }}>
+                <pre className="text-xs whitespace-pre-wrap rounded-2xl p-4" style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#aaa' }}>
                   {plan?.summary || JSON.stringify(plan, null, 2)?.slice(0, 1200) || 'Sin previo todavía.'}
                 </pre>
               )}
-              <button onClick={startRender} className="w-full mt-5 py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>
+              <button onClick={startRender} className="w-full mt-5 py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff', boxShadow: '0 0 24px #22d3ee44' }}>
                 ✨ Editar video con este plan
               </button>
-              <p className="text-[11px] text-center mt-2" style={{ color: '#555' }}>El render recién corre cuando le das aquí.</p>
+              <p className="text-[11px] text-center mt-2" style={{ color: '#8b8b96' }}>El render recién corre cuando le das aquí.</p>
             </div>
 
             {/* CHAT con el cerebro */}
@@ -874,13 +893,13 @@ export default function Topcut() {
                 {messages.map((m, i) => (
                   <div key={i} className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm ${m.role === 'user' ? 'self-end' : 'self-start'}`}
                     style={m.role === 'user'
-                      ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }
-                      : { background: '#0c0c0c', border: '1px solid #1f1f1f', color: '#ddd' }}>
+                      ? { background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }
+                      : { background: '#0b0b14', border: '1px solid #1f1f1f', color: '#ddd' }}>
                     {m.text}
                   </div>
                 ))}
                 {chatBusy && (
-                  <div className="self-start px-3.5 py-2.5 rounded-2xl text-sm" style={{ background: '#0c0c0c', border: '1px solid #1f1f1f', color: '#888' }}>escribiendo…</div>
+                  <div className="self-start px-3.5 py-2.5 rounded-2xl text-sm" style={{ background: '#0b0b14', border: '1px solid #1f1f1f', color: '#b4b4c0' }}>escribiendo…</div>
                 )}
                 <div ref={chatEndRef} />
               </div>
@@ -889,12 +908,12 @@ export default function Topcut() {
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
                   placeholder="Ej: anima los textos palabra por palabra"
-                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
-                <button onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#fff' }} />
+                <button onClick={sendChat} disabled={chatBusy || !chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }}>↑</button>
               </div>
               <div className="flex gap-1.5 flex-wrap mt-3">
                 {['Textos más grandes', 'Palabra por palabra', 'Menos b-roll', 'Música más calmada'].map((q) => (
-                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
+                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>{q}</button>
                 ))}
               </div>
             </div>
@@ -904,7 +923,7 @@ export default function Topcut() {
         {/* ── 5b. PANEL DE ESCENAS (edición manual estilo Submagic) ── */}
         {step === 'studio' && planId && (
           <div className="mt-4 rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-            <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: '#666' }}>
+            <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: '#a1a1aa' }}>
               Edición manual — ajusta cada escena (subtítulo, B-roll, zoom) y renderiza
             </p>
             <ScenePanel jobId={planId} videoUrl={videoUrl} />
@@ -913,24 +932,24 @@ export default function Topcut() {
 
         {/* ── 6. RENDERING ────────────────────────────── */}
         {step === 'rendering' && (
-          <div className="rounded-3xl p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+          <div className="rounded-3xl p-8" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22d3ee44' }}>
             {note && (
               <div className="rounded-2xl px-4 py-3 mb-5 text-xs" style={{ background: '#1a160a', border: '1px solid #5c4a14', color: '#e8d48a' }}>ℹ️ {note}</div>
             )}
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', boxShadow: '0 0 40px #a855f755', animation: 'tcpulse 2s ease-in-out infinite' }}>✂️</div>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', boxShadow: '0 0 40px #22d3ee44', animation: 'tcpulse 2s ease-in-out infinite' }}>✂️</div>
               <h3 className="text-lg font-bold">{stage === 'uploading' ? 'Subiendo tu video…' : 'Editando con IA…'}</h3>
               {stage === 'uploading' ? (
-                <p className="text-sm" style={{ color: '#888' }}>{uploadPct}%</p>
+                <p className="text-sm" style={{ color: '#b4b4c0' }}>{uploadPct}%</p>
               ) : (
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-2xl font-bold tabular-nums" style={{ color: '#c4b5fd' }}>{fmt(elapsed)}</span>
-                  <span className="text-sm" style={{ color: '#888' }}>
+                  <span className="text-2xl font-bold tabular-nums" style={{ color: '#67e8f9' }}>{fmt(elapsed)}</span>
+                  <span className="text-sm" style={{ color: '#b4b4c0' }}>
                     {remaining > 0 ? `· ≈ ${fmt(remaining)} restante` : '· casi listo…'}
                   </span>
                 </div>
               )}
-              {stage !== 'uploading' && <p className="text-[11px] mt-1" style={{ color: '#555' }}>Estimado — no cierres esta pestaña.</p>}
+              {stage !== 'uploading' && <p className="text-[11px] mt-1" style={{ color: '#8b8b96' }}>Estimado — no cierres esta pestaña.</p>}
             </div>
 
             {stage === 'uploading' ? (
@@ -950,9 +969,9 @@ export default function Topcut() {
                   const active = stage === s;
                   return (
                     <div key={s} className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
-                      style={active ? { background: '#7c3aed22', border: '1px solid #7c3aed44' } : done ? { background: '#0a1a0a', border: '1px solid #143314' } : { opacity: 0.4, border: '1px solid transparent' }}>
+                      style={active ? { background: '#22d3ee18', border: '1px solid #22d3ee44' } : done ? { background: '#0a1a0a', border: '1px solid #143314' } : { opacity: 0.4, border: '1px solid transparent' }}>
                       <span className="text-base w-5 text-center">{done ? '✅' : active ? '⏳' : '•'}</span>
-                      <span className="text-sm" style={{ color: active ? '#c4b5fd' : done ? '#4ade80' : '#555' }}>{STAGE_ES[s] || s}</span>
+                      <span className="text-sm" style={{ color: active ? '#67e8f9' : done ? '#4ade80' : '#555' }}>{STAGE_ES[s] || s}</span>
                     </div>
                   );
                 })}
@@ -967,15 +986,15 @@ export default function Topcut() {
           <div className="rounded-3xl p-8 text-center" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e55' }}>
             <div className="text-5xl mb-3">✨</div>
             <h3 className="text-xl font-bold mb-1">¡Tu video está listo!</h3>
-            <p className="text-sm mb-6" style={{ color: '#888' }}>Editado automáticamente con IA.</p>
-            {(blobUrl || resultUrl) && <video src={blobUrl || resultUrl} controls playsInline className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #222' }} />}
+            <p className="text-sm mb-6" style={{ color: '#b4b4c0' }}>Editado automáticamente con IA.</p>
+            {(blobUrl || resultUrl) && <video src={blobUrl || resultUrl} controls playsInline className="w-full rounded-2xl mb-5 mx-auto" style={{ maxWidth: 320, border: '1px solid #23232f' }} />}
             <div className="flex flex-col gap-3">
-              <a href={blobUrl || resultUrl} download="topcut.mp4" className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', boxShadow: '0 0 24px #a855f744' }}>⬇️ Descargar video editado</a>
+              <a href={blobUrl || resultUrl} download="topcut.mp4" className="w-full py-3.5 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff', boxShadow: '0 0 24px #22d3ee44' }}>⬇️ Descargar video editado</a>
               <div className="flex items-center justify-center gap-4">
-                <button onClick={reset} className="text-xs underline" style={{ color: '#888' }}>Editar otro video</button>
-                <Link href="/editor/historial" className="text-xs underline" style={{ color: '#c4b5fd' }}>📁 Mis videos</Link>
+                <button onClick={reset} className="text-xs underline" style={{ color: '#b4b4c0' }}>Editar otro video</button>
+                <Link href="/editor/historial" className="text-xs underline" style={{ color: '#67e8f9' }}>📁 Mis videos</Link>
               </div>
-              <p className="text-[11px]" style={{ color: '#555' }}>Guardado en tu historial por 30 días.</p>
+              <p className="text-[11px]" style={{ color: '#8b8b96' }}>Guardado en tu historial por 30 días.</p>
             </div>
 
             {/* CHAT POST-EDICIÓN: pedir cambios y volver a renderizar */}
@@ -986,12 +1005,12 @@ export default function Topcut() {
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPostEdit(); } }}
                   placeholder='Ej: "subtítulos más pequeños", "música más baja"'
-                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0c0c0c', border: '1px solid #222', color: '#fff' }} />
-                <button onClick={sendPostEdit} disabled={!chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none" style={{ background: '#0b0b14', border: '1px solid #23232f', color: '#fff' }} />
+                <button onClick={sendPostEdit} disabled={!chatInput.trim()} className="px-4 rounded-2xl text-sm font-bold disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }}>↑</button>
               </div>
               <div className="flex gap-1.5 flex-wrap mt-3">
                 {['Subtítulos más pequeños', 'Más b-roll', 'Música más baja', 'Color verde', 'Quitar música'].map((q) => (
-                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#141414', border: '1px solid #222', color: '#888' }}>{q}</button>
+                  <button key={q} onClick={() => setChatInput(q)} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>{q}</button>
                 ))}
               </div>
             </div>
@@ -1004,7 +1023,7 @@ export default function Topcut() {
             <div className="text-5xl mb-3">⚠️</div>
             <h3 className="text-lg font-bold mb-1">Algo salió mal</h3>
             <p className="text-sm mb-6" style={{ color: '#fca5a5' }}>{error}</p>
-            <button onClick={() => (planId ? setStep('studio') : reset())} className="px-6 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>
+            <button onClick={() => (planId ? setStep('studio') : reset())} className="px-6 py-3 rounded-2xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #0e7490, #2563eb)', color: '#fff' }}>
               {planId ? 'Volver al previo' : 'Intentar de nuevo'}
             </button>
           </div>
