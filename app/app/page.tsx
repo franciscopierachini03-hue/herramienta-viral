@@ -835,7 +835,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 90% 45% at 20% 0%, #1a0a2e 0%, transparent 55%), radial-gradient(ellipse 60% 30% at 90% 5%, #06243a 0%, transparent 50%), #070710' }}>
-      <div className="max-w-3xl mx-auto px-6 pt-10 pb-20">
+      <div className={`max-w-3xl mx-auto px-6 pt-10 ${tab === 'analizar' ? 'pb-0' : 'pb-20'}`}>
 
       <SessionGuard />
       <ProductGate product="viraladn" />
