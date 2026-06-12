@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     type: "website",
     title: "ViralADN — Descifra el ADN del contenido viral",
     description:
-      "Encontrá lo viral en YouTube, TikTok e Instagram en segundos. Creá contenido que explota.",
+      "Encuentra lo viral en YouTube, TikTok e Instagram en segundos. Edítalo con IA. Crea contenido que explota.",
     url: SITE_URL,
     siteName: "ViralADN",
     images: [
@@ -33,12 +33,12 @@ export const metadata: Metadata = {
         alt: "ViralADN",
       },
     ],
-    locale: "es_AR",
+    locale: "es_LA",
   },
   twitter: {
     card: "summary_large_image",
     title: "ViralADN",
-    description: "Encontrá lo viral. Creá contenido que explota.",
+    description: "Encuentra lo viral. Edítalo con IA. Crea contenido que explota.",
     images: ["/og-image.svg"],
   },
 };
