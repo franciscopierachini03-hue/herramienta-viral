@@ -1326,19 +1326,26 @@ export default function Home() {
                   : `${guiones.length} guion${guiones.length !== 1 ? 'es' : ''} · ${folders.length} carpeta${folders.length !== 1 ? 's' : ''}${q ? ` · ${totalMatches} resultado${totalMatches !== 1 ? 's' : ''}` : ''}`}
               </p>
             </div>
-            {guiones.length > 0 && (
-              confirmDeleteAll ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#b4b4c0]">¿Borrar todo?</span>
-                  <button onClick={borrarTodo} className="text-xs px-2 py-1 bg-red-900 border border-red-700 rounded text-red-300 hover:bg-red-800">Sí, borrar</button>
-                  <button onClick={() => setConfirmDeleteAll(false)} className="text-xs px-2 py-1 border border-[#2e2e3d] rounded text-[#b4b4c0] hover:text-white">Cancelar</button>
-                </div>
-              ) : (
-                <button onClick={() => setConfirmDeleteAll(true)} className="text-xs text-[#8b8b96] hover:text-red-400 transition-colors">
-                  Borrar todo
-                </button>
-              )
-            )}
+            <div className="flex items-center gap-3">
+              <Link href="/guiones"
+                className="text-xs font-bold px-3 py-2 rounded-xl transition-transform hover:-translate-y-0.5"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 14px #7c3aed44' }}>
+                ✍️ Generar guion
+              </Link>
+              {guiones.length > 0 && (
+                confirmDeleteAll ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#b4b4c0]">¿Borrar todo?</span>
+                    <button onClick={borrarTodo} className="text-xs px-2 py-1 bg-red-900 border border-red-700 rounded text-red-300 hover:bg-red-800">Sí, borrar</button>
+                    <button onClick={() => setConfirmDeleteAll(false)} className="text-xs px-2 py-1 border border-[#2e2e3d] rounded text-[#b4b4c0] hover:text-white">Cancelar</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteAll(true)} className="text-xs text-[#8b8b96] hover:text-red-400 transition-colors">
+                    Borrar todo
+                  </button>
+                )
+              )}
+            </div>
           </div>
 
           {/* ── Toolbar: buscar · ordenar · nueva carpeta ───────── */}

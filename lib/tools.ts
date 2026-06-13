@@ -45,10 +45,6 @@ export const TOOLS: Tool[] = [
     border: '#22d3ee44', glow: '#22d3ee14', iconGlow: '#22d3ee33',
     unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
   },
-  {
-    key: 'guiones', name: 'Guiones', href: '/guiones', icon: '✍️',
-    desc: 'Genera guiones listos para grabar, en el tono que elijas.',
-    needs: 'viraladn', producto: 'viraladn', price: '$27/mes',
-    includedNote: 'Incluido con ViralADN', ...VIOLET,
-  },
+  // Guiones NO es card del hub: vive DENTRO de ViralADN (pestaña "📚 Guiones" en
+  // /app, con botón "Generar guion" → /guiones). Es parte del plan ViralADN.
 ];
