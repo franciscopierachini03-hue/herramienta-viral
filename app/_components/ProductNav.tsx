@@ -3,38 +3,24 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-// Header común a las 3 herramientas (ViralADN, TOPCUT, Guiones).
-// Usar siempre en /app, /editor, /guiones para que la nav quede idéntica.
+// Header común a TODAS las herramientas (ViralADN, TOPCUT, Guiones, y lo que venga).
+//
+// Modelo "hub & spoke": NO se salta directo de una herramienta a otra desde acá.
+// Para cambiar de herramienta se vuelve al Home (/inicio) y se elige. Por eso el
+// header SIEMPRE trae el botón "🏠 Inicio" (y el logo también vuelve al Home).
+//
+// 👉 Para una herramienta NUEVA: usá <ProductNav active="..."/> en su página y
+//    agregá su card en lib/tools.ts. Así el patrón se mantiene solo.
 //
 // Props:
-//   active: cuál producto está activo (resaltado en violeta).
+//   active: en qué herramienta estás (define el título que se muestra).
 
 type Active = 'viral' | 'topcut' | 'guiones';
-
-type Item = {
-  id: Active;
-  href: string;
-  label: string;
-  comingSoon?: boolean;
-};
-
-const ITEMS: Item[] = [
-  { id: 'viral',   href: '/app',     label: '🧬 ViralADN' },
-  { id: 'topcut',  href: '/editor',  label: '✂️ TOPCUT' },
-  { id: 'guiones', href: '/guiones', label: '✍️ Guiones' },
-];
 
 const TITLES: Record<Active, { title: string; sub: string }> = {
   viral:   { title: 'ViralADN', sub: 'Descifra el ADN del contenido viral' },
   topcut:  { title: 'TOPCUT',   sub: 'Tus videos se editan solos con IA' },
   guiones: { title: 'Guiones',  sub: 'Tu biblioteca lista para grabar' },
-};
-
-// Gradiente de marca por producto (ViralADN violeta · TOPCUT cyan)
-const GRADS: Record<Active, { bg: string; glow: string }> = {
-  viral:   { bg: 'linear-gradient(135deg, #7c3aed, #c13584)', glow: '0 0 12px #7c3aed44' },
-  topcut:  { bg: 'linear-gradient(135deg, #0e7490, #2563eb)', glow: '0 0 12px #22d3ee33' },
-  guiones: { bg: 'linear-gradient(135deg, #7c3aed, #c13584)', glow: '0 0 12px #7c3aed44' },
 };
 
 export default function ProductNav({ active }: { active: Active }) {
@@ -50,100 +36,37 @@ export default function ProductNav({ active }: { active: Active }) {
     return () => { cancelled = true; };
   }, []);
 
+  const pill = 'px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all';
+
   return (
     <div className="flex items-center justify-between mb-10 gap-4 flex-wrap">
-      {/* Logo + título */}
+      {/* Logo + título — el logo vuelve al Home */}
       <div className="flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-mark.svg" alt="ViralADN" width={40} height={40}
-          style={{ filter: 'drop-shadow(0 0 18px #7c3aed55)' }} />
+        <Link href="/inicio" title="Volver al inicio" className="shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt="Inicio" width={40} height={40}
+            style={{ filter: 'drop-shadow(0 0 18px #7c3aed55)' }} />
+        </Link>
         <div>
           <h1 className="text-xl font-bold tracking-tight">{meta.title}</h1>
           <p className="text-xs" style={{ color: '#a1a1aa' }}>{meta.sub}</p>
         </div>
       </div>
 
-      {/* Switcher */}
-      <div className="flex items-center gap-1 p-1 rounded-2xl"
-        style={{ background: '#101019', border: '1px solid #23232f' }}>
-        {ITEMS.map(item => {
-          const isActive = item.id === active;
-
-          // ── Activo (gradiente del producto) ───────────────────
-          if (isActive) {
-            return (
-              <div key={item.id}
-                className="px-4 py-2 rounded-xl text-xs font-bold cursor-default"
-                style={{ background: GRADS[item.id].bg, color: '#fff', boxShadow: GRADS[item.id].glow }}>
-                {item.label}
-              </div>
-            );
-          }
-
-          // ── Próximamente (deshabilitado, no clickeable) ───────
-          if (item.comingSoon) {
-            return (
-              <div key={item.id}
-                title="Disponible próximamente"
-                className="relative px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed flex items-center gap-1.5"
-                style={{ color: '#3a3a3a', opacity: 0.7 }}>
-                <span>{item.label}</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wider"
-                  style={{ background: '#7c3aed22', border: '1px solid #7c3aed44', color: '#a78bfa' }}>
-                  Pronto
-                </span>
-              </div>
-            );
-          }
-
-          // ── Link normal ───────────────────────────────────────
-          return (
-            <Link key={item.id} href={item.href}
-              className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-              style={{ color: '#8b8b96' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.color = '#fff';
-                (e.currentTarget as HTMLElement).style.background = '#1d1d2a';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.color = '#8b8b96';
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
-              }}>
-              {item.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Status + Cuenta + Admin */}
-      <div className="flex items-center gap-3">
-        <Link href="/cuenta"
-          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-          title="Mi cuenta"
-          style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.background = '#1d1d2a';
-            (e.currentTarget as HTMLElement).style.color = '#fff';
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLElement).style.background = '#101019';
-            (e.currentTarget as HTMLElement).style.color = '#b4b4c0';
-          }}>
+      {/* Acciones — Inicio (Home) destacado + Cuenta + Admin + estado */}
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <Link href="/inicio" className={pill}
+          title="Volver al inicio para cambiar de herramienta"
+          style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 14px #7c3aed44' }}>
+          🏠 Inicio
+        </Link>
+        <Link href="/cuenta" className={pill} title="Mi cuenta"
+          style={{ background: '#101019', border: '1px solid #23232f', color: '#b4b4c0' }}>
           👤 Cuenta
         </Link>
         {isAdmin && (
-          <Link href="/admin"
-            className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-            title="Panel de admin"
-            style={{ background: '#101019', border: '1px solid #7c3aed44', color: '#c4b5fd' }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = '#1d1d2a';
-              (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed99';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = '#101019';
-              (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed44';
-            }}>
+          <Link href="/admin" className={pill} title="Panel de admin"
+            style={{ background: '#101019', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
             🛡️ Admin
           </Link>
         )}

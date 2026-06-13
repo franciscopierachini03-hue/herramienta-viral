@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAccess } from '@/lib/access';
+import { TOOLS } from '@/lib/tools';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,29 +13,14 @@ export default async function Inicio() {
   if (!email) redirect('/login?next=/inicio');
   const profile = { name };
 
-  const cards = [
-    {
-      key: 'viraladn', href: '/app', icon: '🧬', name: 'ViralADN',
-      desc: 'Descifra el ADN del contenido viral. Busca los videos que explotan y genera guiones.',
-      unlocked: ent.viraladn, price: '$27/mes', producto: 'viraladn',
-      grad: 'linear-gradient(135deg, #7c3aed, #c13584)',
-      border: '#7c3aed55', glow: '#7c3aed1f', iconGlow: '#7c3aed44',
-      unlockBorder: '#7c3aed55', unlockColor: '#c4b5fd',
-    },
-    {
-      key: 'topcut', href: '/editor', icon: '✂️', name: 'TOPCUT',
-      desc: 'Sube tu video y la IA lo edita solo: recorte, subtítulos, B-roll y música.',
-      unlocked: ent.topcut, price: '$57/mes', producto: 'topcut',
-      grad: 'linear-gradient(135deg, #0e7490, #2563eb)',
-      border: '#22d3ee44', glow: '#22d3ee14', iconGlow: '#22d3ee33',
-      unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
-    },
-  ];
+  // Las cards salen de lib/tools.ts (fuente única). Cada una se desbloquea según
+  // el entitlement que necesita. Sumar una herramienta = agregar 1 entrada allí.
+  const cards = TOOLS.map(t => ({ ...t, unlocked: ent[t.needs] }));
 
   return (
     <main className="min-h-screen text-white flex flex-col items-center justify-center px-6 py-16"
       style={{ background: 'radial-gradient(ellipse 90% 45% at 25% 0%, #1a0a2e 0%, transparent 60%), radial-gradient(ellipse 70% 35% at 85% 8%, #06243a 0%, transparent 55%), #070710' }}>
-      <div className="w-full max-w-3xl">
+      <div className="w-full max-w-5xl">
         <div className="text-center mb-10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.svg" alt="ViralADN" width={48} height={48} className="mx-auto mb-4" style={{ filter: 'drop-shadow(0 0 18px #7c3aed55)' }} />
@@ -45,7 +31,7 @@ export default async function Inicio() {
           <p className="text-sm mt-1" style={{ color: '#a1a1aa' }}>Elige tu herramienta.</p>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.map(c => (
             c.unlocked ? (
               <Link key={c.key} href={c.href}
