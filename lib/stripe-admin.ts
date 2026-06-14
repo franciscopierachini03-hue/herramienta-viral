@@ -12,7 +12,15 @@
 // En cambio, pedir las facturas de CADA suscripción ViralADN (?subscription=)
 // trae el 100% de las nuestras, sin importar el ruido de 2Clicks.
 
-import { PRODUCT_IDS } from '@/lib/products';
+import { PRODUCT_IDS, PLAN_AMOUNTS } from '@/lib/products';
+
+// Montos (en centavos) que SÍ son nuestros (ViralADN / TOPCUT / Combo + legacy
+// $47/$470). La cuenta de Stripe es compartida con 2Clicks (LEGACY USA $1.300,
+// etc.) → al buscar pagos por email NO debemos contar esos montos ajenos.
+const OUR_AMOUNTS = new Set<number>([
+  ...Object.values(PLAN_AMOUNTS).flatMap(p => Object.values(p) as number[]),
+  4700, 47000, // legacy $47 / $470
+]);
 
 export type StripeSubscription = {
   id: string;
@@ -316,7 +324,7 @@ export async function findPaidByEmail(emails: string[], sinceUnix?: number): Pro
   const since = sinceUnix || Math.floor(Date.now() / 1000) - 40 * 24 * 3600;
 
   let starting_after: string | undefined;
-  for (let i = 0; i < 20 && out.size < want.size; i++) {
+  for (let i = 0; i < 8 && out.size < want.size; i++) {
     const params: Record<string, string | number> = { limit: 100, 'created[gte]': since };
     if (starting_after) params.starting_after = starting_after;
     const page = await stripeGet<{ data: SessLite[]; has_more: boolean }>('checkout/sessions', params);
@@ -326,7 +334,8 @@ export async function findPaidByEmail(emails: string[], sinceUnix?: number): Pro
       if (!em || !want.has(em) || out.has(em)) continue;
       const paid = s.payment_status === 'paid' || s.status === 'complete';
       const amt = s.amount_total || 0;
-      if (paid && amt > 0) out.set(em, { amount: amt / 100, date: new Date((s.created || 0) * 1000).toISOString() });
+      // SOLO montos nuestros: si es de otro producto de la cuenta (2Clicks), se ignora.
+      if (paid && OUR_AMOUNTS.has(amt)) out.set(em, { amount: amt / 100, date: new Date((s.created || 0) * 1000).toISOString() });
     }
     if (!page.has_more) break;
     starting_after = page.data[page.data.length - 1].id;
