@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { getBillingOverview } from '@/lib/stripe-admin';
+import { getBillingOverview, findPaidByEmail } from '@/lib/stripe-admin';
 import DailyRevenueChart from './DailyRevenueChart';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
@@ -343,6 +343,26 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
 
   const fmtUSD = (n: number) =>
     n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+  // "Activos sin suscripción vinculada" (active, sin sub por customer NI por email,
+  // sin código, no mes de prueba): suelen haber pagado por un LINK de pago (pago
+  // único) → buscamos su pago en Stripe POR EMAIL para mostrar cuánto pagaron.
+  const orphanProfiles = all.filter(p =>
+    p.subscription_status === 'active' &&
+    !p.redeemed_code &&
+    !isInTrialMonth(p) &&
+    !(p.stripe_customer_id && subByCustomer.get(p.stripe_customer_id)) &&
+    !subByEmail.get((p.email || '').toLowerCase()),
+  );
+  // Ventana de búsqueda: desde el huérfano más viejo − 3 días (búsqueda angosta).
+  const oldestOrphan = orphanProfiles.reduce<number>((min, p) => {
+    const t = p.created_at ? new Date(p.created_at).getTime() : Date.now();
+    return Math.min(min, t);
+  }, Date.now());
+  const sinceUnix = Math.floor(oldestOrphan / 1000) - 3 * 24 * 3600;
+  const orphanPaid = orphanProfiles.length
+    ? await findPaidByEmail(orphanProfiles.map(p => p.email), sinceUnix)
+    : new Map<string, { amount: number; date: string }>();
 
   // 3. Aplicar filtros.
   const qLower = q.trim().toLowerCase();
@@ -842,9 +862,13 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                   const renewDays = renew ? Math.ceil((renew.getTime() - Date.now()) / 86400000) : null;
                   // Lo que pagó: $0 si está en mes de prueba (cupón cubrió la factura),
                   // si no el monto de su última factura. Sin sub → "—".
-                  const paidAmt = inTrialMonth ? 0 : (sub ? sub.amountThisCycle : null);
-                  // 'active' sin pago vinculado en Stripe ni código → anomalía a revisar.
-                  const activeNoPay = !sub && !inTrialMonth && !p.redeemed_code && p.subscription_status === 'active';
+                  // Pago encontrado por email (pagó por link, sin sub vinculada).
+                  const orphanAmt = (!sub && !inTrialMonth) ? (orphanPaid.get((p.email || '').toLowerCase())?.amount ?? null) : null;
+                  // Lo que pagó: $0 si está en mes de prueba (cupón cubrió la factura);
+                  // si tiene sub, su última factura; si no, lo encontrado por email.
+                  const paidAmt = inTrialMonth ? 0 : (sub ? sub.amountThisCycle : orphanAmt);
+                  // 'active' sin pago de ningún tipo (ni sub, ni link, ni código) → anomalía.
+                  const activeNoPay = !sub && !inTrialMonth && orphanAmt == null && !p.redeemed_code && p.subscription_status === 'active';
                   return (
                     <tr key={p.email} style={{ borderBottom: '1px solid #141414' }}>
                       <td className="px-4 py-3" style={{ color: '#eee' }}>
@@ -878,9 +902,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                         {paidAmt === null
                           ? (activeNoPay ? '⚠️ activo sin pago' : '—')
                           : <>{fmtUSD(paidAmt)}{paidAmt === 0 && <span className="text-[9px] ml-1" style={{ color: '#c4b5fd' }}>gratis</span>}</>}
-                        {sub?.product && sub.product !== '—' && (
-                          <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#a78bfa' }}>{sub.product}</div>
-                        )}
+                        {sub?.product && sub.product !== '—'
+                          ? <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#a78bfa' }}>{sub.product}</div>
+                          : orphanAmt != null && <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#fbbf24' }}>pago único</div>}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
                         {renew

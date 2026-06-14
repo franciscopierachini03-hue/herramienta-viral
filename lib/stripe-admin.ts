@@ -295,3 +295,41 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     return zero(true, (e as Error).message);
   }
 }
+
+// Busca el pago de cada email en Stripe vía CHECKOUT SESSIONS — para los que
+// pagaron por un LINK DE PAGO (pago único) y no tienen suscripción vinculada al
+// perfil (customer_id / subscription_id en null). Cada sesión guarda el email
+// (customer_details.email) y el monto (amount_total), así que matcheamos por
+// email aunque el pago no haya creado cliente. Devuelve email→{monto, fecha}.
+//   emails: a buscar · sinceUnix: ventana (los huérfanos son recientes → angosta).
+type SessLite = {
+  id: string; amount_total?: number | null; created?: number;
+  payment_status?: string; status?: string;
+  customer_email?: string | null; customer_details?: { email?: string | null } | null;
+};
+
+export async function findPaidByEmail(emails: string[], sinceUnix?: number): Promise<Map<string, { amount: number; date: string }>> {
+  const out = new Map<string, { amount: number; date: string }>();
+  if (!process.env.STRIPE_SECRET_KEY) return out;
+  const want = new Set(emails.map(e => (e || '').toLowerCase().trim()).filter(Boolean));
+  if (!want.size) return out;
+  const since = sinceUnix || Math.floor(Date.now() / 1000) - 40 * 24 * 3600;
+
+  let starting_after: string | undefined;
+  for (let i = 0; i < 20 && out.size < want.size; i++) {
+    const params: Record<string, string | number> = { limit: 100, 'created[gte]': since };
+    if (starting_after) params.starting_after = starting_after;
+    const page = await stripeGet<{ data: SessLite[]; has_more: boolean }>('checkout/sessions', params);
+    if (!page?.data?.length) break;
+    for (const s of page.data) {
+      const em = (s.customer_details?.email || s.customer_email || '').toLowerCase();
+      if (!em || !want.has(em) || out.has(em)) continue;
+      const paid = s.payment_status === 'paid' || s.status === 'complete';
+      const amt = s.amount_total || 0;
+      if (paid && amt > 0) out.set(em, { amount: amt / 100, date: new Date((s.created || 0) * 1000).toISOString() });
+    }
+    if (!page.has_more) break;
+    starting_after = page.data[page.data.length - 1].id;
+  }
+  return out;
+}
