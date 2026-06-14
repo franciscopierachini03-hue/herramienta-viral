@@ -31,11 +31,11 @@ export default async function Inicio() {
           <p className="text-sm mt-1" style={{ color: '#a1a1aa' }}>Elige tu herramienta.</p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-wrap justify-center gap-4">
           {cards.map(c => (
             c.unlocked ? (
               <Link key={c.key} href={c.href}
-                className="group rounded-3xl p-7 flex flex-col transition-all duration-200 hover:-translate-y-1"
+                className="group rounded-3xl p-7 flex flex-col transition-all duration-200 hover:-translate-y-1 w-full sm:w-80"
                 style={{ background: 'linear-gradient(145deg, #14141f, #0d0d16)', border: `1px solid ${c.border}`, boxShadow: `0 0 30px ${c.glow}` }}>
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4 transition-transform duration-200 group-hover:scale-110" style={{ background: c.grad, boxShadow: `0 0 24px ${c.iconGlow}` }}>{c.icon}</div>
                 <h2 className="text-xl font-bold mb-1">{c.name}</h2>
@@ -45,7 +45,7 @@ export default async function Inicio() {
                 </span>
               </Link>
             ) : (
-              <div key={c.key} className="rounded-3xl p-7 flex flex-col relative" style={{ background: '#0c0c14', border: '1px solid #23232f' }}>
+              <div key={c.key} className="rounded-3xl p-7 flex flex-col relative w-full sm:w-80" style={{ background: '#0c0c14', border: '1px solid #23232f' }}>
                 <div className="absolute top-4 right-4 text-xs px-2 py-1 rounded-full" style={{ background: '#14141f', border: '1px solid #2a2a36', color: '#8b8b96' }}>🔒 Bloqueado</div>
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4" style={{ background: '#14141f', border: '1px solid #2a2a36', filter: 'grayscale(1)', opacity: 0.6 }}>{c.icon}</div>
                 <h2 className="text-xl font-bold mb-1" style={{ color: '#d4d4dc' }}>{c.name}</h2>
