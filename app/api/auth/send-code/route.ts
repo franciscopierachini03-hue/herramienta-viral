@@ -100,9 +100,13 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: 'No pudimos crear la cuenta.' }, { status: 500 });
       }
     } else {
-      // Si existe pero no fue verificado por nosotros → permitir reintento
+      // Si existe pero no fue verificado por nosotros → permitir reintento.
+      // email_confirm:true repara cuentas que quedaron a medias (ej. pagaron y
+      // el webhook viejo las creó sin confirmar) — sin esto el login fallaba con
+      // "Email not confirmed" aunque la clave fuera correcta.
       await admin.auth.admin.updateUserById(existingUser.id, {
         password,
+        email_confirm: true,
         user_metadata: { ...(existingUser.user_metadata || {}), name, phone, pending_invite: inviteCode },
       });
     }

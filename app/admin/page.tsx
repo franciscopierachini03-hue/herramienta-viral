@@ -7,6 +7,7 @@ import DailyRevenueChart from './DailyRevenueChart';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
 import AdminResetPassword from './AdminResetPassword';
+import AdminFixAccess from './AdminFixAccess';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -441,9 +442,10 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
         {/* Envío masivo de accesos Legacy */}
         <SendAccessPanel />
 
-        {/* Restablecer contraseña de un usuario */}
-        <div className="mb-6">
+        {/* Restablecer contraseña de un usuario + arreglar accesos en masa */}
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <AdminResetPassword />
+          <AdminFixAccess />
         </div>
 
         {/* Stats cards */}

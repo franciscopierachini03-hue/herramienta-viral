@@ -74,6 +74,41 @@ export async function sendVerificationCode(email: string, code: string, name?: s
   });
 }
 
+// Email post-pago: confirma que el pago entró y guía a crear/entrar a la cuenta.
+// Se manda SOLO en pay-first (cuenta sin confirmar o inexistente) — los que ya
+// tienen sesión no lo necesitan. Usa Resend (no el SMTP de Supabase).
+export async function sendPaymentConfirmed(email: string, name?: string, hasAccount = false) {
+  const greet = name ? `Hola ${name},` : 'Hola,';
+  // Con cuenta (recién confirmada) → login directo. Sin cuenta (pay-first) → signup.
+  const url = hasAccount
+    ? `https://viraladn.com/login?email=${encodeURIComponent(email)}`
+    : `https://viraladn.com/login?signup=1&email=${encodeURIComponent(email)}`;
+  const cta = hasAccount ? 'Entrar a mi cuenta →' : 'Crear mi acceso →';
+  const lead = hasAccount
+    ? 'Tu suscripción quedó activa y tu cuenta ya está lista para entrar.'
+    : 'Tu suscripción quedó activa. Solo falta crear tu acceso para entrar a la herramienta — usa este mismo correo';
+  const body = `
+    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">¡Pago confirmado! 🎉</h1>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0 0 8px;">${greet}</p>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0 0 8px;">${lead} (<b style="color:#c4b5fd;">${email}</b>).</p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#c13584);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 28px;border-radius:16px;">${cta}</a>
+    </div>
+    <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">¿No recuerdas tu contraseña? Toca "¿Olvidaste tu contraseña?" en esa pantalla y te llega un código a este correo para elegir una nueva.</p>
+  `;
+  const html = shellEmail({
+    title: '¡Pago confirmado! — ViralADN',
+    preheader: 'Tu suscripción quedó activa. Entra para empezar.',
+    body,
+  });
+  return client().emails.send({
+    from: from(),
+    to: email,
+    subject: '¡Pago confirmado! Tu acceso a ViralADN',
+    html,
+  });
+}
+
 export async function sendPasswordResetCode(email: string, code: string) {
   const body = `
     <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Recupera tu contraseña</h1>

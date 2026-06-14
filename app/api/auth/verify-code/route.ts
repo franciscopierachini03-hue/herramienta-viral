@@ -156,8 +156,12 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Cuenta no encontrada.' }, { status: 404 });
     }
 
+    // email_confirm:true además de la clave: si la cuenta quedó a medias (pagó y
+    // el webhook viejo la creó sin confirmar), "¿Olvidaste tu contraseña?" la
+    // desbloquea por completo. Sin esto, el login seguía fallando tras el reset.
     const { error: updErr } = await admin.auth.admin.updateUserById(authUser.id, {
       password: newPassword,
+      email_confirm: true,
     });
     if (updErr) {
       console.error('[verify-code/reset] updateUser:', updErr);

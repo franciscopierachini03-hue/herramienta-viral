@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getCheckoutInfo } from '@/lib/stripe-checkout-info';
+import { sendPaymentConfirmed } from '@/lib/email/resend';
 
 // Webhook de Stripe. Stripe nos avisa de eventos como:
 // - checkout.session.completed → alguien pagó por primera vez
@@ -44,7 +45,6 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   console.log('[stripe-webhook]', event.type);
 
@@ -101,20 +101,46 @@ export async function POST(req: NextRequest) {
         console.error('[stripe-webhook] upsert error:', upsertError);
       }
 
-      // 2. Mandar magic link de bienvenida al usuario
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: `${appUrl}/auth/callback`,
-        },
-      });
-
-      if (otpError) {
-        console.error('[stripe-webhook] OTP error:', otpError);
+      // 2. Conectar el pago a la cuenta — SIN crear cuentas a medias.
+      //    Antes usábamos signInWithOtp({shouldCreateUser:true}), que creaba un
+      //    usuario SIN contraseña y SIN email confirmado (y mandaba un magic link
+      //    por el SMTP de Supabase que no llega) → la persona pagaba y quedaba
+      //    trabada. Ahora:
+      //      - Si ya tiene cuenta → la confirmamos (por si quedó a medias) y listo.
+      //      - Si NO tiene cuenta (pay-first) → NO la creamos acá; le mandamos un
+      //        email por Resend para que la cree con el código de 6 dígitos (flujo
+      //        bueno, que sí confirma). La creación de cuenta vive en un solo lugar.
+      let authUser: { id: string; email?: string; email_confirmed_at?: string | null } | null = null;
+      for (let page = 1; page <= 20 && !authUser; page++) {
+        const { data: list } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+        const users = list?.users || [];
+        authUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase()) || null;
+        if (users.length < 200) break;
       }
 
-      console.log(`[stripe-webhook] usuario activado: ${email}`);
+      let needsWelcome = false;
+      if (authUser) {
+        // Cuenta existente: si quedó sin confirmar (víctima del bug viejo), la confirmamos.
+        if (!authUser.email_confirmed_at) {
+          await supabase.auth.admin.updateUserById(authUser.id, { email_confirm: true });
+          await supabase.from('profiles').update({ email_verified: true }).eq('email', email);
+          needsWelcome = true; // estaba a medias → conviene avisarle cómo entrar
+        }
+      } else {
+        // Pay-first sin cuenta: la persona tiene que crearla con su email.
+        needsWelcome = true;
+      }
+
+      // 3. Email post-pago (solo cuando hace falta) por Resend — confiable.
+      if (needsWelcome) {
+        try {
+          await sendPaymentConfirmed(email, name || undefined, !!authUser);
+        } catch (e) {
+          console.error('[stripe-webhook] sendPaymentConfirmed:', e);
+        }
+      }
+
+      console.log(`[stripe-webhook] pago activado: ${email} (cuenta ${authUser ? 'existente' : 'pendiente de crear'})`);
     }
 
     if (event.type === 'customer.subscription.deleted') {
