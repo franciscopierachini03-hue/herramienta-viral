@@ -85,13 +85,22 @@ async function countRecentTranscriptions(email: string): Promise<number> {
   try {
     const sb = createServiceClient();
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await sb
+    // Contamos VIDEOS distintos, no filas: una misma acción puede reintentar /
+    // re-disparar la transcripción del mismo video y, si contábamos filas, el
+    // cupo se gastaba sin que la persona transcribiera videos nuevos.
+    const { data } = await sb
       .from('transcription_log')
-      .select('id', { count: 'exact', head: true })
+      .select('video_url')
       .eq('user_email', email)
       .eq('cache_hit', false)
-      .gte('created_at', since);
-    return count || 0;
+      .gte('created_at', since)
+      .limit(1000);
+    const urls = new Set(
+      (data || [])
+        .map(r => String((r as { video_url?: string }).video_url || '').trim())
+        .filter(Boolean),
+    );
+    return urls.size;
   } catch {
     return 0;
   }

@@ -2100,13 +2100,24 @@ async function countRecentSearches(email: string): Promise<number> {
     const { createServiceClient } = await import('@/lib/supabase/server');
     const sb = createServiceClient();
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await sb
+    // Una búsqueda del usuario se abre en VARIAS llamadas internas (una por
+    // plataforma — YouTube/TikTok/Instagram — + variantes/duplicados). Si
+    // contábamos filas crudas, una sola búsqueda gastaba 3-6 del cupo y la
+    // persona topaba el límite a la 2da o 3ra búsqueda. Contamos TEMAS distintos
+    // → "15 búsquedas/día" = 15 temas/día reales.
+    const { data } = await sb
       .from('viral_search_log')
-      .select('*', { count: 'exact', head: true })
+      .select('tema')
       .eq('user_email', email)
       .eq('cache_hit', false)
-      .gte('created_at', since);
-    return count ?? 0;
+      .gte('created_at', since)
+      .limit(1000);
+    const temas = new Set(
+      (data || [])
+        .map(r => String((r as { tema?: string }).tema || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+    return temas.size;
   } catch { return 0; }
 }
 
