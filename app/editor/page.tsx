@@ -377,8 +377,18 @@ export default function Topcut() {
       fd.append('trimStart', String(segs[0].start));
       fd.append('trimEnd', String(segs[segs.length - 1].end));
     }
-    fd.append('context', context);
-    fd.append('instructions', instructions);
+    // ⚠️ WORKAROUND backend: el backend pasa `context` como `--prompt` a
+    // transcribe_openai.py, que NO acepta ese flag → argparse exit 2 → 500
+    // (rompe CUALQUIER edición con contexto; con contexto vacío anda). Hasta
+    // que el backend acepte --prompt, mandamos el contexto DENTRO de
+    // `instructions` (que sí se usa para el plan) y `context` vacío. Cuando se
+    // arregle transcribe_openai.py, volver a: fd.append('context', context).
+    const mergedInstructions = [
+      context.trim() ? `Contexto del video: ${context.trim()}` : '',
+      instructions.trim(),
+    ].filter(Boolean).join('\n\n');
+    fd.append('context', '');
+    fd.append('instructions', mergedInstructions);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${ticket.api}/api/plan`);
