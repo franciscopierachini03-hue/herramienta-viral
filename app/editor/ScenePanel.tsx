@@ -123,14 +123,14 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
 
       {/* TITULAR / GANCHO INICIAL editable (se ve grande al inicio del vídeo) */}
       <div className="mb-4 rounded-xl border border-white/10 p-3 bg-white/[0.03]">
-        <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">🎬 Titular / Gancho inicial</div>
+        <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">🎬 Titular / Gancho inicial (opcional)</div>
         <input
           value={hookText}
-          onChange={(e) => { setHookText(e.target.value); setHook((h) => (h ? { ...h, text: e.target.value } : h)); }}
-          placeholder="Frase de apertura grande…"
+          onChange={(e) => { const v = e.target.value; setHookText(v); setHook(v.trim() ? (h) => ({ start: h?.start ?? 0, end: h?.end ?? 4, text: v }) : null); }}
+          placeholder="(opcional) titular grande al inicio…"
           className="w-full bg-black/30 rounded-md px-3 py-2 text-sm font-semibold border border-white/10 focus:border-purple-400 outline-none"
         />
-        <p className="text-[11px] text-white/40 mt-1">Sale grande los primeros segundos. Vacío = usa la primera frase del vídeo. (Míralo en el previo de arriba.)</p>
+        <p className="text-[11px] text-white/40 mt-1"><b>Vacío = subtítulos normales</b> de 1 línea desde el inicio. Si escribes algo, sale GRANDE los primeros segundos (míralo en el previo de arriba).</p>
       </div>
 
       {/* AJUSTES GLOBALES (directos, sin IA / sin tokens) */}
