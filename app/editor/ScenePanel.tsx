@@ -65,6 +65,9 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   function patch(id: string, fn: (s: Scene) => Scene) {
     setScenes((sc) => sc.map((s) => (s.id === id ? fn(s) : s)));
   }
+  function patchCaption(i: number, text: string) {
+    setCaptions((cs) => cs.map((c, idx) => (idx === i ? { ...c, text } : c)));
+  }
 
   async function applyAndRender() {
     setStatus("rendering"); setStage("queued"); setError(""); setResultUrl("");
@@ -72,7 +75,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
     const settings = { subtitleSize: subSize, subtitlePos: subPos, subtitleColor: subColor, accent, musicMood };
     try {
       const r = await fetch(`/api/topcut/jobs/${jobId}/scenes`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits, hookText, settings }),
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits, hookText, settings, captions }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Error (${r.status})`); }
       poll();
@@ -193,17 +196,32 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
         </div>
       )}
 
-      {/* Lista de escenas */}
+      {/* SUBTÍTULOS — lista editable (cada línea = un subtítulo) */}
+      <div className="mb-6">
+        <div className="font-bold mb-2">💬 Subtítulos <span className="text-white/40 font-normal">({captions.length}) — editá el texto de cada línea</span></div>
+        <div className="space-y-1.5 max-h-[460px] overflow-y-auto pr-1">
+          {captions.map((c, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[11px] tabular-nums text-purple-300 font-bold w-10 shrink-0">{fmt(c.start)}</span>
+              <input
+                value={c.text}
+                onChange={(e) => patchCaption(i, e.target.value)}
+                className="flex-1 bg-black/30 rounded-md px-3 py-1.5 text-sm border border-white/10 focus:border-purple-400 outline-none"
+              />
+            </div>
+          ))}
+          {!captions.length && <p className="text-white/40 text-sm">Sin subtítulos.</p>}
+        </div>
+      </div>
+
+      {/* Escenas — B-roll y Zoom (el texto es solo referencia) */}
+      <div className="font-bold mb-2">🎞️ B-roll y Zoom <span className="text-white/40 font-normal">por escena</span></div>
       <div className="space-y-2">
         {scenes.map((s) => (
           <div key={s.id} className="rounded-xl border border-white/10 p-3 bg-white/[0.03]">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs tabular-nums text-purple-300 font-bold">{fmt(s.start)}</span>
-              <input
-                value={s.text}
-                onChange={(e) => patch(s.id, (x) => ({ ...x, text: e.target.value }))}
-                className="flex-1 bg-transparent border-b border-white/10 focus:border-purple-400 outline-none text-sm py-1"
-              />
+              <span className="flex-1 text-sm text-white/60 py-1 truncate">{s.text}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2 pl-10">
               <button
