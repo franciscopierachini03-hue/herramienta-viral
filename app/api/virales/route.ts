@@ -2123,7 +2123,7 @@ async function countRecentSearches(email: string): Promise<number> {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { tema, platform } = await req.json();
+  const { tema, platform, engine } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
   // Identificar usuario (no bloqueante)
@@ -2151,6 +2151,26 @@ export async function POST(req: NextRequest) {
       return Response.json({
         error: `Límite de ${SEARCH_RATE_LIMIT} búsquedas por día alcanzado. Vuelve mañana o aprovecha los resultados que ya tienes guardados.`,
       }, { status: 429 });
+    }
+  }
+
+  // ── POC: buscador vía Google "Videos cortos" (udm=39) por SerpApi ─────────
+  // Opt-in e INERTE por defecto: solo corre si hay SERPAPI_KEY y se pide Google
+  // (env SEARCH_ENGINE=google para TODAS las búsquedas, o body.engine='google'
+  // para probar una sola). Un request a Google trae todas las plataformas;
+  // filtramos a la pedida. Si falla o da 0, caemos al flujo de scrapers de
+  // siempre (no rompe nada de lo que ya funciona).
+  if (process.env.SERPAPI_KEY && (process.env.SEARCH_ENGINE === 'google' || engine === 'google')) {
+    try {
+      const { searchGoogleShorts } = await import('@/lib/google-shorts');
+      const vids = await searchGoogleShorts(tema, { platform, limit: 40 });
+      if (vids.length > 0) {
+        console.log(`[virales/google] ${tema}|${platform} → ${vids.length} videos (SerpApi)`);
+        return respondAndCache(tema, platform, vids, userEmail);
+      }
+      console.warn('[virales/google] 0 resultados; caigo al flujo de scrapers');
+    } catch (e) {
+      console.error('[virales/google] error; caigo al flujo de scrapers:', (e as Error).message);
     }
   }
 
