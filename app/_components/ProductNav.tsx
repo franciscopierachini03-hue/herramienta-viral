@@ -15,12 +15,13 @@ import { useEffect, useState } from 'react';
 // Props:
 //   active: en qué herramienta estás (define el título que se muestra).
 
-type Active = 'viral' | 'topcut' | 'guiones';
+type Active = 'viral' | 'topcut' | 'guiones' | 'studio';
 
 const TITLES: Record<Active, { title: string; sub: string }> = {
   viral:   { title: 'ViralADN', sub: 'Descifra el ADN del contenido viral' },
   topcut:  { title: 'TOPCUT',   sub: 'Tus videos se editan solos con IA' },
   guiones: { title: 'Guiones',  sub: 'Tu biblioteca lista para grabar' },
+  studio:  { title: 'Avatares IA', sub: 'Crea tu avatar y conviértelo en video' },
 };
 
 export default function ProductNav({ active }: { active: Active }) {

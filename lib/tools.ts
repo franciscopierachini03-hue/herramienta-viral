@@ -18,6 +18,8 @@ export type Tool = {
   href: string;              // a dónde entra cuando está desbloqueada
   icon: string;
   needs: keyof Entitlement;  // 'viraladn' | 'topcut' — entitlement que requiere
+  unlockOn?: 'any';          // 'any' = se desbloquea con CUALQUIER plan pago
+                             // (viraladn O topcut). Para add-ons por créditos.
   producto: 'viraladn' | 'topcut' | 'combo'; // para el CTA de desbloqueo
   price: string;             // texto del precio en el CTA bloqueado
   includedNote?: string;     // ej. "Incluido con ViralADN"
@@ -44,6 +46,15 @@ export const TOOLS: Tool[] = [
     grad: 'linear-gradient(135deg, #0e7490, #2563eb)',
     border: '#22d3ee44', glow: '#22d3ee14', iconGlow: '#22d3ee33',
     unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
+  },
+  {
+    key: 'studio', name: 'Avatares IA', href: '/studio', icon: '🎭',
+    desc: 'Crea tu avatar con IA y conviértelo en video. Tu foto cobra vida para tus reels.',
+    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
+    includedNote: 'Incluido con tu plan (por créditos)',
+    grad: 'linear-gradient(135deg, #db2777, #f59e0b)',
+    border: '#f472b644', glow: '#f472b614', iconGlow: '#f472b633',
+    unlockBorder: '#f472b655', unlockColor: '#fbcfe8',
   },
   // Guiones NO es card del hub: vive DENTRO de ViralADN (pestaña "📚 Guiones" en
   // /app, con botón "Generar guion" → /guiones). Es parte del plan ViralADN.

@@ -15,7 +15,12 @@ export default async function Inicio() {
 
   // Las cards salen de lib/tools.ts (fuente única). Cada una se desbloquea según
   // el entitlement que necesita. Sumar una herramienta = agregar 1 entrada allí.
-  const cards = TOOLS.map(t => ({ ...t, unlocked: ent[t.needs] }));
+  const cards = TOOLS.map(t => ({
+    ...t,
+    // unlockOn:'any' → se abre con cualquier plan pago (add-ons por créditos);
+    // si no, requiere el entitlement puntual del producto.
+    unlocked: t.unlockOn === 'any' ? (ent.viraladn || ent.topcut) : ent[t.needs],
+  }));
 
   return (
     <main className="min-h-screen text-white flex flex-col items-center justify-center px-6 py-16"
