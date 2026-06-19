@@ -2133,7 +2133,7 @@ const _googleInflight = new Map<string, Promise<GBuckets>>();
 
 // Vistas/likes de TikTok por URL via TikWM (gratis, best-effort, cap 8).
 async function enrichTikTokByUrl(cands: VideoCandidate[]): Promise<void> {
-  const tts = cands.filter(c => c.platform === 'tiktok' && !c.viewsRaw).slice(0, 8);
+  const tts = cands.filter(c => c.platform === 'tiktok' && !c.viewsRaw).slice(0, 15);
   await Promise.all(tts.map(async c => {
     try {
       const r = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(c.url)}`, { cache: 'no-store' });
@@ -2162,13 +2162,23 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
       ytKey ? enrichYouTubeStats(all, ytKey).catch(() => {}) : Promise.resolve(),
       enrichTikTokByUrl(all).catch(() => {}),
     ]);
-    // Bucket por plataforma, ordenado por vistas desc (los sin vista mantienen
-    // el orden de relevancia de Google — sort estable).
+    // Filtros de calidad:
+    //  - YouTube/TikTok (medibles): cortamos por vistas mínimas (VIRAL_MIN_VIEWS).
+    //  - Instagram/Facebook (sin métricas gratis): acotamos a los top por
+    //    relevancia de Google (VIRAL_IGFB_CAP) para no arrastrar reels flojos.
+    // Orden por vistas desc (los sin vista mantienen el orden de Google — sort estable).
+    const MIN_VIEWS = parseInt(process.env.VIRAL_MIN_VIEWS || '5000', 10);
+    const IGFB_CAP = parseInt(process.env.VIRAL_IGFB_CAP || '6', 10);
     const buckets: GBuckets = {};
     for (const plat of ['youtube', 'tiktok', 'instagram', 'facebook']) {
-      const b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
+      let b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
+      if (plat === 'youtube' || plat === 'tiktok') {
+        b = b.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS); // solo lo medible que supera el piso
+      } else {
+        b = b.slice(0, IGFB_CAP); // IG/FB: top por relevancia (no medibles)
+      }
       buckets[plat] = b;
-      void writeCache(tema, plat, b, 'g'); // calienta cache (motor Google) → otras pestañas gratis
+      void writeCache(tema, plat, b, 'g2'); // calienta cache (motor Google) → otras pestañas gratis
     }
     return buckets;
   })();
@@ -2187,7 +2197,7 @@ export async function POST(req: NextRequest) {
   const googleMode = !!process.env.SERPAPI_KEY
     && process.env.SEARCH_ENGINE !== 'off'
     && engine !== 'off';
-  const engTag = googleMode ? 'g' : '';
+  const engTag = googleMode ? 'g2' : ''; // g2: bump tras sumar filtro de calidad (invalida cache viejo sin filtrar)
 
   // Identificar usuario (no bloqueante)
   let userEmail: string | null = null;
