@@ -23,6 +23,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [subColor, setSubColor] = useState("#FFFFFF");
   const [accent, setAccent] = useState("#60a5fa");
   const [musicMood, setMusicMood] = useState("");
+  const [headlineStyle, setHeadlineStyle] = useState("clean");
   const [activeCap, setActiveCap] = useState("");
   const [activeHook, setActiveHook] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setSubColor(d.subtitles?.color || "#FFFFFF");
       setAccent(d.accent || "#60a5fa");
       setMusicMood(d.music_mood || "");
+      setHeadlineStyle(d.headlineStyle || "clean");
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   }
@@ -72,7 +74,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   async function applyAndRender() {
     setStatus("rendering"); setStage("queued"); setError(""); setResultUrl("");
     const edits = scenes.map((s) => ({ id: s.id, text: s.text, broll: s.broll, zoom: s.zoom }));
-    const settings = { subtitleSize: subSize, subtitlePos: subPos, subtitleColor: subColor, accent, musicMood };
+    const settings = { subtitleSize: subSize, subtitlePos: subPos, subtitleColor: subColor, accent, musicMood, headlineStyle };
     try {
       const r = await fetch(`/api/topcut/jobs/${jobId}/scenes`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits, hookText, settings, captions }),
@@ -113,7 +115,13 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
                 {/* gancho: 5.8cqh multilínea · resto: 3.2cqh 1 línea — mismos % que el render */}
                 <span className="font-extrabold text-center"
                   style={activeHook
-                    ? { color: subColor, fontSize: "5.8cqh", lineHeight: 1.12, letterSpacing: "-0.5px", maxWidth: "86%", textShadow: "0 3px 10px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.8)" }
+                    ? {
+                        fontSize: "5.8cqh", lineHeight: headlineStyle.startsWith("box") ? 1.5 : 1.12, letterSpacing: "-0.5px", maxWidth: "86%",
+                        ...(headlineStyle === "box-dark" ? { color: "#fff", background: "rgba(10,10,15,.82)", padding: "0.04em 0.32em", boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }
+                          : headlineStyle === "box-accent" ? { color: "#0a0a0f", background: accent, padding: "0.04em 0.32em", boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }
+                          : headlineStyle === "underline" ? { color: subColor, borderBottom: `0.1em solid ${accent}`, textShadow: "0 3px 10px rgba(0,0,0,.95)" }
+                          : { color: subColor, textShadow: "0 3px 10px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.8)" }),
+                      }
                     : { color: subColor, fontSize: "3.2cqh", lineHeight: 1, whiteSpace: "nowrap", textShadow: "0 2px 6px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.85)" }}>
                   {activeCap}
                 </span>
@@ -134,6 +142,14 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
           className="w-full bg-black/30 rounded-md px-3 py-2 text-sm font-semibold border border-white/10 focus:border-purple-400 outline-none"
         />
         <p className="text-[11px] text-white/40 mt-1">Sale <b>GRANDE al inicio</b> (lo primero del vídeo). Edítalo a tu gusto. Vacío = usamos la primera frase. (Míralo en el previo de arriba.)</p>
+        <div className="mt-3">
+          <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">Estilo del headline (plantilla)</div>
+          <div className="flex flex-wrap gap-1.5">
+            {([["clean", "Clásico"], ["box-dark", "Caja oscura"], ["box-accent", "Caja acento"], ["underline", "Subrayado"], ["highlight", "Palabra en color"]] as const).map(([v, l]) => (
+              <button key={v} onClick={() => setHeadlineStyle(v)} className={chip(headlineStyle === v)}>{l}</button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* AJUSTES GLOBALES (directos, sin IA / sin tokens) */}
