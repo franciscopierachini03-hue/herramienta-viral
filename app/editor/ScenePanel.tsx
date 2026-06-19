@@ -24,6 +24,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [accent, setAccent] = useState("#60a5fa");
   const [musicMood, setMusicMood] = useState("");
   const [headlineStyle, setHeadlineStyle] = useState("clean");
+  const [hookAnim, setHookAnim] = useState("fade");
   const [activeCap, setActiveCap] = useState("");
   const [activeHook, setActiveHook] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setAccent(d.accent || "#60a5fa");
       setMusicMood(d.music_mood || "");
       setHeadlineStyle(d.headlineStyle || "clean");
+      setHookAnim(d.hookAnim || "fade");
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   }
@@ -74,7 +76,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   async function applyAndRender() {
     setStatus("rendering"); setStage("queued"); setError(""); setResultUrl("");
     const edits = scenes.map((s) => ({ id: s.id, text: s.text, broll: s.broll, zoom: s.zoom }));
-    const settings = { subtitleSize: subSize, subtitlePos: subPos, subtitleColor: subColor, accent, musicMood, headlineStyle };
+    const settings = { subtitleSize: subSize, subtitlePos: subPos, subtitleColor: subColor, accent, musicMood, headlineStyle, hookAnim };
     try {
       const r = await fetch(`/api/topcut/jobs/${jobId}/scenes`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits, hookText, settings, captions }),
@@ -149,6 +151,13 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
               <button key={v} onClick={() => setHeadlineStyle(v)} className={chip(headlineStyle === v)}>{l}</button>
             ))}
           </div>
+          <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5 mt-3">Animación de entrada</div>
+          <div className="flex flex-wrap gap-1.5">
+            {([["fade", "Fade"], ["words", "Palabra x palabra"], ["type", "Máquina de escribir"], ["zoom", "Zoom"], ["pop", "Pop"], ["rise", "Sube"]] as const).map(([v, l]) => (
+              <button key={v} onClick={() => setHookAnim(v)} className={chip(hookAnim === v)}>{l}</button>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/40 mt-1.5">La animación se ve en el render (en el previo el texto aparece fijo).</p>
         </div>
       </div>
 
