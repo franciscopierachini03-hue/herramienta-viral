@@ -2181,9 +2181,12 @@ export async function POST(req: NextRequest) {
   const { tema, platform, engine } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
-  // Motor activo: Google/SerpApi si hay key + flag (env global o body.engine).
+  // Motor activo: Google/SerpApi se PRENDE con solo tener la SERPAPI_KEY.
+  // Para apagarlo y volver a los scrapers: SEARCH_ENGINE=off (env) o engine='off'.
   // engTag separa el cache → cambiar de motor no sirve resultados del anterior.
-  const googleMode = !!process.env.SERPAPI_KEY && (process.env.SEARCH_ENGINE === 'google' || engine === 'google');
+  const googleMode = !!process.env.SERPAPI_KEY
+    && process.env.SEARCH_ENGINE !== 'off'
+    && engine !== 'off';
   const engTag = googleMode ? 'g' : '';
 
   // Identificar usuario (no bloqueante)
