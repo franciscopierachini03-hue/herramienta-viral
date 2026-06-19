@@ -61,49 +61,62 @@ function idFromUrl(url: string): string {
 
 export async function searchGoogleShorts(
   tema: string,
-  opts: { hl?: string; gl?: string; platform?: string; limit?: number } = {},
+  opts: { hl?: string; gl?: string; platform?: string; limit?: number; pages?: number } = {},
 ): Promise<GoogleShort[]> {
   const key = process.env.SERPAPI_KEY;
   if (!key) throw new Error('Falta SERPAPI_KEY');
 
-  const params = new URLSearchParams({
+  // Volumen: paginamos siguiendo serpapi_pagination.next. Cada página = 1 búsqueda
+  // de SerpApi. Default 3 (~34 únicos); configurable con GOOGLE_SHORTS_PAGES.
+  const maxPages = Math.max(1, Math.min(opts.pages ?? parseInt(process.env.GOOGLE_SHORTS_PAGES || '3', 10), 5));
+  const base = new URLSearchParams({
     engine: 'google_short_videos',
     q: tema,
     hl: opts.hl || 'es',
     gl: opts.gl || 'mx',
     api_key: key,
   });
-
-  const res = await fetch(`${SERP_ENDPOINT}?${params.toString()}`, { cache: 'no-store' });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`SerpApi ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const rows: SerpShort[] = Array.isArray(data?.short_video_results) ? data.short_video_results : [];
+  let next: string | null = `${SERP_ENDPOINT}?${base.toString()}`;
 
   const wantPlatform = opts.platform && opts.platform !== 'all' ? opts.platform : null;
   const out: GoogleShort[] = [];
   const seen = new Set<string>();
 
-  for (const r of rows) {
-    const url = r.link || '';
-    if (!url || seen.has(url)) continue;
-    const platform = platformFromSource(r.source || '', url);
-    if (wantPlatform && platform !== wantPlatform) continue;
-    seen.add(url);
-    out.push({
-      id: idFromUrl(url),
-      title: (r.title || '').slice(0, 140) || 'Video',
-      channel: r.channel || r.source || '',
-      views: '', likes: '', viewsRaw: 0, likesRaw: 0,
-      commentsRaw: 0, commentScore: 0.5,
-      duration: durationToSeconds(r.duration || ''),
-      thumbnail: r.thumbnail || '',
-      url, platform,
-      flag: '', langLabel: '', audioLang: '',
-    });
+  type SerpPage = { short_video_results?: SerpShort[]; serpapi_pagination?: { next?: string } };
+
+  for (let page = 0; page < maxPages && next; page++) {
+    const pageUrl: string = next;
+    const res = await fetch(pageUrl, { cache: 'no-store' });
+    if (!res.ok) {
+      if (page === 0) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`SerpApi ${res.status}: ${body.slice(0, 200)}`);
+      }
+      break; // una página posterior falló → devolvemos lo acumulado
+    }
+    const data = (await res.json()) as SerpPage;
+    const rows: SerpShort[] = Array.isArray(data.short_video_results) ? data.short_video_results : [];
+    for (const r of rows) {
+      const u = r.link || '';
+      if (!u || seen.has(u)) continue;
+      seen.add(u); // dedupe global entre páginas
+      const platform = platformFromSource(r.source || '', u);
+      if (wantPlatform && platform !== wantPlatform) continue;
+      out.push({
+        id: idFromUrl(u),
+        title: (r.title || '').slice(0, 140) || 'Video',
+        channel: r.channel || r.source || '',
+        views: '', likes: '', viewsRaw: 0, likesRaw: 0,
+        commentsRaw: 0, commentScore: 0.5,
+        duration: durationToSeconds(r.duration || ''),
+        thumbnail: r.thumbnail || '',
+        url: u, platform,
+        flag: '', langLabel: '', audioLang: '',
+      });
+    }
     if (opts.limit && out.length >= opts.limit) break;
+    const nx = data.serpapi_pagination?.next;
+    next = nx ? (nx.includes('api_key=') ? nx : `${nx}&api_key=${encodeURIComponent(key)}`) : null;
   }
   return out;
 }

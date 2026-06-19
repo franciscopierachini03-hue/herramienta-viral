@@ -2155,7 +2155,7 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
   if (inflight) return inflight;
   const job = (async (): Promise<GBuckets> => {
     const { searchGoogleShorts } = await import('@/lib/google-shorts');
-    const all = await searchGoogleShorts(tema, { limit: 50 }); // todas las plataformas
+    const all = await searchGoogleShorts(tema, { limit: 100 }); // todas las plataformas (varias páginas)
     // Enriquecer vistas en paralelo (no bloquea si una falla).
     const ytKey = process.env.YOUTUBE_API_KEY;
     await Promise.all([
@@ -2223,18 +2223,19 @@ export async function POST(req: NextRequest) {
   // 1 sola llamada sirve a las 3 pestañas (googleSearchBuckets cachea las 4
   // plataformas + enriquece vistas). Si falla, cae al flujo de scrapers.
   if (googleMode) {
+    // Modo Google: SIEMPRE responde acá → nunca cae al scraper/Apify (cero gasto
+    // de Apify). Para reactivar scrapers (ej. si se agota el cupo de SerpApi):
+    // poné SEARCH_ENGINE=off en el entorno.
     try {
       const buckets = await googleSearchBuckets(tema);
       const vids = buckets[platform] || [];
       const total = Object.values(buckets).reduce((n, b) => n + b.length, 0);
-      if (total > 0) {
-        console.log(`[virales/google] ${tema}|${platform} → ${vids.length} (de ${total} en todas las plataformas)`);
-        void logViralSearch(userEmail, tema, platform, false);
-        return Response.json({ videos: vids });
-      }
-      console.warn('[virales/google] 0 resultados; caigo al flujo de scrapers');
+      console.log(`[virales/google] ${tema}|${platform} → ${vids.length} (de ${total} en todas las plataformas)`);
+      void logViralSearch(userEmail, tema, platform, false);
+      return Response.json({ videos: vids });
     } catch (e) {
-      console.error('[virales/google] error; caigo al flujo de scrapers:', (e as Error).message);
+      console.error('[virales/google] error:', (e as Error).message);
+      return Response.json({ videos: [], error: 'El buscador no respondió. Probá de nuevo en un momento.' });
     }
   }
 
