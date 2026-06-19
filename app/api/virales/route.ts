@@ -2028,18 +2028,21 @@ async function enrichInstagramReels(
 // Tabla: public.viral_cache (cache_key PK, tema, platform, videos, fetched_at)
 const CACHE_TTL_HOURS = 168; // 72→168: 7 días — virales siguen siendo útiles una semana, ahorra ~70% Apify
 
-function cacheKey(tema: string, platform: string): string {
-  return `${tema.trim().toLowerCase()}|${platform}`;
+// `eng` separa el cache por motor: '' = scrapers (clave histórica, sin sufijo),
+// 'g' = Google/SerpApi. Así cambiar de motor NO sirve resultados del otro.
+function cacheKey(tema: string, platform: string, eng = ''): string {
+  const base = `${tema.trim().toLowerCase()}|${platform}`;
+  return eng ? `${base}|${eng}` : base;
 }
 
-async function readCache(tema: string, platform: string): Promise<unknown[] | null> {
+async function readCache(tema: string, platform: string, eng = ''): Promise<unknown[] | null> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server');
     const sb = createServiceClient();
     const { data, error } = await sb
       .from('viral_cache')
       .select('videos, fetched_at')
-      .eq('cache_key', cacheKey(tema, platform))
+      .eq('cache_key', cacheKey(tema, platform, eng))
       .maybeSingle();
     if (error || !data) return null;
     const ageMs = Date.now() - new Date(data.fetched_at).getTime();
@@ -2048,14 +2051,14 @@ async function readCache(tema: string, platform: string): Promise<unknown[] | nu
   } catch { return null; }
 }
 
-async function writeCache(tema: string, platform: string, videos: unknown[]): Promise<void> {
+async function writeCache(tema: string, platform: string, videos: unknown[], eng = ''): Promise<void> {
   if (!Array.isArray(videos) || videos.length === 0) return;
   try {
     const { createServiceClient } = await import('@/lib/supabase/server');
     const sb = createServiceClient();
     await sb.from('viral_cache').upsert(
       {
-        cache_key: cacheKey(tema, platform),
+        cache_key: cacheKey(tema, platform, eng),
         tema: tema.trim().toLowerCase(),
         platform,
         videos,
@@ -2165,7 +2168,7 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
     for (const plat of ['youtube', 'tiktok', 'instagram', 'facebook']) {
       const b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
       buckets[plat] = b;
-      void writeCache(tema, plat, b); // calienta cache → otras pestañas gratis
+      void writeCache(tema, plat, b, 'g'); // calienta cache (motor Google) → otras pestañas gratis
     }
     return buckets;
   })();
@@ -2178,6 +2181,11 @@ export async function POST(req: NextRequest) {
   const { tema, platform, engine } = await req.json();
   if (!tema) return Response.json({ error:'Falta el tema' },{status:400});
 
+  // Motor activo: Google/SerpApi si hay key + flag (env global o body.engine).
+  // engTag separa el cache → cambiar de motor no sirve resultados del anterior.
+  const googleMode = !!process.env.SERPAPI_KEY && (process.env.SEARCH_ENGINE === 'google' || engine === 'google');
+  const engTag = googleMode ? 'g' : '';
+
   // Identificar usuario (no bloqueante)
   let userEmail: string | null = null;
   try {
@@ -2188,9 +2196,9 @@ export async function POST(req: NextRequest) {
   } catch { /* anónimo */ }
 
   // ── Cache hit? — devolver instantáneo si la búsqueda está fresca ────────
-  const cached = await readCache(tema, platform);
+  const cached = await readCache(tema, platform, engTag);
   if (cached && cached.length > 0) {
-    console.log(`[cache] HIT ${tema}|${platform} (${cached.length} videos)`);
+    console.log(`[cache] HIT ${tema}|${platform}${engTag ? '|' + engTag : ''} (${cached.length} videos)`);
     void logViralSearch(userEmail, tema, platform, true);
     return Response.json({ videos: cached, cached: true });
   }
@@ -2211,7 +2219,7 @@ export async function POST(req: NextRequest) {
   // (env SEARCH_ENGINE=google para todas, o body.engine='google' para probar).
   // 1 sola llamada sirve a las 3 pestañas (googleSearchBuckets cachea las 4
   // plataformas + enriquece vistas). Si falla, cae al flujo de scrapers.
-  if (process.env.SERPAPI_KEY && (process.env.SEARCH_ENGINE === 'google' || engine === 'google')) {
+  if (googleMode) {
     try {
       const buckets = await googleSearchBuckets(tema);
       const vids = buckets[platform] || [];
