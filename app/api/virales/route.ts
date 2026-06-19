@@ -2147,6 +2147,40 @@ async function enrichTikTokByUrl(cands: VideoCandidate[]): Promise<void> {
   }));
 }
 
+// Likes/vistas de Instagram por URL — prueba los proveedores de IG ya suscritos
+// (el primero con cupo gana). Best-effort, cap 12. Si todos están sin cupo (429),
+// IG queda sin métricas y cae al modo "top por relevancia".
+async function enrichInstagramByUrl(cands: VideoCandidate[]): Promise<void> {
+  const rapidKey = process.env.RAPIDAPI_KEY;
+  if (!rapidKey) return;
+  const igs = cands.filter(c => c.platform === 'instagram' && !c.viewsRaw).slice(0, 12);
+  await Promise.all(igs.map(async c => {
+    const code = (c.url.match(/\/(?:reels?|p)\/([A-Za-z0-9_-]+)/) || [])[1];
+    const providers = [
+      { host: 'instagram-looter2.p.rapidapi.com', path: `/post?link=${encodeURIComponent(c.url)}` },
+      ...(code ? [{ host: 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com', path: `/post?shortcode=${code}` }] : []),
+      { host: 'instagram-scraper-api2.p.rapidapi.com', path: `/v1/post_info?code_or_id_or_url=${encodeURIComponent(c.url)}` },
+    ];
+    for (const p of providers) {
+      try {
+        const r = await fetch(`https://${p.host}${p.path}`, { headers: { 'x-rapidapi-host': p.host, 'x-rapidapi-key': rapidKey } });
+        if (!r.ok) continue;
+        const d = await r.json().catch(() => null);
+        if (!d) continue;
+        const it = (d.data || (Array.isArray(d) ? d[0] : d) || {}) as Record<string, unknown>;
+        const views = Number(it.play_count || it.video_play_count || it.view_count || 0);
+        const likes = Number(it.like_count || 0);
+        if (views > 0 || likes > 0) {
+          if (views > 0) { c.viewsRaw = views; c.views = fmt(views); }
+          if (likes > 0) { c.likesRaw = likes; c.likes = fmt(likes); }
+          c.enriched = true;
+          return;
+        }
+      } catch { /* siguiente proveedor */ }
+    }
+  }));
+}
+
 async function googleSearchBuckets(tema: string): Promise<GBuckets> {
   const keyT = tema.trim().toLowerCase();
   // Coalescing: si llegan las 3 pestañas a la vez (misma instancia), comparten
@@ -2161,6 +2195,7 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
     await Promise.all([
       ytKey ? enrichYouTubeStats(all, ytKey).catch(() => {}) : Promise.resolve(),
       enrichTikTokByUrl(all).catch(() => {}),
+      enrichInstagramByUrl(all).catch(() => {}),
     ]);
     // Filtros de calidad:
     //  - YouTube/TikTok (medibles): cortamos por vistas mínimas (VIRAL_MIN_VIEWS).
@@ -2168,17 +2203,26 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
     //    relevancia de Google (VIRAL_IGFB_CAP) para no arrastrar reels flojos.
     // Orden por vistas desc (los sin vista mantienen el orden de Google — sort estable).
     const MIN_VIEWS = parseInt(process.env.VIRAL_MIN_VIEWS || '5000', 10);
+    const MIN_LIKES = Math.max(50, Math.round(MIN_VIEWS / 20)); // piso por likes si no hay vistas (ej. 5000→250)
     const IGFB_CAP = parseInt(process.env.VIRAL_IGFB_CAP || '6', 10);
     const buckets: GBuckets = {};
     for (const plat of ['youtube', 'tiktok', 'instagram', 'facebook']) {
       let b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
       if (plat === 'youtube' || plat === 'tiktok') {
-        b = b.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS); // solo lo medible que supera el piso
+        b = b.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS); // medible → corte por vistas
+      } else if (plat === 'instagram') {
+        const enriched = b.filter(v => v.enriched);
+        if (enriched.length > 0) {
+          // tenemos métricas de IG → filtramos por vistas o likes (igual que el resto)
+          b = enriched.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS || (v.likesRaw || 0) >= MIN_LIKES);
+        } else {
+          b = b.slice(0, IGFB_CAP); // sin cupo de IG (429) → top por relevancia
+        }
       } else {
-        b = b.slice(0, IGFB_CAP); // IG/FB: top por relevancia (no medibles)
+        b = b.slice(0, IGFB_CAP); // Facebook: top por relevancia (sin métricas hasta sumar downloader)
       }
       buckets[plat] = b;
-      void writeCache(tema, plat, b, 'g2'); // calienta cache (motor Google) → otras pestañas gratis
+      void writeCache(tema, plat, b, 'g3'); // calienta cache (motor Google) → otras pestañas gratis
     }
     return buckets;
   })();
@@ -2197,7 +2241,7 @@ export async function POST(req: NextRequest) {
   const googleMode = !!process.env.SERPAPI_KEY
     && process.env.SEARCH_ENGINE !== 'off'
     && engine !== 'off';
-  const engTag = googleMode ? 'g2' : ''; // g2: bump tras sumar filtro de calidad (invalida cache viejo sin filtrar)
+  const engTag = googleMode ? 'g3' : ''; // g3: bump tras sumar enriquecimiento + filtro de Instagram
 
   // Identificar usuario (no bloqueante)
   let userEmail: string | null = null;
