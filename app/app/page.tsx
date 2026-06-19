@@ -10,6 +10,7 @@ const VIRAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube Shorts', color: '#FF0000' },
   { id: 'tiktok', label: 'TikTok', color: '#69C9D0' },
   { id: 'instagram', label: 'Instagram', color: '#C13584' },
+  { id: 'facebook', label: 'Facebook', color: '#1877F2' },
 ];
 
 const SUGGESTIONS = ['fitness', 'dinero', 'motivación', 'recetas', 'negocios', 'éxito'];
@@ -42,8 +43,8 @@ function parseViewCount(views: string): number {
   return parseFloat(v) || 0;
 }
 
-type PlatformResults = { youtube: Video[]; tiktok: Video[]; instagram: Video[]; };
-type PlatformErrors = { youtube: string; tiktok: string; instagram: string; };
+type PlatformResults = { youtube: Video[]; tiktok: Video[]; instagram: Video[]; facebook: Video[]; };
+type PlatformErrors = { youtube: string; tiktok: string; instagram: string; facebook: string; };
 
 type TranscriptResult = {
   url: string;
@@ -118,9 +119,9 @@ function detectPlatform(url: string | undefined): 'youtube' | 'tiktok' | 'instag
   return null;
 }
 
-const PLAT_COLOR: Record<string, string> = { youtube: '#FF0000', tiktok: '#69C9D0', instagram: '#C13584' };
-const PLAT_LABEL: Record<string, string> = { youtube: 'YouTube Shorts', tiktok: 'TikTok', instagram: 'Instagram' };
-const PLAT_ICON: Record<string, string> = { youtube: '▶', tiktok: '♪', instagram: '◎' };
+const PLAT_COLOR: Record<string, string> = { youtube: '#FF0000', tiktok: '#69C9D0', instagram: '#C13584', facebook: '#1877F2' };
+const PLAT_LABEL: Record<string, string> = { youtube: 'YouTube Shorts', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook' };
+const PLAT_ICON: Record<string, string> = { youtube: '▶', tiktok: '♪', instagram: '◎', facebook: 'ⓕ' };
 
 function proxyThumb(url: string | undefined, platform: string): string | undefined {
   if (!url) return undefined;
@@ -444,10 +445,10 @@ export default function Home() {
 
   // Virales
   const [tema, setTema] = useState('');
-  const [virales, setVirales] = useState<PlatformResults>({ youtube: [], tiktok: [], instagram: [] });
+  const [virales, setVirales] = useState<PlatformResults>({ youtube: [], tiktok: [], instagram: [], facebook: [] });
   const [loadingV, setLoadingV] = useState(false);
-  const [errors, setErrors] = useState<PlatformErrors>({ youtube: '', tiktok: '', instagram: '' });
-  const [viralTab, setViralTab] = useState<'all' | 'youtube' | 'tiktok' | 'instagram'>('all');
+  const [errors, setErrors] = useState<PlatformErrors>({ youtube: '', tiktok: '', instagram: '', facebook: '' });
+  const [viralTab, setViralTab] = useState<'all' | 'youtube' | 'tiktok' | 'instagram' | 'facebook'>('all');
 
   // Analizar
   const [analyzeUrl, setAnalyzeUrl] = useState('');
@@ -782,10 +783,10 @@ export default function Home() {
     if (q !== tema) setTema(q);
     setLoadingV(true);
     setLoadingMsg('Analizando el tema con IA...');
-    setVirales({ youtube: [], tiktok: [], instagram: [] });
-    setErrors({ youtube: '', tiktok: '', instagram: '' });
+    setVirales({ youtube: [], tiktok: [], instagram: [], facebook: [] });
+    setErrors({ youtube: '', tiktok: '', instagram: '', facebook: '' });
 
-    const plataformas = ['youtube', 'tiktok', 'instagram'] as const;
+    const plataformas = ['youtube', 'tiktok', 'instagram', 'facebook'] as const;
 
     // Mensajes progresivos mientras espera
     const msgs = [
@@ -793,6 +794,7 @@ export default function Home() {
       'Buscando en YouTube Shorts...',
       'Buscando en TikTok...',
       'Buscando en Instagram Reels...',
+      'Buscando en Facebook...',
       'Filtrando los más virales...',
       'Casi listo...',
     ];
@@ -814,8 +816,8 @@ export default function Home() {
 
     clearInterval(msgInterval);
 
-    const newVirales = { youtube: [] as Video[], tiktok: [] as Video[], instagram: [] as Video[] };
-    const newErrors = { youtube: '', tiktok: '', instagram: '' };
+    const newVirales = { youtube: [] as Video[], tiktok: [] as Video[], instagram: [] as Video[], facebook: [] as Video[] };
+    const newErrors = { youtube: '', tiktok: '', instagram: '', facebook: '' };
     plataformas.forEach((p, i) => {
       if (resultados[i].error) newErrors[p] = resultados[i].error;
       else newVirales[p] = resultados[i].videos || [];
@@ -1049,18 +1051,20 @@ export default function Home() {
           )}
 
           {/* Tabs por plataforma con marca visual */}
-          {!loadingV && (virales.youtube.length > 0 || virales.tiktok.length > 0 || virales.instagram.length > 0 || errors.youtube || errors.tiktok || errors.instagram) && (() => {
+          {!loadingV && (virales.youtube.length > 0 || virales.tiktok.length > 0 || virales.instagram.length > 0 || virales.facebook.length > 0 || errors.youtube || errors.tiktok || errors.instagram || errors.facebook) && (() => {
             const counts = {
-              all: virales.youtube.length + virales.tiktok.length + virales.instagram.length,
+              all: virales.youtube.length + virales.tiktok.length + virales.instagram.length + virales.facebook.length,
               youtube: virales.youtube.length,
               tiktok: virales.tiktok.length,
               instagram: virales.instagram.length,
+              facebook: virales.facebook.length,
             };
             const tabs = [
               { id: 'all',       label: 'Todos',     icon: '✦', color: '#7c3aed', count: counts.all },
               { id: 'youtube',   label: 'YouTube',   icon: '▶', color: '#FF0000', count: counts.youtube },
               { id: 'tiktok',    label: 'TikTok',    icon: '◆', color: '#69C9D0', count: counts.tiktok },
               { id: 'instagram', label: 'Instagram', icon: '◉', color: '#E1306C', count: counts.instagram },
+              { id: 'facebook',  label: 'Facebook',  icon: 'ⓕ', color: '#1877F2', count: counts.facebook },
             ] as const;
 
             return (
