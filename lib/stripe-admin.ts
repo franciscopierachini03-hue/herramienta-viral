@@ -12,15 +12,13 @@
 // En cambio, pedir las facturas de CADA suscripción ViralADN (?subscription=)
 // trae el 100% de las nuestras, sin importar el ruido de 2Clicks.
 
-import { PRODUCT_IDS, PLAN_AMOUNTS } from '@/lib/products';
+import { PRODUCT_IDS } from '@/lib/products';
 
-// Montos (en centavos) que SÍ son nuestros (ViralADN / TOPCUT / Combo + legacy
-// $47/$470). La cuenta de Stripe es compartida con 2Clicks (LEGACY USA $1.300,
-// etc.) → al buscar pagos por email NO debemos contar esos montos ajenos.
-const OUR_AMOUNTS = new Set<number>([
-  ...Object.values(PLAN_AMOUNTS).flatMap(p => Object.values(p) as number[]),
-  4700, 47000, // legacy $47 / $470
-]);
+// IDs de NUESTROS productos (ViralADN / TOPCUT / Combo). La cuenta de Stripe es
+// compartida con 2Clicks (LEGACY USA, etc.) → al buscar pagos por email
+// validamos el PRODUCTO de la sesión (definitivo), NO el monto: un producto
+// ajeno que cueste lo mismo que uno nuestro ($47/$67/etc.) ya no se cuela.
+const OUR_PRODUCTS = new Set<string>(Object.values(PRODUCT_IDS));
 
 export type StripeSubscription = {
   id: string;
@@ -98,8 +96,12 @@ async function stripeGet<T = unknown>(path: string, params: Record<string, strin
 async function ourPriceIds(): Promise<string[]> {
   const ids = new Set<string>();
   // Respaldo: price ids legacy por env (por si el producto fue archivado).
+  // VALIDADO: solo se suman si el precio pertenece a un producto NUESTRO, para
+  // no contaminar con un precio ajeno (2Clicks) si la env quedó mal seteada.
   for (const e of [process.env.STRIPE_PRICE_MONTHLY, process.env.STRIPE_PRICE_YEARLY]) {
-    const v = (e || '').trim(); if (v) ids.add(v);
+    const v = (e || '').trim(); if (!v) continue;
+    const pr = await stripeGet<{ product?: string }>(`prices/${encodeURIComponent(v)}`);
+    if (pr?.product && OUR_PRODUCTS.has(pr.product)) ids.add(v);
   }
   // Todos los precios de cada uno de nuestros productos.
   for (const product of Object.values(PRODUCT_IDS)) {
@@ -316,6 +318,16 @@ type SessLite = {
   customer_email?: string | null; customer_details?: { email?: string | null } | null;
 };
 
+// ¿La sesión de checkout es de un producto NUESTRO? Mira los line_items (el
+// price.product) y lo compara con OUR_PRODUCTS. Definitivo: descarta 2Clicks
+// aunque el monto coincida. Solo se llama para sesiones cuyo email es huérfano.
+async function checkoutIsOurs(sessionId: string): Promise<boolean> {
+  const li = await stripeGet<{ data: Array<{ price?: { product?: string } | null }> }>(
+    `checkout/sessions/${encodeURIComponent(sessionId)}/line_items`, { limit: 10 },
+  );
+  return (li?.data || []).some(it => !!it.price?.product && OUR_PRODUCTS.has(it.price.product));
+}
+
 export async function findPaidByEmail(emails: string[], sinceUnix?: number): Promise<Map<string, { amount: number; date: string }>> {
   const out = new Map<string, { amount: number; date: string }>();
   if (!process.env.STRIPE_SECRET_KEY) return out;
@@ -333,9 +345,12 @@ export async function findPaidByEmail(emails: string[], sinceUnix?: number): Pro
       const em = (s.customer_details?.email || s.customer_email || '').toLowerCase();
       if (!em || !want.has(em) || out.has(em)) continue;
       const paid = s.payment_status === 'paid' || s.status === 'complete';
-      const amt = s.amount_total || 0;
-      // SOLO montos nuestros: si es de otro producto de la cuenta (2Clicks), se ignora.
-      if (paid && OUR_AMOUNTS.has(amt)) out.set(em, { amount: amt / 100, date: new Date((s.created || 0) * 1000).toISOString() });
+      if (!paid) continue;
+      // Definitivo: el PRODUCTO de la sesión tiene que ser uno NUESTRO. Así un
+      // pago de 2Clicks NO se cuela aunque cueste igual que uno nuestro.
+      if (await checkoutIsOurs(s.id)) {
+        out.set(em, { amount: (s.amount_total || 0) / 100, date: new Date((s.created || 0) * 1000).toISOString() });
+      }
     }
     if (!page.has_more) break;
     starting_after = page.data[page.data.length - 1].id;
