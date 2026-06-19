@@ -555,5 +555,48 @@ export async function POST(req: NextRequest) {
     }, { status: 502 });
   }
 
+  // ── Facebook ─────────────────────────────────────────────────────────────────
+  // FB no expone el video sin un descargador. Usamos uno de RapidAPI (all-in-one,
+  // configurable por env). Si no hay key / no estás suscrito → mensaje claro (501),
+  // no rompe. Default: social-media-video-downloader.
+  if (platform === 'facebook') {
+    const fbHost = process.env.FB_DL_HOST || 'social-media-video-downloader.p.rapidapi.com';
+    const fbPath = process.env.FB_DL_PATH || '/smvd/get/all?url=';
+    if (!rapidApiKey) {
+      return Response.json({ error: 'La transcripción de Facebook todavía no está configurada (falta el descargador).' }, { status: 501 });
+    }
+    try {
+      const res = await fetch(`https://${fbHost}${fbPath}${encodeURIComponent(url)}`, {
+        headers: { 'x-rapidapi-host': fbHost, 'x-rapidapi-key': rapidApiKey },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403 || /not subscribed/i.test(JSON.stringify(data || ''))) {
+        return Response.json({ error: 'La transcripción de Facebook necesita activar el descargador en RapidAPI (suscripción gratis). Avisa al admin.' }, { status: 501 });
+      }
+      // Extraer la mejor URL de video de las formas comunes de estos downloaders.
+      const cands: string[] = [];
+      const push = (x: unknown) => {
+        if (typeof x === 'string' && /^https?:\/\//.test(x)) cands.push(x);
+        else if (x && typeof x === 'object') {
+          const o = x as { link?: string; url?: string };
+          if (o.link) cands.push(o.link);
+          if (o.url) cands.push(o.url);
+        }
+      };
+      for (const arr of [data?.links, data?.medias, data?.video, data?.videos]) {
+        if (Array.isArray(arr)) arr.forEach(push);
+      }
+      for (const s of [data?.url, data?.hd, data?.sd, data?.hd_src, data?.sd_src]) push(s);
+      const videoUrl = cands.find(u => /\.mp4|\/video|videoplayback/i.test(u)) || cands[0];
+      if (videoUrl) {
+        const texto = await transcribeWithGroq(videoUrl);
+        if (texto) return ok(texto);
+      }
+    } catch (e) {
+      console.warn('[transcribir/facebook]', (e as Error).message);
+    }
+    return Response.json({ error: 'No pudimos obtener este video de Facebook. Verifica que sea público o prueba con otro.' }, { status: 502 });
+  }
+
   return Response.json({ error: 'Plataforma no soportada' }, { status: 400 });
 }

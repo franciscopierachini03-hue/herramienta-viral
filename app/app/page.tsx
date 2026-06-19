@@ -48,7 +48,7 @@ type PlatformErrors = { youtube: string; tiktok: string; instagram: string; face
 
 type TranscriptResult = {
   url: string;
-  platform: 'youtube' | 'tiktok' | 'instagram' | null;
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | null;
   transcript: string;
   loading: boolean;
   isError: boolean;
@@ -74,6 +74,7 @@ const PLATFORM_INFO = {
   youtube:   { label: 'YouTube',   color: '#FF0000', hint: null },
   tiktok:    { label: 'TikTok',    color: '#69C9D0', hint: 'Abre el video en TikTok → toca Compartir → Copiar enlace' },
   instagram: { label: 'Instagram', color: '#C13584', hint: 'Abre el reel → toca los 3 puntos → Copiar enlace' },
+  facebook:  { label: 'Facebook',  color: '#1877F2', hint: 'Abre el video en Facebook → ⋯ → Copiar enlace' },
 };
 
 function friendlyError(raw: string): string {
@@ -111,11 +112,12 @@ function friendlyError(raw: string): string {
   return raw.replace(/^(tiktok|instagram|youtube):\s*/i, '');
 }
 
-function detectPlatform(url: string | undefined): 'youtube' | 'tiktok' | 'instagram' | null {
+function detectPlatform(url: string | undefined): 'youtube' | 'tiktok' | 'instagram' | 'facebook' | null {
   if (!url || typeof url !== 'string') return null;
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
   if (url.includes('tiktok.com')) return 'tiktok';
   if (url.includes('instagram.com')) return 'instagram';
+  if (url.includes('facebook.com') || url.includes('fb.watch')) return 'facebook';
   return null;
 }
 
