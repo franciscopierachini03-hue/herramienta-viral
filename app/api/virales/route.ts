@@ -2121,6 +2121,58 @@ async function countRecentSearches(email: string): Promise<number> {
   } catch { return 0; }
 }
 
+// ── Buscador Google "Videos cortos" (SerpApi) — orquestación ──────────────────
+// 1 sola llamada por búsqueda: trae TODAS las plataformas, enriquece vistas
+// (gratis: YouTube Data API + TikWM) y CACHEA las 4 plataformas → las otras
+// pestañas del front salen de cache sin gastar cupo de SerpApi.
+type GBuckets = Record<string, VideoCandidate[]>;
+const _googleInflight = new Map<string, Promise<GBuckets>>();
+
+// Vistas/likes de TikTok por URL via TikWM (gratis, best-effort, cap 8).
+async function enrichTikTokByUrl(cands: VideoCandidate[]): Promise<void> {
+  const tts = cands.filter(c => c.platform === 'tiktok' && !c.viewsRaw).slice(0, 8);
+  await Promise.all(tts.map(async c => {
+    try {
+      const r = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(c.url)}`, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = (await r.json())?.data;
+      const views = d?.play_count || 0, likes = d?.digg_count || 0;
+      if (views > 0) { c.viewsRaw = views; c.views = fmt(views); }
+      if (likes > 0) { c.likesRaw = likes; c.likes = fmt(likes); }
+      if (views > 0 || likes > 0) c.enriched = true;
+    } catch { /* best-effort */ }
+  }));
+}
+
+async function googleSearchBuckets(tema: string): Promise<GBuckets> {
+  const keyT = tema.trim().toLowerCase();
+  // Coalescing: si llegan las 3 pestañas a la vez (misma instancia), comparten
+  // la MISMA llamada en vez de pegarle 3 veces a SerpApi.
+  const inflight = _googleInflight.get(keyT);
+  if (inflight) return inflight;
+  const job = (async (): Promise<GBuckets> => {
+    const { searchGoogleShorts } = await import('@/lib/google-shorts');
+    const all = await searchGoogleShorts(tema, { limit: 50 }); // todas las plataformas
+    // Enriquecer vistas en paralelo (no bloquea si una falla).
+    const ytKey = process.env.YOUTUBE_API_KEY;
+    await Promise.all([
+      ytKey ? enrichYouTubeStats(all, ytKey).catch(() => {}) : Promise.resolve(),
+      enrichTikTokByUrl(all).catch(() => {}),
+    ]);
+    // Bucket por plataforma, ordenado por vistas desc (los sin vista mantienen
+    // el orden de relevancia de Google — sort estable).
+    const buckets: GBuckets = {};
+    for (const plat of ['youtube', 'tiktok', 'instagram', 'facebook']) {
+      const b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
+      buckets[plat] = b;
+      void writeCache(tema, plat, b); // calienta cache → otras pestañas gratis
+    }
+    return buckets;
+  })();
+  _googleInflight.set(keyT, job);
+  try { return await job; } finally { _googleInflight.delete(keyT); }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { tema, platform, engine } = await req.json();
@@ -2154,19 +2206,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── POC: buscador vía Google "Videos cortos" (udm=39) por SerpApi ─────────
-  // Opt-in e INERTE por defecto: solo corre si hay SERPAPI_KEY y se pide Google
-  // (env SEARCH_ENGINE=google para TODAS las búsquedas, o body.engine='google'
-  // para probar una sola). Un request a Google trae todas las plataformas;
-  // filtramos a la pedida. Si falla o da 0, caemos al flujo de scrapers de
-  // siempre (no rompe nada de lo que ya funciona).
+  // ── Buscador vía Google "Videos cortos" (udm=39) por SerpApi ──────────────
+  // Opt-in e INERTE por defecto: corre si hay SERPAPI_KEY y se pide Google
+  // (env SEARCH_ENGINE=google para todas, o body.engine='google' para probar).
+  // 1 sola llamada sirve a las 3 pestañas (googleSearchBuckets cachea las 4
+  // plataformas + enriquece vistas). Si falla, cae al flujo de scrapers.
   if (process.env.SERPAPI_KEY && (process.env.SEARCH_ENGINE === 'google' || engine === 'google')) {
     try {
-      const { searchGoogleShorts } = await import('@/lib/google-shorts');
-      const vids = await searchGoogleShorts(tema, { platform, limit: 40 });
-      if (vids.length > 0) {
-        console.log(`[virales/google] ${tema}|${platform} → ${vids.length} videos (SerpApi)`);
-        return respondAndCache(tema, platform, vids, userEmail);
+      const buckets = await googleSearchBuckets(tema);
+      const vids = buckets[platform] || [];
+      const total = Object.values(buckets).reduce((n, b) => n + b.length, 0);
+      if (total > 0) {
+        console.log(`[virales/google] ${tema}|${platform} → ${vids.length} (de ${total} en todas las plataformas)`);
+        void logViralSearch(userEmail, tema, platform, false);
+        return Response.json({ videos: vids });
       }
       console.warn('[virales/google] 0 resultados; caigo al flujo de scrapers');
     } catch (e) {

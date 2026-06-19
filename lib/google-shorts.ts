@@ -21,6 +21,7 @@ export type GoogleShort = {
   commentsRaw: number; commentScore: number;
   duration: number; thumbnail: string; url: string;
   platform: string; flag: string; langLabel: string; audioLang: string;
+  enriched?: boolean; // true si le pegamos vistas/likes después (YT Data API / TikWM)
 };
 
 type SerpShort = {
