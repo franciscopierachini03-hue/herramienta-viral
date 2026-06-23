@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
+import TermsGate from "./_components/TermsGate";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -50,7 +51,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`min-h-screen bg-gray-950 text-white ${inter.variable}`}>{children}</body>
+      <body className={`min-h-screen bg-gray-950 text-white ${inter.variable}`}>
+        {children}
+        <TermsGate />
+      </body>
     </html>
   );
 }

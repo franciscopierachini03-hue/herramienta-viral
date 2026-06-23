@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
         email,
         password,
         email_confirm: true,
-        user_metadata: { name, phone, pending_invite: inviteCode },
+        // Aceptó los términos en el checkbox del registro (el cliente bloquea sin él).
+        user_metadata: { name, phone, pending_invite: inviteCode, terms_accepted_at: new Date().toISOString(), terms_version: 'v1' },
       });
       if (createErr) {
         console.error('[send-code/signup] createUser:', createErr);
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
       await admin.auth.admin.updateUserById(existingUser.id, {
         password,
         email_confirm: true,
-        user_metadata: { ...(existingUser.user_metadata || {}), name, phone, pending_invite: inviteCode },
+        user_metadata: { ...(existingUser.user_metadata || {}), name, phone, pending_invite: inviteCode, terms_accepted_at: new Date().toISOString(), terms_version: 'v1' },
       });
     }
 
