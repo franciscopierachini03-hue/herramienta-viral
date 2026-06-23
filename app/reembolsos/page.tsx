@@ -15,22 +15,27 @@ export default function Reembolsos() {
         Al realizar un pago, confirmas que leíste y aceptas esta Política.
       </p>
 
-      <h2>1. Garantía de satisfacción de 7 días</h2>
+      <h2>1. Garantía de 7 días en tu primer mes</h2>
       <p>
-        Ofrecemos una <strong>garantía de reembolso de 7 (siete) días corridos</strong> contados desde
-        la fecha de tu <strong>primera compra</strong> de un plan. Si dentro de esos 7 días no estás
-        conforme, puedes solicitar el reembolso del importe de esa primera compra escribiendo a
-        <strong> hola@viraladn.com</strong> desde el correo de tu cuenta.
+        Tu <strong>primer mes de suscripción</strong> está cubierto por una <strong>garantía de
+        reembolso de 7 (siete) días corridos</strong>, sin importar si ese primer mes es gratis o de pago:
+      </p>
+      <ul>
+        <li><strong>Si tu primer mes es de pago:</strong> tienes 7 días desde ese primer cobro para solicitar el reembolso.</li>
+        <li><strong>Si tu primer mes es gratis</strong> (prueba, código o miembro fundador): mientras sea gratis no hay cargo que reembolsar y puedes cancelar cuando quieras sin pagar nada. Cuando se realice tu <strong>primer cobro</strong>, tienes 7 días desde ese cobro para solicitar el reembolso.</li>
+      </ul>
+      <p>
+        En ambos casos, la garantía cubre tu <strong>primer pago</strong>, una sola vez. Para usarla,
+        escribe a <strong>hola@viraladn.com</strong> desde el correo de tu cuenta.
       </p>
       <ul>
         <li>El reembolso se procesa al mismo medio de pago, normalmente dentro de 5 a 10 días hábiles (los plazos finales dependen de tu banco).</li>
-        <li>La garantía cubre <strong>únicamente la primera compra</strong> de cada cliente, una sola vez.</li>
         <li>Al solicitar el reembolso se cancela tu acceso al servicio.</li>
       </ul>
 
       <h2>2. Después de los 7 días</h2>
       <p>
-        Vencido el plazo de 7 días, <strong>los pagos no son reembolsables</strong>. ViralADN ✕ TOPCUT
+        Pasados los 7 días de tu primer cobro, <strong>los pagos no son reembolsables</strong>. ViralADN ✕ TOPCUT
         es un <strong>servicio digital de acceso inmediato</strong>: desde el momento de la compra
         puedes usar las herramientas, generar contenido y consumir recursos de cómputo (búsquedas,
         transcripciones, ediciones de video con IA), por lo que el servicio se considera prestado.
@@ -39,8 +44,8 @@ export default function Reembolsos() {
       <h2>3. Renovaciones automáticas</h2>
       <p>
         Las suscripciones se <strong>renuevan automáticamente</strong> al final de cada ciclo (mensual
-        o anual) al precio vigente, hasta que las canceles. <strong>Los cargos de renovación no son
-        reembolsables.</strong> Para no pagar la siguiente renovación, debes cancelar
+        o anual) al precio vigente, hasta que las canceles. <strong>Los cargos de renovación (a partir
+        de tu segundo cobro) no son reembolsables.</strong> Para no pagar la siguiente renovación, debes cancelar
         <strong> antes</strong> de la fecha de renovación (ver sección 4).
       </p>
       <ul>
@@ -65,7 +70,8 @@ export default function Reembolsos() {
       <p>
         Si activaste una prueba gratis o un código promocional, puedes cancelar antes de que termine
         para no generar ningún cargo. Si no cancelas, al finalizar la prueba se cobra el plan
-        correspondiente según las condiciones informadas al activarla.
+        correspondiente según las condiciones informadas al activarla, y a ese <strong>primer cobro</strong>
+        se le aplica la <strong>garantía de 7 días</strong> de la sección 1.
       </p>
 
       <h2>6. Cargos duplicados o errores</h2>

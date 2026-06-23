@@ -45,9 +45,10 @@ export default function Terminos() {
       <p>
         Las condiciones de reembolso y cancelación se rigen por nuestra
         <a href="/reembolsos"> Política de Reembolsos y Cancelación</a>, que forma parte de estos
-        Términos. En resumen: ofrecemos una garantía de 7 días desde la primera compra; vencido ese
-        plazo, los pagos no son reembolsables, y puedes cancelar en cualquier momento para evitar
-        renovaciones futuras.
+        Términos. En resumen: tu primer mes de suscripción tiene una garantía de 7 días contados desde
+        tu primer cobro (sea que el primer mes lo pagues o que primero sea gratis y luego se cobre);
+        pasado ese plazo, los pagos no son reembolsables, y puedes cancelar en cualquier momento para
+        evitar renovaciones futuras.
       </p>
 
       <h2>5. Uso aceptable</h2>

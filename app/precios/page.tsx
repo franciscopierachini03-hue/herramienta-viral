@@ -311,7 +311,7 @@ function PricingInner() {
         {/* Aviso de facturación + footer legal (consentimiento claro = anti-disputa) */}
         <p className="text-center text-xs mt-10" style={{ color: '#777' }}>
           Todos los planes se renuevan automáticamente al precio vigente. Cancelas cuando quieras desde tu cuenta.
-          Garantía de reembolso de 7 días en la primera compra.
+          Garantía de reembolso de 7 días en tu primer mes (sea gratis o de pago, desde tu primer cobro).
         </p>
         <div className="mt-4 pt-5 text-center text-xs flex flex-wrap gap-x-4 gap-y-2 justify-center" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
           <span>2CLICKS.COM LLC</span>
