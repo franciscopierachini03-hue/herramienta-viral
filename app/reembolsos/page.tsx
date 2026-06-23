@@ -11,8 +11,9 @@ export default function Reembolsos() {
       <p>
         Esta Política de Reembolsos y Cancelación (la “Política”) aplica a todas las compras de
         suscripciones y servicios de <strong>ViralADN ✕ TOPCUT</strong>, operado por
-        <strong> 2CLICKS.COM LLC</strong> (“nosotros”), a través de <strong>viraladn.com</strong>.
-        Al realizar un pago, confirmas que leíste y aceptas esta Política.
+        <strong> 2CLICKS.COM LLC</strong> (“nosotros”), a través de <strong>viraladn.com</strong>, y
+        forma parte de nuestros <a href="/terminos">Términos y Condiciones</a>. Al realizar un pago,
+        confirmas que leíste y aceptas esta Política.
       </p>
 
       <h2>1. Garantía de 7 días en tu primer mes</h2>
@@ -31,6 +32,7 @@ export default function Reembolsos() {
       <ul>
         <li>El reembolso se procesa al mismo medio de pago, normalmente dentro de 5 a 10 días hábiles (los plazos finales dependen de tu banco).</li>
         <li>Al solicitar el reembolso se cancela tu acceso al servicio.</li>
+        <li>La garantía es <strong>una por cliente</strong> y puede limitarse por persona, hogar o medio de pago.</li>
       </ul>
 
       <h2>2. Después de los 7 días</h2>
@@ -66,7 +68,13 @@ export default function Reembolsos() {
         del ciclo ya pagado</strong>; no se prorratean ni se devuelven los días no usados del ciclo en curso.
       </p>
 
-      <h2>5. Pruebas gratis y códigos promocionales</h2>
+      <h2>5. Planes anuales y cambios de plan</h2>
+      <ul>
+        <li><strong>Planes anuales:</strong> también cubiertos por la garantía de 7 días desde el primer cobro. Pasado ese plazo, el plan anual no es reembolsable, ni total ni proporcionalmente, aunque dejes de usarlo antes de que termine el año.</li>
+        <li><strong>Mejoras y cambios (upgrade/downgrade):</strong> los cambios de plan aplican según corresponda a tu facturación; las diferencias ya cobradas no son reembolsables. Una mejora no reinicia la garantía de 7 días.</li>
+      </ul>
+
+      <h2>6. Pruebas gratis y códigos promocionales</h2>
       <p>
         Si activaste una prueba gratis o un código promocional, puedes cancelar antes de que termine
         para no generar ningún cargo. Si no cancelas, al finalizar la prueba se cobra el plan
@@ -74,23 +82,45 @@ export default function Reembolsos() {
         se le aplica la <strong>garantía de 7 días</strong> de la sección 1.
       </p>
 
-      <h2>6. Cargos duplicados o errores</h2>
+      <h2>7. Compras con descuento, impuestos y comisiones</h2>
+      <ul>
+        <li>Si compraste con un descuento o promoción, cualquier reembolso se limita al <strong>monto efectivamente pagado</strong>.</li>
+        <li>Los <strong>impuestos</strong> y las comisiones de procesamiento aplicables se reembolsan solo cuando la ley lo exige.</li>
+        <li>El reembolso se realiza en la misma moneda y al mismo medio de pago de la compra original.</li>
+      </ul>
+
+      <h2>8. Interrupciones del servicio</h2>
+      <p>
+        Las interrupciones temporales, el mantenimiento o los errores puntuales no dan derecho a
+        reembolso. Si ocurre una falla significativa atribuible a nosotros, podremos ofrecer, a nuestro
+        criterio, una extensión del período o una compensación equivalente.
+      </p>
+
+      <h2>9. Uso indebido de la garantía</h2>
+      <p>
+        Nos reservamos el derecho de <strong>rechazar reembolsos</strong> en casos de uso indebido o
+        fraudulento de la garantía: por ejemplo, abrir varias cuentas para repetir la garantía, consumo
+        excesivo de recursos dentro del período de garantía con intención de reembolso, o patrones de
+        abuso. En estos casos también podemos suspender la cuenta.
+      </p>
+
+      <h2>10. Cargos duplicados o errores de facturación</h2>
       <p>
         Si detectas un <strong>cargo duplicado, un error de facturación o un cobro no autorizado</strong>,
         escríbenos a <strong>hola@viraladn.com</strong> y lo corregimos. Estos casos se resuelven siempre
         a tu favor cuando corresponde.
       </p>
 
-      <h2>7. Contracargos (chargebacks)</h2>
+      <h2>11. Contracargos (chargebacks)</h2>
       <p>
         Antes de iniciar un contracargo con tu banco, <strong>contáctanos primero</strong>: la enorme
         mayoría de los casos se resuelven en minutos por correo. Iniciar un contracargo sobre un cargo
         legítimo y consentido (en lugar de pedirnos el reembolso) puede derivar en la
-        <strong> suspensión inmediata de la cuenta</strong>. Conservamos registros de tu aceptación de
-        estos términos, de tus accesos y del uso del servicio como evidencia.
+        <strong> suspensión inmediata de la cuenta</strong> y en acciones de cobro. Conservamos como
+        evidencia tu aceptación de estos términos (con fecha y hora), tus accesos y el uso del servicio.
       </p>
 
-      <h2>8. Consentimiento</h2>
+      <h2>12. Consentimiento</h2>
       <p>
         Al suscribirte y realizar el pago, declaras que <strong>leíste, entendiste y aceptaste</strong>
         esta Política de Reembolsos, los <a href="/terminos">Términos y Condiciones</a> y la
@@ -98,7 +128,7 @@ export default function Reembolsos() {
         condiciones de reembolso aquí descritas.
       </p>
 
-      <h2>9. Contacto</h2>
+      <h2>13. Contacto</h2>
       <p>
         Para cualquier solicitud de reembolso, cancelación o duda de facturación:
         <strong> hola@viraladn.com</strong>. Respondemos a la brevedad.
