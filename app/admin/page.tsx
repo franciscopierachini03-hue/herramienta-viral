@@ -418,6 +418,14 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     trialMonth: all.filter(isInTrialMonth).length,
   };
 
+  // Conciliación con Stripe (fuente de verdad): ¿todos los suscriptores de Stripe
+  // de NUESTROS productos tienen cuenta en la app? Los que no, pagaron pero no
+  // pueden entrar / tienen email distinto → hay que vincularlos. Si está vacío,
+  // el panel está 100% conciliado.
+  const allEmailsLc = new Set(all.map(p => (p.email || '').toLowerCase()).filter(Boolean));
+  const stripePayers = billing.subscribers.filter(s => ['active', 'trialing', 'past_due'].includes(s.status));
+  const stripeNoAccount = stripePayers.filter(s => s.email && !allEmailsLc.has(s.email.toLowerCase()));
+
   return (
     <main className="min-h-screen text-white p-6 md:p-10"
       style={{ background: 'radial-gradient(ellipse 100% 40% at 50% 0%, #1a0a2e 0%, #080808 55%)' }}>
@@ -832,6 +840,20 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </Link>
           )}
         </form>
+
+        {/* Conciliación con Stripe (fuente de verdad) */}
+        {billing.configured && (
+          stripeNoAccount.length === 0 ? (
+            <div className="rounded-xl px-4 py-2.5 mb-3 text-xs" style={{ background: '#06281a', border: '1px solid #14532d', color: '#86efac' }}>
+              ✓ Conciliado con Stripe — los <b>{stripePayers.length}</b> suscriptores de tus productos tienen cuenta y aparecen en la lista. No falta nadie.
+            </div>
+          ) : (
+            <div className="rounded-xl px-4 py-3 mb-3 text-xs" style={{ background: '#2a1a06', border: '1px solid #7c5410', color: '#fbbf24' }}>
+              ⚠️ <b>{stripeNoAccount.length}</b> pagaron en Stripe pero NO tienen cuenta en la app (email distinto o no se registraron) → no pueden entrar. Hay que crearles/vincular la cuenta:
+              <div className="mt-1 font-mono" style={{ color: '#fde68a' }}>{stripeNoAccount.map(s => s.email).join(', ')}</div>
+            </div>
+          )
+        )}
 
         <p className="text-xs mb-3" style={{ color: '#666' }}>
           Mostrando <b style={{ color: '#aaa' }}>{filtered.length}</b> clientes con producto (ViralADN · TOPCUT · Combo) · {all.length} registrados en total
