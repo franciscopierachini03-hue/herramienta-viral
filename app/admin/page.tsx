@@ -365,9 +365,20 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     ? await findPaidByEmail(orphanProfiles.map(p => p.email), sinceUnix)
     : new Map<string, { amount: number; date: string }>();
 
+  // ¿La persona tiene un PRODUCTO real (ViralADN/TOPCUT/Combo)? = sub de Stripe,
+  // mes de prueba, pago encontrado por email, código (cortesía/founder) o trial.
+  // Lo demás (activo en el perfil pero SIN pago/sub real → "activo sin pago", o
+  // pending) NO es producto → el usuario quiere SOLO productos en la lista.
+  const hasProduct = (p: Profile): boolean => {
+    const email = (p.email || '').toLowerCase();
+    const sub = (p.stripe_customer_id ? subByCustomer.get(p.stripe_customer_id) : undefined) || subByEmail.get(email);
+    return !!sub || isInTrialMonth(p) || orphanPaid.has(email) || !!p.redeemed_code || p.subscription_status === 'trialing';
+  };
+
   // 3. Aplicar filtros.
   const qLower = q.trim().toLowerCase();
   const filtered = all.filter(p => {
+    if (!hasProduct(p)) return false; // SOLO productos: oculta "activo sin pago" y pending
     if (qLower) {
       const blob = `${p.email} ${p.name || ''} ${p.phone || ''} ${p.redeemed_code || ''}`.toLowerCase();
       if (!blob.includes(qLower)) return false;
@@ -823,7 +834,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
         </form>
 
         <p className="text-xs mb-3" style={{ color: '#666' }}>
-          Mostrando {filtered.length} de {all.length}
+          Mostrando <b style={{ color: '#aaa' }}>{filtered.length}</b> clientes con producto (ViralADN · TOPCUT · Combo) · {all.length} registrados en total
         </p>
 
         {/* Tabla */}
