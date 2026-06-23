@@ -37,6 +37,7 @@ function Login() {
   const [info, setInfo] = useState('');
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [accepted, setAccepted] = useState(false); // aceptación de Términos/Privacidad/Reembolsos (anti-disputa)
 
   function switchMode(newMode: Mode) {
     setMode(newMode);
@@ -86,6 +87,10 @@ function Login() {
     if (mode === 'signup') {
       if (password.length < 8) {
         setError('La contraseña tiene que tener al menos 8 caracteres.');
+        return;
+      }
+      if (!accepted) {
+        setError('Para crear tu cuenta debes aceptar los Términos, la Privacidad y la Política de Reembolsos.');
         return;
       }
       const fix = suggestEmailFix(email);
@@ -410,7 +415,20 @@ function Login() {
                 </div>
               )}
 
-              <button type="submit" disabled={loading}
+              {mode === 'signup' && (
+                <label className="flex items-start gap-2 mt-1 cursor-pointer select-none" style={{ color: '#9a9aa6' }}>
+                  <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)}
+                    className="mt-0.5 accent-[#7c3aed]" style={{ width: 16, height: 16, flexShrink: 0 }} />
+                  <span className="text-xs leading-relaxed">
+                    Acepto los <a href="/terminos" target="_blank" className="underline" style={{ color: '#c4b5fd' }}>Términos</a>,
+                    la <a href="/privacidad" target="_blank" className="underline" style={{ color: '#c4b5fd' }}>Política de Privacidad</a> y
+                    la <a href="/reembolsos" target="_blank" className="underline" style={{ color: '#c4b5fd' }}>Política de Reembolsos</a>,
+                    incluida la renovación automática de la suscripción.
+                  </span>
+                </label>
+              )}
+
+              <button type="submit" disabled={loading || (mode === 'signup' && !accepted)}
                 className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 mt-2"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 20px #7c3aed44' }}>
                 {loading ? 'Procesando...'

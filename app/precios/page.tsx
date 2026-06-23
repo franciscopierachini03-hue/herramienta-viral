@@ -307,6 +307,19 @@ function PricingInner() {
             </details>
           ))}
         </div>
+
+        {/* Aviso de facturación + footer legal (consentimiento claro = anti-disputa) */}
+        <p className="text-center text-xs mt-10" style={{ color: '#777' }}>
+          Todos los planes se renuevan automáticamente al precio vigente. Cancelas cuando quieras desde tu cuenta.
+          Garantía de reembolso de 7 días en la primera compra.
+        </p>
+        <div className="mt-4 pt-5 text-center text-xs flex flex-wrap gap-x-4 gap-y-2 justify-center" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
+          <span>2CLICKS.COM LLC</span>
+          <Link href="/terminos" className="underline" style={{ color: '#888' }}>Términos</Link>
+          <Link href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</Link>
+          <Link href="/reembolsos" className="underline" style={{ color: '#888' }}>Reembolsos</Link>
+          <a href="mailto:hola@viraladn.com" className="underline" style={{ color: '#888' }}>Contacto</a>
+        </div>
       </section>
     </main>
   );

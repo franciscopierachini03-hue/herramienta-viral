@@ -825,10 +825,10 @@ export default function Landing() {
         <div className="wrap footer-grid">
           <p className="copyright">© 2026 ViralADN ✕ TOPCUT · Hecho para creadores que toman en serio su crecimiento</p>
           <ul className="footer-links">
-            <li><a href="#">Términos</a></li>
-            <li><a href="#">Privacidad</a></li>
-            <li><a href="#">Contacto</a></li>
-            <li><a href="#">Instagram</a></li>
+            <li><a href="/terminos">Términos</a></li>
+            <li><a href="/privacidad">Privacidad</a></li>
+            <li><a href="/reembolsos">Reembolsos</a></li>
+            <li><a href="mailto:hola@viraladn.com">Contacto</a></li>
           </ul>
         </div>
       </footer>
