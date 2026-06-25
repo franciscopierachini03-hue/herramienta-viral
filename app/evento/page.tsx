@@ -32,12 +32,17 @@ const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu m
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
 const TESTIMONIAL_VIDEO_URL = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonio-franc.mp4';
-// Capturas de cuentas que crecieron → Supabase Storage. Ya vienen ORDENADAS de
-// mayor a menor seguidores (01 = más, 38 = menos) y normalizadas al mismo lienzo
+// Imagen de crecimiento de Spencer Hoffmann (creador del método): antes/después.
+const SPENCER_IMG = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/spencer-crecimiento.jpg';
+
+// Capturas de cuentas que crecieron → Supabase Storage. Vienen ORDENADAS de mayor
+// a menor seguidores (01 = más … 38 = menos), normalizadas al mismo lienzo
 // (750×440, fondo negro) para que todas ocupen exactamente el mismo espacio.
-const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 38 }, (_, i) =>
-  `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(i + 1).padStart(2, '0')}.jpg`,
-);
+// Para quitar una cuenta, suma su número de orden a este set:
+const REMOVED_SEGUIDORES = new Set([1]); // 1 = jorgeserratosf (quitada a pedido)
+const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 38 }, (_, i) => i + 1)
+  .filter((n) => !REMOVED_SEGUIDORES.has(n))
+  .map((n) => `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(n).padStart(2, '0')}.jpg`);
 // ──────────────────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = ['+52', '+57', '+51', '+54', '+593', '+56', '+591', '+507', '+1', '+34'];
@@ -143,8 +148,17 @@ export default function EventoLanding() {
 
         {/* Fila: video de testimonios (izquierda) + formulario (derecha) */}
         <div className="grid lg:grid-cols-2 gap-10 items-start">
-          {/* Izquierda: video de testimonios + countdown */}
+          {/* Izquierda: crecimiento de Spencer + video de testimonios + countdown */}
           <div>
+            {/* Crecimiento del creador del método (antes/después) */}
+            <div className="mb-2 text-sm font-bold" style={{ color: '#34d399' }}>📈 El creador del método, en su propia cuenta</div>
+            <a href={SPENCER_IMG} target="_blank" rel="noopener" className="block rounded-2xl overflow-hidden mb-6 group"
+              style={{ border: '1px solid #1f3a2b', boxShadow: '0 10px 34px #0009' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={SPENCER_IMG} alt="Spencer Hoffmann: de 260 mil a 2.6 millones de seguidores"
+                className="w-full block transition-transform duration-300 group-hover:scale-[1.03]" />
+            </a>
+
             <div className="mb-2 text-sm font-bold" style={{ color: '#67e8f9' }}>▶ Lo que dicen quienes ya lo aplican</div>
             {TESTIMONIAL_VIDEO_URL
               ? <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
@@ -250,7 +264,7 @@ export default function EventoLanding() {
           <>
             <h3 className="text-xl font-bold text-center mt-14 mb-1">Cuentas que crecieron con el método</h3>
             <p className="text-sm text-center mb-7" style={{ color: '#9a9aa6' }}>
-              {TESTIMONIAL_IMAGES.length} creadores, ordenados de mayor a menor: de 1.3 millones a 10 mil seguidores.
+              {TESTIMONIAL_IMAGES.length} creadores, ordenados de mayor a menor: de 930 mil a 10 mil seguidores.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {TESTIMONIAL_IMAGES.map((src, i) => (
