@@ -10,7 +10,7 @@ const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan
 const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
-const TESTIMONIAL_VIDEO_URL = ''; // YouTube, Vimeo o .mp4
+const TESTIMONIAL_VIDEO_URL = '/testimonio-franc.mp4'; // YouTube, Vimeo o .mp4 (ya arranca en el seg ~3.5)
 const TESTIMONIAL_IMAGES: string[] = []; // URLs de imágenes/capturas de testimonios
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -101,10 +101,10 @@ export default function EventoLanding() {
         </a>
       </header>
 
-      {/* Hero + formulario */}
-      <section className="max-w-6xl mx-auto px-6 pt-6 pb-16 grid lg:grid-cols-2 gap-10 items-center">
-        {/* Izquierda: pitch */}
-        <div>
+      {/* Hero */}
+      <section className="max-w-6xl mx-auto px-6 pt-6 pb-16">
+        {/* Pitch (ancho completo) */}
+        <div className="max-w-3xl mb-10">
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5"
             style={{ background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>
             🔴 CLASE EN VIVO · GRATIS
@@ -115,27 +115,37 @@ export default function EventoLanding() {
             explotando en YouTube, TikTok, Instagram y Facebook, convertirlo en guiones listos para grabar y
             editar tus videos en minutos.
           </p>
-          <p className="text-base mb-6 font-semibold" style={{ color: '#e9e9ee' }}>
+          <p className="text-base font-semibold" style={{ color: '#e9e9ee' }}>
             Es la misma metodología con la que <span style={{ color: '#c4b5fd' }}>Spencer Hoffmann</span> hizo
             crecer sus ventas.
           </p>
-
-          {/* Fecha + countdown */}
-          <div className="rounded-2xl p-5 mb-2" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
-            <div className="text-sm mb-3" style={{ color: '#e5e5ea' }}>
-              📅 <b className="capitalize">{dateLabel}</b> · 🕖 {timeLabel} hs
-            </div>
-            <div className="flex gap-3">
-              {[['Días', days], ['Hs', hours], ['Min', minutes], ['Seg', seconds]].map(([l, v]) => (
-                <div key={l as string} className="flex-1 text-center rounded-xl py-2" style={{ background: '#0b0b14', border: '1px solid #23232f' }}>
-                  <div className="text-2xl font-extrabold" style={{ color: '#fff' }}>{String(v).padStart(2, '0')}</div>
-                  <div className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b96' }}>{l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="text-xs" style={{ color: '#8b8b96' }}>Cupos limitados · queda grabada para los registrados</p>
         </div>
+
+        {/* Fila: video de testimonios (izquierda) + formulario (derecha) */}
+        <div className="grid lg:grid-cols-2 gap-10 items-start">
+          {/* Izquierda: video de testimonios + countdown */}
+          <div>
+            <div className="mb-2 text-sm font-bold" style={{ color: '#67e8f9' }}>▶ Lo que dicen quienes ya lo aplican</div>
+            {TESTIMONIAL_VIDEO_URL
+              ? <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
+              : <div className="flex items-center justify-center text-center text-sm" style={{ aspectRatio: '16/9', background: '#0f0f17', border: '1px dashed #2a2a3a', borderRadius: 16, color: '#6b6b76' }}>🎬 Video de testimonios (próximamente)</div>}
+
+            {/* Fecha + countdown */}
+            <div className="rounded-2xl p-5 mt-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
+              <div className="text-sm mb-3" style={{ color: '#e5e5ea' }}>
+                📅 <b className="capitalize">{dateLabel}</b> · 🕖 {timeLabel} hs
+              </div>
+              <div className="flex gap-3">
+                {[['Días', days], ['Hs', hours], ['Min', minutes], ['Seg', seconds]].map(([l, v]) => (
+                  <div key={l as string} className="flex-1 text-center rounded-xl py-2" style={{ background: '#0b0b14', border: '1px solid #23232f' }}>
+                    <div className="text-2xl font-extrabold" style={{ color: '#fff' }}>{String(v).padStart(2, '0')}</div>
+                    <div className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b96' }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs mt-2" style={{ color: '#8b8b96' }}>Cupos limitados · queda grabada para los registrados</p>
+          </div>
 
         {/* Derecha: formulario */}
         <div id="registro" className="rounded-3xl p-7" style={{ background: 'linear-gradient(145deg,#141414,#0d0d0d)', border: '1px solid #1f1f1f', boxShadow: '0 0 40px #7c3aed22' }}>
@@ -181,6 +191,7 @@ export default function EventoLanding() {
               </form>
             </>
           )}
+        </div>
         </div>
       </section>
 
