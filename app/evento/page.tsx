@@ -6,19 +6,26 @@ import { useEffect, useMemo, useState } from 'react';
 //  EDITÁ ESTO PARA TU EVENTO  (fecha, título, slug para identificar los leads)
 // ──────────────────────────────────────────────────────────────────────────
 const EVENT_DATE = new Date('2026-07-10T19:00:00-05:00'); // ← fecha y hora del evento
-const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan — con IA';
+const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan con inteligencia artificial';
 const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
+
+// TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
+const TESTIMONIAL_VIDEO_URL = ''; // YouTube, Vimeo o .mp4
+const TESTIMONIAL_IMAGES: string[] = []; // URLs de imágenes/capturas de testimonios
 // ──────────────────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = ['+52', '+57', '+51', '+54', '+593', '+56', '+591', '+507', '+1', '+34'];
 
 function useCountdown(target: Date) {
-  const [now, setNow] = useState(() => Date.now());
+  // now arranca en null → server y cliente renderizan 0 en el primer paint
+  // (sin hydration mismatch); recién en el cliente, tras montar, corre el reloj.
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const diff = Math.max(0, target.getTime() - now);
+  const diff = now === null ? 0 : Math.max(0, target.getTime() - now);
   return {
     days: Math.floor(diff / 86_400_000),
     hours: Math.floor((diff % 86_400_000) / 3_600_000),
@@ -28,6 +35,18 @@ function useCountdown(target: Date) {
 }
 
 const PURPLE = 'linear-gradient(135deg,#7c3aed,#c13584)';
+
+// Renderiza el video de testimonios según la URL (YouTube/Vimeo → iframe, mp4 → video).
+function TestimonialVideo({ url }: { url: string }) {
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+  const vimeo = url.match(/vimeo\.com\/(\d+)/);
+  const embed = yt ? `https://www.youtube.com/embed/${yt[1]}` : vimeo ? `https://player.vimeo.com/video/${vimeo[1]}` : null;
+  const box = { aspectRatio: '16/9', border: '1px solid #1f1f2b', borderRadius: 16 } as const;
+  if (embed) {
+    return <iframe src={embed} className="w-full" style={box} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+  }
+  return <video src={url} controls className="w-full" style={{ ...box, background: '#000' }} />;
+}
 
 export default function EventoLanding() {
   const { days, hours, minutes, seconds } = useCountdown(EVENT_DATE);
@@ -91,9 +110,14 @@ export default function EventoLanding() {
             🔴 CLASE EN VIVO · GRATIS
           </span>
           <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight mb-4">{EVENT_TITLE}</h1>
-          <p className="text-base mb-6" style={{ color: '#b4b4c0' }}>
-            En esta clase te muestro, paso a paso, cómo usar IA para encontrar lo que está explotando en YouTube,
-            TikTok, Instagram y Facebook, convertirlo en guiones listos para grabar y editar tus videos en minutos.
+          <p className="text-base mb-4" style={{ color: '#b4b4c0' }}>
+            En esta clase te muestro, paso a paso, cómo usar inteligencia artificial para encontrar lo que está
+            explotando en YouTube, TikTok, Instagram y Facebook, convertirlo en guiones listos para grabar y
+            editar tus videos en minutos.
+          </p>
+          <p className="text-base mb-6 font-semibold" style={{ color: '#e9e9ee' }}>
+            Es la misma metodología con la que <span style={{ color: '#c4b5fd' }}>Spencer Hoffmann</span> hizo
+            crecer sus ventas.
           </p>
 
           {/* Fecha + countdown */}
@@ -167,7 +191,7 @@ export default function EventoLanding() {
           {[
             { i: '🔥', t: 'Encontrar lo viral en segundos', d: 'Cómo detectar qué está explotando en tu nicho en las 4 plataformas, sin perder horas scrolleando.' },
             { i: '✍️', t: 'Convertirlo en guiones', d: 'Transcribir cualquier video y adaptarlo a tu voz para grabar contenido que ya sabes que funciona.' },
-            { i: '✂️', t: 'Editar con IA en minutos', d: 'Cortes, subtítulos y ritmo automáticos para publicar todos los días sin morir editando.' },
+            { i: '✂️', t: 'Editar con inteligencia artificial', d: 'Cortes, subtítulos y ritmo automáticos para publicar todos los días sin morir editando.' },
           ].map(c => (
             <div key={c.t} className="rounded-2xl p-5" style={{ background: '#0f0f17', border: '1px solid #1f1f2b' }}>
               <div className="text-3xl mb-3">{c.i}</div>
@@ -176,6 +200,29 @@ export default function EventoLanding() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Testimonios */}
+      <section className="max-w-5xl mx-auto px-6 pb-16">
+        <h2 className="text-2xl font-bold text-center mb-2">Resultados de quienes ya lo aplican</h2>
+        <p className="text-sm text-center mb-8" style={{ color: '#9a9aa6' }}>La metodología de Spencer Hoffmann, en acción.</p>
+        <div className="max-w-2xl mx-auto mb-6">
+          {TESTIMONIAL_VIDEO_URL ? (
+            <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
+          ) : (
+            <div className="flex items-center justify-center text-center text-sm" style={{ aspectRatio: '16/9', background: '#0f0f17', border: '1px dashed #2a2a3a', borderRadius: 16, color: '#6b6b76' }}>
+              🎬 Video de testimonios (próximamente)
+            </div>
+          )}
+        </div>
+        {TESTIMONIAL_IMAGES.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {TESTIMONIAL_IMAGES.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={src} alt={`Testimonio ${i + 1}`} className="w-full rounded-xl" style={{ border: '1px solid #1f1f2b' }} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Para quién + CTA final */}
