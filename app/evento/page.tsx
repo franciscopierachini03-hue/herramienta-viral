@@ -32,9 +32,11 @@ const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu m
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
 const TESTIMONIAL_VIDEO_URL = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonio-franc.mp4';
-// Capturas de cuentas que crecieron (Keynote) → Supabase Storage.
-const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 23 }, (_, i) =>
-  `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonios/${String(i + 1).padStart(2, '0')}.jpg`,
+// Capturas de cuentas que crecieron → Supabase Storage. Ya vienen ORDENADAS de
+// mayor a menor seguidores (01 = más, 38 = menos) y normalizadas al mismo lienzo
+// (750×440, fondo negro) para que todas ocupen exactamente el mismo espacio.
+const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 38 }, (_, i) =>
+  `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(i + 1).padStart(2, '0')}.jpg`,
 );
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -247,14 +249,17 @@ export default function EventoLanding() {
         {TESTIMONIAL_IMAGES.length > 0 && (
           <>
             <h3 className="text-xl font-bold text-center mt-14 mb-1">Cuentas que crecieron con el método</h3>
-            <p className="text-sm text-center mb-7" style={{ color: '#9a9aa6' }}>{TESTIMONIAL_IMAGES.length} capturas de creadores que ya lo aplican.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p className="text-sm text-center mb-7" style={{ color: '#9a9aa6' }}>
+              {TESTIMONIAL_IMAGES.length} creadores, ordenados de mayor a menor: de 1.3 millones a 10 mil seguidores.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {TESTIMONIAL_IMAGES.map((src, i) => (
                 <a key={i} href={src} target="_blank" rel="noopener" className="block rounded-2xl overflow-hidden group"
-                  style={{ border: '1px solid #1f1f2b', background: '#0f0f17', boxShadow: '0 6px 24px #0006' }}>
+                  style={{ border: '1px solid #1f1f2b', background: '#000', boxShadow: '0 6px 24px #0006' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={src} alt={`Cuenta ${i + 1}`} loading="lazy"
-                    className="w-full block transition-transform duration-300 group-hover:scale-[1.04]" />
+                    className="w-full block transition-transform duration-300 group-hover:scale-[1.04]"
+                    style={{ aspectRatio: '750 / 440', objectFit: 'cover' }} />
                 </a>
               ))}
             </div>
