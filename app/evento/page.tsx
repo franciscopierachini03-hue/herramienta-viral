@@ -148,16 +148,12 @@ export default function EventoLanding() {
 
         {/* Fila: video de testimonios (izquierda) + formulario (derecha) */}
         <div className="grid lg:grid-cols-2 gap-10 items-start">
-          {/* Izquierda: crecimiento de Spencer + countdown */}
+          {/* Izquierda: video de testimonios + countdown */}
           <div>
-            {/* Crecimiento del creador del método (antes/después) */}
-            <div className="mb-2 text-sm font-bold" style={{ color: '#34d399' }}>📈 El creador del método, en su propia cuenta</div>
-            <a href={SPENCER_IMG} target="_blank" rel="noopener" className="block rounded-2xl overflow-hidden mb-6 group"
-              style={{ border: '1px solid #1f3a2b', boxShadow: '0 10px 34px #0009' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={SPENCER_IMG} alt="Spencer Hoffmann: de 260 mil a 2.6 millones de seguidores"
-                className="w-full block transition-transform duration-300 group-hover:scale-[1.03]" />
-            </a>
+            <div className="mb-2 text-sm font-bold" style={{ color: '#67e8f9' }}>▶ Lo que dicen quienes ya lo aplican</div>
+            {TESTIMONIAL_VIDEO_URL
+              ? <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
+              : <div className="flex items-center justify-center text-center text-sm" style={{ aspectRatio: '16/9', background: '#0f0f17', border: '1px dashed #2a2a3a', borderRadius: 16, color: '#6b6b76' }}>🎬 Video de testimonios (próximamente)</div>}
 
             {/* Fecha + countdown */}
             <div className="rounded-2xl p-5 mt-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
@@ -246,15 +242,12 @@ export default function EventoLanding() {
       <section className="max-w-5xl mx-auto px-6 pb-16">
         <h2 className="text-2xl font-bold text-center mb-2">Resultados de quienes ya lo aplican</h2>
         <p className="text-sm text-center mb-8" style={{ color: '#9a9aa6' }}>La metodología de Spencer Hoffmann, en acción.</p>
-        <div className="max-w-2xl mx-auto mb-6">
-          {TESTIMONIAL_VIDEO_URL ? (
-            <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
-          ) : (
-            <div className="flex items-center justify-center text-center text-sm" style={{ aspectRatio: '16/9', background: '#0f0f17', border: '1px dashed #2a2a3a', borderRadius: 16, color: '#6b6b76' }}>
-              🎬 Video de testimonios (próximamente)
-            </div>
-          )}
-        </div>
+        <a href={SPENCER_IMG} target="_blank" rel="noopener" className="block max-w-3xl mx-auto rounded-2xl overflow-hidden mb-6 group"
+          style={{ border: '1px solid #1f3a2b', boxShadow: '0 10px 34px #0009' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={SPENCER_IMG} alt="Spencer Hoffmann: de 260 mil a 2.6 millones de seguidores"
+            className="w-full block transition-transform duration-300 group-hover:scale-[1.03]" />
+        </a>
         {TESTIMONIAL_IMAGES.length > 0 && (
           <>
             <h3 className="text-xl font-bold text-center mt-14 mb-7">Otras personas que aplicaron la metodología</h3>
