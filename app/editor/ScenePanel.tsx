@@ -18,6 +18,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [hook, setHook] = useState<Caption | null>(null);
   const [hookText, setHookText] = useState("");
+  const [headlineOptions, setHeadlineOptions] = useState<string[]>([]);
   const [subPos, setSubPos] = useState<"middle" | "low">("middle");
   const [subSize, setSubSize] = useState<"small" | "medium" | "large">("medium");
   const [subColor, setSubColor] = useState("#FFFFFF");
@@ -46,6 +47,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setCaptions(d.captions || []);
       setHook(d.hook || null);
       setHookText(d.hookText || d.hook?.text || "");
+      setHeadlineOptions(Array.isArray(d.headlineOptions) ? d.headlineOptions : []);
       setSubPos(d.subtitles?.position === "low" ? "low" : "middle");
       setSubSize((["small", "medium", "large"].includes(d.subtitles?.size) ? d.subtitles.size : "medium"));
       setSubColor(d.subtitles?.color || "#FFFFFF");
@@ -143,7 +145,18 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
           placeholder="Titular grande del inicio…"
           className="w-full bg-black/30 rounded-md px-3 py-2 text-sm font-semibold border border-white/10 focus:border-purple-400 outline-none"
         />
-        <p className="text-[11px] text-white/40 mt-1">Sale <b>GRANDE al inicio</b> (lo primero del vídeo). Edítalo a tu gusto. Vacío = usamos la primera frase. (Míralo en el previo de arriba.)</p>
+        <p className="text-[11px] text-white/40 mt-1">Sale <b>GRANDE al inicio</b>. Edítalo a tu gusto, o elige una sugerencia de la IA 👇</p>
+        {headlineOptions.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-white/40">💡 Sugerencias de la IA (clic para usar)</div>
+            {headlineOptions.map((h, i) => (
+              <button key={i} onClick={() => { setHookText(h); setHook((prev) => ({ start: prev?.start ?? 0, end: prev?.end ?? 4, text: h })); }}
+                className={`text-left text-sm px-3 py-1.5 rounded-lg border ${hookText === h ? "bg-purple-500/20 border-purple-400 text-purple-100" : "bg-white/5 border-white/10 text-white/70 hover:border-purple-400/60"}`}>
+                {h}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mt-3">
           <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">Estilo del headline (plantilla)</div>
           <div className="flex flex-wrap gap-1.5">
