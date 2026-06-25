@@ -148,7 +148,7 @@ export default function EventoLanding() {
 
         {/* Fila: video de testimonios (izquierda) + formulario (derecha) */}
         <div className="grid lg:grid-cols-2 gap-10 items-start">
-          {/* Izquierda: crecimiento de Spencer + video de testimonios + countdown */}
+          {/* Izquierda: crecimiento de Spencer + countdown */}
           <div>
             {/* Crecimiento del creador del método (antes/después) */}
             <div className="mb-2 text-sm font-bold" style={{ color: '#34d399' }}>📈 El creador del método, en su propia cuenta</div>
@@ -158,11 +158,6 @@ export default function EventoLanding() {
               <img src={SPENCER_IMG} alt="Spencer Hoffmann: de 260 mil a 2.6 millones de seguidores"
                 className="w-full block transition-transform duration-300 group-hover:scale-[1.03]" />
             </a>
-
-            <div className="mb-2 text-sm font-bold" style={{ color: '#67e8f9' }}>▶ Lo que dicen quienes ya lo aplican</div>
-            {TESTIMONIAL_VIDEO_URL
-              ? <TestimonialVideo url={TESTIMONIAL_VIDEO_URL} />
-              : <div className="flex items-center justify-center text-center text-sm" style={{ aspectRatio: '16/9', background: '#0f0f17', border: '1px dashed #2a2a3a', borderRadius: 16, color: '#6b6b76' }}>🎬 Video de testimonios (próximamente)</div>}
 
             {/* Fecha + countdown */}
             <div className="rounded-2xl p-5 mt-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
