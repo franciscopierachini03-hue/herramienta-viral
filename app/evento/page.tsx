@@ -42,7 +42,7 @@ const SPENCER_IMG = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/
 const REMOVED_SEGUIDORES = new Set([1]); // 1 = jorgeserratosf (quitada a pedido)
 const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 38 }, (_, i) => i + 1)
   .filter((n) => !REMOVED_SEGUIDORES.has(n))
-  .map((n) => `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(n).padStart(2, '0')}.jpg`);
+  .map((n) => `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(n).padStart(2, '0')}.jpg?v=2`);
 // ──────────────────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = ['+52', '+57', '+51', '+54', '+593', '+56', '+591', '+507', '+1', '+34'];
@@ -257,10 +257,7 @@ export default function EventoLanding() {
         </div>
         {TESTIMONIAL_IMAGES.length > 0 && (
           <>
-            <h3 className="text-xl font-bold text-center mt-14 mb-1">Cuentas que crecieron con el método</h3>
-            <p className="text-sm text-center mb-7" style={{ color: '#9a9aa6' }}>
-              {TESTIMONIAL_IMAGES.length} creadores, ordenados de mayor a menor: de 930 mil a 10 mil seguidores.
-            </p>
+            <h3 className="text-xl font-bold text-center mt-14 mb-7">Otras personas que aplicaron la metodología</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {TESTIMONIAL_IMAGES.map((src, i) => (
                 <a key={i} href={src} target="_blank" rel="noopener" className="block rounded-2xl overflow-hidden group"
