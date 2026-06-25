@@ -1,18 +1,41 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // ──────────────────────────────────────────────────────────────────────────
 //  EDITÁ ESTO PARA TU EVENTO  (fecha, título, slug para identificar los leads)
 // ──────────────────────────────────────────────────────────────────────────
 const EVENT_DATE = new Date('2026-07-10T19:00:00-05:00'); // ← fecha y hora del evento
+const EVENT_TZ_OFFSET = -5; // hora del evento en GMT-5 (Colombia/Perú). Cambialo si tu evento es en otra zona.
 const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan con inteligencia artificial';
+
+// Fecha/hora formateadas SIN depender de la zona horaria ni del locale del
+// runtime. Usamos solo getters UTC (idénticos en server y navegador) + nombres
+// fijos en español → server y cliente producen EXACTAMENTE el mismo texto, así
+// que no hay "hydration mismatch" (y no parpadea un placeholder).
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function formatEvento(d: Date) {
+  const z = new Date(d.getTime() + EVENT_TZ_OFFSET * 3_600_000); // corremos a la zona del evento y leemos getters UTC
+  let h = z.getUTCHours();
+  const ampm = h >= 12 ? 'p.m.' : 'a.m.';
+  h = h % 12 || 12;
+  const mm = String(z.getUTCMinutes()).padStart(2, '0');
+  return {
+    dateLabel: `${DIAS[z.getUTCDay()]}, ${z.getUTCDate()} de ${MESES[z.getUTCMonth()]}`,
+    timeLabel: `${h}:${mm} ${ampm}`,
+  };
+}
+const { dateLabel: EVENT_DATE_LABEL, timeLabel: EVENT_TIME_LABEL } = formatEvento(EVENT_DATE);
 const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
 const TESTIMONIAL_VIDEO_URL = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonio-franc.mp4';
-const TESTIMONIAL_IMAGES: string[] = []; // URLs de imágenes/capturas de testimonios
+// Capturas de cuentas que crecieron (Keynote) → Supabase Storage.
+const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 23 }, (_, i) =>
+  `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonios/${String(i + 1).padStart(2, '0')}.jpg`,
+);
 // ──────────────────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = ['+52', '+57', '+51', '+54', '+593', '+56', '+591', '+507', '+1', '+34'];
@@ -54,14 +77,8 @@ export default function EventoLanding() {
   const [form, setForm] = useState({ name: '', email: '', countryCode: '+52', phone: '' });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'ok' | 'error'>('idle');
 
-  const dateLabel = useMemo(
-    () => EVENT_DATE.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }),
-    [],
-  );
-  const timeLabel = useMemo(
-    () => EVENT_DATE.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-    [],
-  );
+  const dateLabel = EVENT_DATE_LABEL;
+  const timeLabel = EVENT_TIME_LABEL;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -228,12 +245,20 @@ export default function EventoLanding() {
           )}
         </div>
         {TESTIMONIAL_IMAGES.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {TESTIMONIAL_IMAGES.map((src, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={src} alt={`Testimonio ${i + 1}`} className="w-full rounded-xl" style={{ border: '1px solid #1f1f2b' }} />
-            ))}
-          </div>
+          <>
+            <h3 className="text-xl font-bold text-center mt-14 mb-1">Cuentas que crecieron con el método</h3>
+            <p className="text-sm text-center mb-7" style={{ color: '#9a9aa6' }}>{TESTIMONIAL_IMAGES.length} capturas de creadores que ya lo aplican.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {TESTIMONIAL_IMAGES.map((src, i) => (
+                <a key={i} href={src} target="_blank" rel="noopener" className="block rounded-2xl overflow-hidden group"
+                  style={{ border: '1px solid #1f1f2b', background: '#0f0f17', boxShadow: '0 6px 24px #0006' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`Cuenta ${i + 1}`} loading="lazy"
+                    className="w-full block transition-transform duration-300 group-hover:scale-[1.04]" />
+                </a>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
