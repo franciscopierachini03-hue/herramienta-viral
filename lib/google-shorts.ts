@@ -67,8 +67,8 @@ export async function searchGoogleShorts(
   if (!key) throw new Error('Falta SERPAPI_KEY');
 
   // Volumen: paginamos siguiendo serpapi_pagination.next. Cada página = 1 búsqueda
-  // de SerpApi. Default 3 (~34 únicos); configurable con GOOGLE_SHORTS_PAGES.
-  const maxPages = Math.max(1, Math.min(opts.pages ?? parseInt(process.env.GOOGLE_SHORTS_PAGES || '3', 10), 5));
+  // de SerpApi. Default 8 (~70 crudos → 60+ tras filtro); configurable con GOOGLE_SHORTS_PAGES (máx 10).
+  const maxPages = Math.max(1, Math.min(opts.pages ?? parseInt(process.env.GOOGLE_SHORTS_PAGES || '8', 10), 10));
   const base = new URLSearchParams({
     engine: 'google_short_videos',
     q: tema,

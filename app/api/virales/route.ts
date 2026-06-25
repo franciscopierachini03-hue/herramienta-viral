@@ -2201,28 +2201,24 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
     //  - YouTube/TikTok (medibles): cortamos por vistas mínimas (VIRAL_MIN_VIEWS).
     //  - Instagram/Facebook (sin métricas gratis): acotamos a los top por
     //    relevancia de Google (VIRAL_IGFB_CAP) para no arrastrar reels flojos.
-    // Orden por vistas desc (los sin vista mantienen el orden de Google — sort estable).
-    const MIN_VIEWS = parseInt(process.env.VIRAL_MIN_VIEWS || '5000', 10);
-    const MIN_LIKES = Math.max(50, Math.round(MIN_VIEWS / 20)); // piso por likes si no hay vistas (ej. 5000→250)
-    const IGFB_CAP = parseInt(process.env.VIRAL_IGFB_CAP || '6', 10);
+    // Objetivo: VOLUMEN (~60) ordenado por engagement (mejores primero), sin
+    // descartar de más. Ordenamos por vistas desc; en YT/TikTok sacamos solo lo
+    // MEDIBLE y claramente muerto (por debajo del piso); lo no medible se mantiene
+    // detrás. IG/FB (sin métricas gratis) se acotan por relevancia con un tope alto.
+    const MIN_VIEWS = parseInt(process.env.VIRAL_MIN_VIEWS || '500', 10);
+    const IGFB_CAP = parseInt(process.env.VIRAL_IGFB_CAP || '30', 10);
     const buckets: GBuckets = {};
     for (const plat of ['youtube', 'tiktok', 'instagram', 'facebook']) {
       let b = all.filter(v => v.platform === plat).sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
       if (plat === 'youtube' || plat === 'tiktok') {
-        b = b.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS); // medible → corte por vistas
-      } else if (plat === 'instagram') {
-        const enriched = b.filter(v => v.enriched);
-        if (enriched.length > 0) {
-          // tenemos métricas de IG → filtramos por vistas o likes (igual que el resto)
-          b = enriched.filter(v => (v.viewsRaw || 0) >= MIN_VIEWS || (v.likesRaw || 0) >= MIN_LIKES);
-        } else {
-          b = b.slice(0, IGFB_CAP); // sin cupo de IG (429) → top por relevancia
-        }
+        // mantiene volumen: descarta solo lo medido por debajo del piso; lo no
+        // medido (viewsRaw 0) se conserva, ordenado detrás de lo medido.
+        b = b.filter(v => (v.viewsRaw || 0) === 0 || (v.viewsRaw || 0) >= MIN_VIEWS);
       } else {
-        b = b.slice(0, IGFB_CAP); // Facebook: top por relevancia (sin métricas hasta sumar downloader)
+        b = b.slice(0, IGFB_CAP); // IG/FB: top por relevancia (con o sin enriquecimiento)
       }
       buckets[plat] = b;
-      void writeCache(tema, plat, b, 'g3'); // calienta cache (motor Google) → otras pestañas gratis
+      void writeCache(tema, plat, b, 'g4'); // calienta cache (motor Google) → otras pestañas gratis
     }
     return buckets;
   })();
@@ -2241,7 +2237,7 @@ export async function POST(req: NextRequest) {
   const googleMode = !!process.env.SERPAPI_KEY
     && process.env.SEARCH_ENGINE !== 'off'
     && engine !== 'off';
-  const engTag = googleMode ? 'g3' : ''; // g3: bump tras sumar enriquecimiento + filtro de Instagram
+  const engTag = googleMode ? 'g4' : ''; // g4: bump tras subir a ~60 resultados (más páginas + filtro suave)
 
   // Identificar usuario (no bloqueante)
   let userEmail: string | null = null;
