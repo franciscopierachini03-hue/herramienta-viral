@@ -10,7 +10,8 @@ const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan
 const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
-const TESTIMONIAL_VIDEO_URL = '/testimonio-franc.mp4'; // YouTube, Vimeo o .mp4 (ya arranca en el seg ~3.5)
+// Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
+const TESTIMONIAL_VIDEO_URL = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonio-franc.mp4';
 const TESTIMONIAL_IMAGES: string[] = []; // URLs de imágenes/capturas de testimonios
 // ──────────────────────────────────────────────────────────────────────────
 
