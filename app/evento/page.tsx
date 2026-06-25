@@ -223,11 +223,12 @@ export default function EventoLanding() {
       {/* Qué vas a aprender */}
       <section className="max-w-5xl mx-auto px-6 pb-16">
         <h2 className="text-2xl font-bold text-center mb-8">Lo que vas a llevarte de la clase</h2>
-        <div className="grid sm:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { i: '🔥', t: 'Encontrar lo viral en segundos', d: 'Cómo detectar qué está explotando en tu nicho en las 4 plataformas, sin perder horas scrolleando.' },
             { i: '✍️', t: 'Convertirlo en guiones', d: 'Transcribir cualquier video y adaptarlo a tu voz para grabar contenido que ya sabes que funciona.' },
             { i: '✂️', t: 'Editar con inteligencia artificial', d: 'Cortes, subtítulos y ritmo automáticos para publicar todos los días sin morir editando.' },
+            { i: '🚀', t: 'Publicar y crecer', d: 'Cuándo, dónde y cómo publicar para que cada video llegue a más personas y tu cuenta crezca de forma constante.' },
           ].map(c => (
             <div key={c.t} className="rounded-2xl p-5" style={{ background: '#0f0f17', border: '1px solid #1f1f2b' }}>
               <div className="text-3xl mb-3">{c.i}</div>
