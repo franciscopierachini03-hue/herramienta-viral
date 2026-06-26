@@ -38,12 +38,25 @@ function stripPersistence(options?: Record<string, unknown>): Record<string, unk
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ── SUBDOMINIO DEL EVENTO ───────────────────────────────────────────────────
+  // masterclass.viraladn.com (o EVENT_HOST) muestra la landing /evento en su raíz,
+  // SIN cambiar la URL del navegador (rewrite, no redirect). Va ANTES de la lógica
+  // de auth/cierre para que la landing quede siempre pública en el subdominio.
+  const eventHost = (process.env.EVENT_HOST || 'masterclass.viraladn.com').toLowerCase();
+  const reqHost = (req.headers.get('host') || '').split(':')[0].toLowerCase();
+  if ((reqHost === eventHost || reqHost.startsWith('masterclass.')) && pathname === '/') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/evento';
+    return NextResponse.rewrite(url);
+  }
+
   // ── MODO CERRADO ──────────────────────────────────────────────────────────
   if (CLOSED) {
     // Siempre abiertas, incluso cerrado: la landing, el login y sus APIs, la waitlist.
     const alwaysOpen =
       pathname === '/proximamente' || pathname.startsWith('/proximamente/') ||
       pathname === '/login' || pathname.startsWith('/login/') ||
+      pathname === '/evento' || pathname.startsWith('/evento/') || pathname === '/api/evento' ||
       pathname.startsWith('/api/auth') || pathname === '/api/waitlist';
     if (alwaysOpen) return NextResponse.next();
 
