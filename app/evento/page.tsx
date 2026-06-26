@@ -125,7 +125,7 @@ export default function EventoLanding() {
 
         {/* Derecha: formulario de LeadConnector (CRM 2Clicks) */}
         <div>
-          <div id="registro" className="rounded-3xl overflow-hidden" style={{ border: '1px solid #1f1f1f', boxShadow: '0 0 40px #7c3aed22', background: '#fff' }}>
+          <div id="registro" className="rounded-3xl overflow-hidden" style={{ border: '1px solid #1f1f1f', boxShadow: '0 0 40px #7c3aed22', background: '#0f0f17' }}>
             <iframe
               src="https://api.leadconnectorhq.com/widget/form/FeBsauI9yRjhYycW1CJY"
               style={{ width: '100%', height: 640, border: 'none', display: 'block' }}
