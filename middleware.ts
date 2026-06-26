@@ -38,13 +38,17 @@ function stripPersistence(options?: Record<string, unknown>): Record<string, unk
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ── SUBDOMINIO DEL EVENTO ───────────────────────────────────────────────────
-  // masterclass.viraladn.com (o EVENT_HOST) muestra la landing /evento en su raíz,
-  // SIN cambiar la URL del navegador (rewrite, no redirect). Va ANTES de la lógica
-  // de auth/cierre para que la landing quede siempre pública en el subdominio.
-  const eventHost = (process.env.EVENT_HOST || 'masterclass.viraladn.com').toLowerCase();
+  // ── DOMINIO DEL EVENTO ──────────────────────────────────────────────────────
+  // El landing del evento vive en su PROPIO dominio (franpierachini.com), sin
+  // marca de la plataforma. Cualquier host de franpierachini.com (apex, www o
+  // subdominio) sirve /evento en su raíz, SIN cambiar la URL (rewrite, no redirect).
+  // Va ANTES de la lógica de auth/cierre para que quede siempre público.
   const reqHost = (req.headers.get('host') || '').split(':')[0].toLowerCase();
-  if ((reqHost === eventHost || reqHost.startsWith('masterclass.')) && pathname === '/') {
+  const isEventHost =
+    reqHost === 'franpierachini.com' ||
+    reqHost.endsWith('.franpierachini.com') ||
+    reqHost === (process.env.EVENT_HOST || '').toLowerCase();
+  if (isEventHost && pathname === '/') {
     const url = req.nextUrl.clone();
     url.pathname = '/evento';
     return NextResponse.rewrite(url);
