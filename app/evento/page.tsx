@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { EVENT_DATE, EVENT_TITLE, EVENT_SLUG, EVENT_DATE_LABEL, EVENT_TIME_LABEL } from './event-config';
+import Script from 'next/script';
+import { EVENT_DATE, EVENT_TITLE, EVENT_DATE_LABEL, EVENT_TIME_LABEL } from './event-config';
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
@@ -19,8 +19,6 @@ const TESTIMONIAL_IMAGES: string[] = Array.from({ length: 38 }, (_, i) => i + 1)
   .filter((n) => !REMOVED_SEGUIDORES.has(n))
   .map((n) => `https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/seguidores/${String(n).padStart(2, '0')}.jpg?v=2`);
 // ──────────────────────────────────────────────────────────────────────────
-
-const COUNTRY_CODES = ['+52', '+57', '+51', '+54', '+593', '+56', '+591', '+507', '+1', '+34'];
 
 function useCountdown(target: Date) {
   // now arranca en null → server y cliente renderizan 0 en el primer paint
@@ -56,38 +54,8 @@ function TestimonialVideo({ url }: { url: string }) {
 
 export default function EventoLanding() {
   const { days, hours, minutes, seconds } = useCountdown(EVENT_DATE);
-  const [form, setForm] = useState({ name: '', email: '', countryCode: '+52', phone: '' });
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'ok' | 'error'>('idle');
-  const router = useRouter();
-
   const dateLabel = EVENT_DATE_LABEL;
   const timeLabel = EVENT_TIME_LABEL;
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (status === 'submitting') return;
-    if (!form.name || !form.email || !form.phone) { setStatus('error'); return; }
-    setStatus('submitting');
-    try {
-      const r = await fetch('/api/evento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          email: form.email.trim().toLowerCase(),
-          phone: `${form.countryCode} ${form.phone.trim()}`,
-          event: EVENT_SLUG,
-        }),
-      });
-      if (r.ok) { setStatus('ok'); router.push('/evento/gracias'); return; }
-      setStatus('error');
-    } catch {
-      setStatus('error');
-    }
-  }
-
-  const input = 'w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors';
-  const inputStyle = { background: '#0b0b14', border: '1px solid #2a2a3a', color: '#fff' } as const;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 50% at 50% 0%, #1a0a2e 0%, transparent 55%), radial-gradient(ellipse 70% 40% at 85% 10%, #06243a 0%, transparent 55%), #070710' }}>
@@ -155,55 +123,34 @@ export default function EventoLanding() {
             <p className="text-xs mt-2" style={{ color: '#8b8b96' }}>Cupos limitados · queda grabada para los registrados</p>
           </div>
 
-        {/* Derecha: formulario */}
-        <div id="registro" className="rounded-3xl p-7" style={{ background: 'linear-gradient(145deg,#141414,#0d0d0d)', border: '1px solid #1f1f1f', boxShadow: '0 0 40px #7c3aed22' }}>
-          {status === 'ok' ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">✅</div>
-              <h2 className="text-2xl font-bold mb-2">¡Registrado!</h2>
-              <p className="text-sm" style={{ color: '#b4b4c0' }}>
-                Te esperamos el <b className="capitalize">{dateLabel}</b> a las {timeLabel} hs. Revisa tu correo
-                (y spam) — te enviaremos el enlace para entrar.
-              </p>
-            </div>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold mb-1">Reserva tu lugar gratis</h2>
-              <p className="text-sm mb-5" style={{ color: '#a1a1aa' }}>Completa tus datos y te mandamos el acceso.</p>
-              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-                <input className={input} style={inputStyle} placeholder="Tu nombre"
-                  value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                <input className={input} style={inputStyle} type="email" placeholder="Tu mejor correo" autoComplete="email"
-                  value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-                <div className="flex gap-2">
-                  <select className="px-3 py-3 rounded-xl text-sm outline-none" style={inputStyle}
-                    value={form.countryCode} onChange={e => setForm({ ...form, countryCode: e.target.value })}>
-                    {COUNTRY_CODES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <input className={input} style={inputStyle} type="tel" placeholder="WhatsApp" inputMode="numeric"
-                    value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value.replace(/[^\d]/g, '') })} required />
-                </div>
-                {status === 'error' && (
-                  <div className="text-xs rounded-lg px-3 py-2" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d55', color: '#fca5a5' }}>
-                    Completa nombre, correo y WhatsApp para reservar.
-                  </div>
-                )}
-                <button type="submit" disabled={status === 'submitting'}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 mt-1"
-                  style={{ background: PURPLE, color: '#fff', boxShadow: '0 0 24px #7c3aed44' }}>
-                  {status === 'submitting' ? 'Reservando…' : 'Reservar mi lugar gratis →'}
-                </button>
-                <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] mt-1" style={{ color: '#9a9aa6' }}>
-                  <span>✅ 100% gratis</span>
-                  <span>✅ Sin tarjeta</span>
-                  <span>✅ Queda grabada</span>
-                </div>
-                <p className="text-[11px] text-center" style={{ color: '#6b6b76' }}>
-                  Tus datos están seguros. No spam — solo info del evento.
-                </p>
-              </form>
-            </>
-          )}
+        {/* Derecha: formulario de LeadConnector (CRM 2Clicks) */}
+        <div>
+          <div id="registro" className="rounded-3xl overflow-hidden" style={{ border: '1px solid #1f1f1f', boxShadow: '0 0 40px #7c3aed22', background: '#fff' }}>
+            <iframe
+              src="https://api.leadconnectorhq.com/widget/form/FeBsauI9yRjhYycW1CJY"
+              style={{ width: '100%', height: 640, border: 'none', display: 'block' }}
+              id="inline-FeBsauI9yRjhYycW1CJY"
+              data-layout="{'id':'INLINE'}"
+              data-trigger-type="alwaysShow"
+              data-trigger-value=""
+              data-activation-type="alwaysActivated"
+              data-activation-value=""
+              data-deactivation-type="neverDeactivate"
+              data-deactivation-value=""
+              data-form-name="Registro evento ViralADN"
+              data-height="640"
+              data-layout-iframe-id="inline-FeBsauI9yRjhYycW1CJY"
+              data-form-id="FeBsauI9yRjhYycW1CJY"
+              title="Registro evento ViralADN"
+            />
+          </div>
+          <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] mt-3" style={{ color: '#9a9aa6' }}>
+            <span>✅ 100% gratis</span>
+            <span>✅ Sin tarjeta</span>
+            <span>✅ Queda grabada</span>
+          </div>
+          {/* Script de auto-ajuste de altura del formulario embebido */}
+          <Script src="https://link.msgsndr.com/js/form_embed.js" strategy="afterInteractive" />
         </div>
         </div>
       </section>
