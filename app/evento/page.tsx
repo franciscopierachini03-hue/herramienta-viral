@@ -1,33 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-// ──────────────────────────────────────────────────────────────────────────
-//  EDITÁ ESTO PARA TU EVENTO  (fecha, título, slug para identificar los leads)
-// ──────────────────────────────────────────────────────────────────────────
-const EVENT_DATE = new Date('2026-07-10T19:00:00-05:00'); // ← fecha y hora del evento
-const EVENT_TZ_OFFSET = -5; // hora del evento en GMT-5 (Colombia/Perú). Cambialo si tu evento es en otra zona.
-const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan con inteligencia artificial';
-
-// Fecha/hora formateadas SIN depender de la zona horaria ni del locale del
-// runtime. Usamos solo getters UTC (idénticos en server y navegador) + nombres
-// fijos en español → server y cliente producen EXACTAMENTE el mismo texto, así
-// que no hay "hydration mismatch" (y no parpadea un placeholder).
-const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-function formatEvento(d: Date) {
-  const z = new Date(d.getTime() + EVENT_TZ_OFFSET * 3_600_000); // corremos a la zona del evento y leemos getters UTC
-  let h = z.getUTCHours();
-  const ampm = h >= 12 ? 'p.m.' : 'a.m.';
-  h = h % 12 || 12;
-  const mm = String(z.getUTCMinutes()).padStart(2, '0');
-  return {
-    dateLabel: `${DIAS[z.getUTCDay()]}, ${z.getUTCDate()} de ${MESES[z.getUTCMonth()]}`,
-    timeLabel: `${h}:${mm} ${ampm}`,
-  };
-}
-const { dateLabel: EVENT_DATE_LABEL, timeLabel: EVENT_TIME_LABEL } = formatEvento(EVENT_DATE);
-const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
+import { useRouter } from 'next/navigation';
+import { EVENT_DATE, EVENT_TITLE, EVENT_SLUG, EVENT_DATE_LABEL, EVENT_TIME_LABEL } from './event-config';
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
@@ -83,6 +58,7 @@ export default function EventoLanding() {
   const { days, hours, minutes, seconds } = useCountdown(EVENT_DATE);
   const [form, setForm] = useState({ name: '', email: '', countryCode: '+52', phone: '' });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'ok' | 'error'>('idle');
+  const router = useRouter();
 
   const dateLabel = EVENT_DATE_LABEL;
   const timeLabel = EVENT_TIME_LABEL;
@@ -103,7 +79,8 @@ export default function EventoLanding() {
           event: EVENT_SLUG,
         }),
       });
-      setStatus(r.ok ? 'ok' : 'error');
+      if (r.ok) { setStatus('ok'); router.push('/evento/gracias'); return; }
+      setStatus('error');
     } catch {
       setStatus('error');
     }
