@@ -130,10 +130,16 @@ export default function EventoLanding() {
       <section className="max-w-6xl mx-auto px-6 pt-6 pb-16">
         {/* Pitch (ancho completo) */}
         <div className="max-w-3xl mb-10">
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5"
-            style={{ background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>
-            🔴 CLASE EN VIVO · GRATIS
-          </span>
+          <div className="flex flex-wrap gap-2 mb-5">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{ background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>
+              🔴 EN VIVO · GRATIS
+            </span>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{ background: '#10b98122', border: '1px solid #10b98155', color: '#6ee7b7' }}>
+              🎟️ Exclusivo para la comunidad de Spencer Hoffmann
+            </span>
+          </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight mb-4">{EVENT_TITLE}</h1>
           <p className="text-base mb-4" style={{ color: '#b4b4c0' }}>
             En esta clase te muestro, paso a paso, cómo usar inteligencia artificial para encontrar lo que está
@@ -210,6 +216,11 @@ export default function EventoLanding() {
                   style={{ background: PURPLE, color: '#fff', boxShadow: '0 0 24px #7c3aed44' }}>
                   {status === 'submitting' ? 'Reservando…' : 'Reservar mi lugar gratis →'}
                 </button>
+                <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] mt-1" style={{ color: '#9a9aa6' }}>
+                  <span>✅ 100% gratis</span>
+                  <span>✅ Sin tarjeta</span>
+                  <span>✅ Queda grabada</span>
+                </div>
                 <p className="text-[11px] text-center" style={{ color: '#6b6b76' }}>
                   Tus datos están seguros. No spam — solo info del evento.
                 </p>
@@ -272,16 +283,25 @@ export default function EventoLanding() {
         <h2 className="text-2xl font-bold mb-3">¿Para quién es esta clase?</h2>
         <p className="text-base mb-8" style={{ color: '#b4b4c0' }}>
           Para creadores, emprendedores y negocios que quieren crecer en redes con contenido que funciona —
-          sin adivinar, sin pasar el día entero produciendo. Si publicas (o querés empezar), esta clase es para ti.
+          sin adivinar, sin pasar el día entero produciendo. Si publicas (o quieres empezar), esta clase es para ti.
         </p>
         <a href="#registro" className="inline-flex px-8 py-4 rounded-2xl text-sm font-bold" style={{ background: PURPLE, color: '#fff', boxShadow: '0 0 28px #7c3aed55' }}>
           Sí, quiero mi lugar gratis →
         </a>
       </section>
 
-      <footer className="max-w-6xl mx-auto px-6 py-8 text-center text-xs" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
+      <footer className="max-w-6xl mx-auto px-6 pt-8 pb-28 lg:pb-8 text-center text-xs" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
         © 2026 ViralADN ✕ TOPCUT · <a href="/terminos" className="underline" style={{ color: '#888' }}>Términos</a> · <a href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</a>
       </footer>
+
+      {/* CTA fija en mobile (la mayoría del tráfico viene de WhatsApp en celular) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-4 py-3"
+        style={{ background: 'rgba(7,7,16,0.92)', backdropFilter: 'blur(8px)', borderTop: '1px solid #1f1f2b' }}>
+        <a href="#registro" className="flex items-center justify-center w-full py-3 rounded-2xl text-sm font-bold"
+          style={{ background: PURPLE, color: '#fff', boxShadow: '0 0 24px #7c3aed55' }}>
+          Reservar mi lugar gratis →
+        </a>
+      </div>
     </main>
   );
 }
