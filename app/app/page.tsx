@@ -679,6 +679,16 @@ export default function Home() {
     } catch {}
   }
 
+  // Manda guiones al Teleprompter: los deja en sessionStorage y abre /teleprompter,
+  // que los levanta y los carga listos para leer/grabar.
+  function enviarGuionesATeleprompter(items: Guion[]) {
+    try {
+      sessionStorage.setItem('teleprompter.import',
+        JSON.stringify(items.map(g => ({ name: g.name, transcript: g.transcript }))));
+    } catch {}
+    window.location.href = '/teleprompter';
+  }
+
   async function renameGuion(id: string, name: string) {
     setGuiones(guiones.map(g => g.id === id ? { ...g, name } : g));
     try {
@@ -1274,6 +1284,12 @@ export default function Home() {
                   className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
                   📋 Copiar
                 </button>
+                <button
+                  onClick={() => enviarGuionesATeleprompter([g])}
+                  className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#f9731688] text-[#b4b4c0] hover:text-white transition-all"
+                  title="Leer este guion en el teleprompter">
+                  🎬 Teleprompter
+                </button>
                 {g.url && (
                   <a href={g.url} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 text-xs border border-[#2e2e3d] rounded-lg hover:border-[#7c3aed88] text-[#b4b4c0] hover:text-white transition-all">
@@ -1337,6 +1353,11 @@ export default function Home() {
                 className="text-xs font-bold px-3 py-2 rounded-xl transition-transform hover:-translate-y-0.5"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', boxShadow: '0 0 14px #7c3aed44' }}>
                 ✍️ Generar guion
+              </Link>
+              <Link href="/teleprompter"
+                className="text-xs font-bold px-3 py-2 rounded-xl transition-transform hover:-translate-y-0.5"
+                style={{ background: 'linear-gradient(135deg, #f97316, #ef4444)', color: '#fff', boxShadow: '0 0 14px #f9731644' }}>
+                🎬 Teleprompter
               </Link>
               {guiones.length > 0 && (
                 confirmDeleteAll ? (
