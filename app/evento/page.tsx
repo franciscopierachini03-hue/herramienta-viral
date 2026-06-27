@@ -62,9 +62,8 @@ export default function EventoLanding() {
       {/* Header */}
       <header className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.svg" alt="ViralADN" width={32} height={32} style={{ filter: 'drop-shadow(0 0 14px #7c3aed66)' }} />
-          <span className="text-lg font-bold">ViralADN <span style={{ color: '#5f5f6e' }}>✕</span> <span style={{ color: '#67e8f9' }}>TOPCUT</span></span>
+          <span className="text-2xl" aria-hidden="true">📈</span>
+          <span className="text-lg font-bold">De 0 a 100K <span style={{ color: '#34d399' }}>seguidores</span></span>
         </div>
         <a href="#registro" className="hidden sm:inline-flex px-4 py-2 text-sm font-bold rounded-full" style={{ background: PURPLE, color: '#fff' }}>
           Reservar mi lugar
@@ -137,11 +136,11 @@ export default function EventoLanding() {
               data-activation-value=""
               data-deactivation-type="neverDeactivate"
               data-deactivation-value=""
-              data-form-name="Registro evento ViralADN"
+              data-form-name="Registro evento De 0 a 100K seguidores"
               data-height="640"
               data-layout-iframe-id="inline-FeBsauI9yRjhYycW1CJY"
               data-form-id="FeBsauI9yRjhYycW1CJY"
-              title="Registro evento ViralADN"
+              title="Registro evento De 0 a 100K seguidores"
             />
           </div>
           <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] mt-3" style={{ color: '#9a9aa6' }}>
@@ -215,7 +214,7 @@ export default function EventoLanding() {
       </section>
 
       <footer className="max-w-6xl mx-auto px-6 pt-8 pb-28 lg:pb-8 text-center text-xs" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
-        © 2026 ViralADN ✕ TOPCUT · <a href="/terminos" className="underline" style={{ color: '#888' }}>Términos</a> · <a href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</a>
+        © 2026 De 0 a 100K seguidores · <a href="/terminos" className="underline" style={{ color: '#888' }}>Términos</a> · <a href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</a>
       </footer>
 
       {/* CTA fija en mobile (la mayoría del tráfico viene de WhatsApp en celular) */}

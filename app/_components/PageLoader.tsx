@@ -14,7 +14,7 @@ export default function PageLoader({ label = 'Cargando' }: { label?: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-mark.svg"
-            alt="ViralADN"
+            alt=""
             width={56}
             height={56}
             className="animate-pulse"

@@ -16,8 +16,8 @@ const START_UTC = toICSDate(EVENT_DATE);
 const END_UTC = toICSDate(new Date(EVENT_DATE.getTime() + EVENT_DURATION_MIN * 60_000));
 
 const CAL_DETAILS = ZOOM_URL
-  ? `Clase en vivo de ViralADN ✕ Spencer Hoffmann. Enlace de Zoom: ${ZOOM_URL}`
-  : 'Clase en vivo de ViralADN ✕ Spencer Hoffmann. El enlace de Zoom te llegará por Telegram y correo.';
+  ? `Clase en vivo De 0 a 100K seguidores, con Spencer Hoffmann. Enlace de Zoom: ${ZOOM_URL}`
+  : 'Clase en vivo De 0 a 100K seguidores, con Spencer Hoffmann. El enlace de Zoom te llegará por Telegram y correo.';
 const CAL_LOCATION = ZOOM_URL || 'En línea (Zoom)';
 
 const GOOGLE_CAL_URL =
@@ -34,10 +34,10 @@ function downloadICS() {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//ViralADN//Evento//ES',
+    'PRODID:-//De 0 a 100K seguidores//Evento//ES',
     'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT',
-    `UID:masterclass-viraladn-${START_UTC}@viraladn.com`,
+    `UID:de-0-a-100k-${START_UTC}@franpierachini.com`,
     `DTSTAMP:${START_UTC}`,
     `DTSTART:${START_UTC}`,
     `DTEND:${END_UTC}`,
@@ -56,7 +56,7 @@ function downloadICS() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'masterclass-viraladn.ics';
+  a.download = 'de-0-a-100k-seguidores.ics';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -77,9 +77,8 @@ export default function GraciasEvento() {
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 50% at 50% 0%, #1a0a2e 0%, transparent 55%), radial-gradient(ellipse 70% 40% at 85% 10%, #06243a 0%, transparent 55%), #070710' }}>
       {/* Header */}
       <header className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-mark.svg" alt="ViralADN" width={32} height={32} style={{ filter: 'drop-shadow(0 0 14px #7c3aed66)' }} />
-        <span className="text-lg font-bold">ViralADN <span style={{ color: '#5f5f6e' }}>✕</span> <span style={{ color: '#67e8f9' }}>TOPCUT</span></span>
+        <span className="text-2xl" aria-hidden="true">📈</span>
+        <span className="text-lg font-bold">De 0 a 100K <span style={{ color: '#34d399' }}>seguidores</span></span>
       </header>
 
       <section className="max-w-2xl mx-auto px-6 pt-4 pb-20">
@@ -175,7 +174,7 @@ export default function GraciasEvento() {
       </section>
 
       <footer className="max-w-3xl mx-auto px-6 py-8 text-center text-xs" style={{ borderTop: '1px solid #1a1a1a', color: '#666' }}>
-        © 2026 ViralADN ✕ TOPCUT · <a href="/terminos" className="underline" style={{ color: '#888' }}>Términos</a> · <a href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</a>
+        © 2026 De 0 a 100K seguidores · <a href="/terminos" className="underline" style={{ color: '#888' }}>Términos</a> · <a href="/privacidad" className="underline" style={{ color: '#888' }}>Privacidad</a>
       </footer>
     </main>
   );
