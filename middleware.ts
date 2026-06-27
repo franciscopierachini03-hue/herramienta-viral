@@ -54,6 +54,16 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // El evento SOLO vive en franpierachini.com. Si alguien llega a /evento por
+  // OTRO host (p. ej. viraladn.com/evento), lo redirigimos al dominio del evento
+  // → queda desactivado fuera de franpierachini, sin romper enlaces viejos.
+  if (!isEventHost && (pathname === '/evento' || pathname.startsWith('/evento/'))) {
+    const base = pathname === '/evento'
+      ? 'https://evento.franpierachini.com/'
+      : `https://evento.franpierachini.com${pathname}`;
+    return NextResponse.redirect(base + req.nextUrl.search, 307);
+  }
+
   // ── MODO CERRADO ──────────────────────────────────────────────────────────
   if (CLOSED) {
     // Siempre abiertas, incluso cerrado: la landing, el login y sus APIs, la waitlist.
