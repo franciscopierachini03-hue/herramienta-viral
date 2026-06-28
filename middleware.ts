@@ -64,6 +64,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(base + req.nextUrl.search, 307);
   }
 
+  // Formulario de registro: URL limpia /registro → sirve el HTML estático.
+  if (pathname === '/registro') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/registro.html';
+    return NextResponse.rewrite(url);
+  }
+
   // ── MODO CERRADO ──────────────────────────────────────────────────────────
   if (CLOSED) {
     // Siempre abiertas, incluso cerrado: la landing, el login y sus APIs, la waitlist.
