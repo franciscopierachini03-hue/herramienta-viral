@@ -20,7 +20,7 @@ function cacheKeyFor(platform: string, url: string): string | null {
     return m ? `tt:${m[1]}` : null;
   }
   if (platform === 'instagram') {
-    const m = url.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+    const m = url.match(/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/);
     return m ? `ig:${m[1]}` : null;
   }
   return null;
@@ -124,7 +124,8 @@ function extractTikTokId(url: string): string | null {
 }
 
 function extractInstagramCode(url: string): string | null {
-  const match = url.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+  // Acepta /reel/, /reels/ (plural), /p/ y /tv/ — Instagram usa varias formas.
+  const match = url.match(/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/);
   return match ? match[1] : null;
 }
 

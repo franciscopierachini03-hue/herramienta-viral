@@ -1943,7 +1943,7 @@ async function enrichInstagramReelsViaApify(
     }
 
     for (const c of toEnrich) {
-      const m = c.url.match(/\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+      const m = c.url.match(/\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/);
       const short = m?.[1];
       if (!short) continue;
       const data = byShort.get(short);
