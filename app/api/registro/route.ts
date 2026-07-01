@@ -50,5 +50,18 @@ export async function POST(req: Request) {
     }
   } catch { /* noop */ }
 
+  // 3) Agregar la fila al Google Sheet (Apps Script web app).
+  //    Se puede sobreescribir con SHEET_WEBHOOK_URL (env) para no exponer la URL.
+  const SHEET_WEBHOOK = process.env.SHEET_WEBHOOK_URL
+    || 'https://script.google.com/macros/s/AKfycbwJAbptdB64W80raiVe5oZoYkIat_RkBVzsP9xT0wInfxnnrBip05K7OPE7RqxyaaTH/exec';
+  if (SHEET_WEBHOOK) {
+    try {
+      await fetch(SHEET_WEBHOOK, {
+        method: 'POST',
+        body: new URLSearchParams({ nombre, apellido, telefono, correo, seguidores, objetivo, oferta }),
+      });
+    } catch { /* noop */ }
+  }
+
   return Response.json({ ok: true });
 }
