@@ -370,10 +370,10 @@ export default function CarruselesPage() {
     if (!slideActiva || fondoBusy) return;
     setFondoBusy(true); setError('');
     try {
-      const prompt = `Fondo para una slide de carrusel de Instagram (vertical 4:5). Tema de la slide: "${slideActiva.titulo}". Estética ${tema.dark ? 'oscura' : 'clara'}, minimalista y premium: textura abstracta, degradado suave o formas difusas. SIN texto, SIN letras, SIN logos, SIN personas. Tiene que dejar respirar un texto grande encima.`;
-      const res = await fetch('/api/studio/image', {
+      const prompt = `Fondo para una slide de carrusel de Instagram (vertical 4:5). Tema de la slide: "${slideActiva.titulo}". Estética ${tema.dark ? 'oscura' : 'clara'}, minimalista y premium: textura abstracta, degradado suave o formas difusas que combinen con el color de acento ${accent}. SIN texto, SIN letras, SIN logos, SIN personas. Tiene que dejar respirar un texto grande encima.`;
+      const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ accion: 'fondo', prompt }),
       });
       const d = await res.json();
       if (!res.ok) setError(d.error || 'No se pudo generar el fondo.');
@@ -791,7 +791,7 @@ export default function CarruselesPage() {
                         className="text-[11px] px-2 py-1 rounded-lg font-bold" style={btnGhost}>📎 Subir</button>
                       <button onClick={() => void generarFondoIA()} disabled={fondoBusy}
                         className="text-[11px] px-2 py-1 rounded-lg font-bold disabled:opacity-50" style={btnGhost}>
-                        {fondoBusy ? 'Generando…' : '✨ Con IA'}
+                        {fondoBusy ? '✨ Generando… (~30s)' : '✨ Con IA'}
                       </button>
                       {slideActiva?.fondo && (
                         <button onClick={() => editarSlide({ fondo: '' })}

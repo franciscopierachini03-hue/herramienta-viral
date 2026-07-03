@@ -14,6 +14,7 @@ import type { Carrusel, CarruselInput, Slide, TemaExtraido, BriefLote } from '@/
 //                  (paleta + tipografía detectadas) para clonar el estilo.
 //   'slide'      → regenerar UNA slide con una instrucción (editor fino).
 //   'plan'       → plan de lote: N ideas de carrusel con ángulos distintos.
+//   'fondo'      → imagen de fondo para una slide (gpt-image, misma API key).
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -31,6 +32,10 @@ function getOpenAI(): OpenAI {
 // los gpt-4.x usan temperature. Override manual: env CARRUSELES_MODEL.
 const MODEL_CHAIN = ['gpt-5.5', 'gpt-5.4', 'gpt-5.1', 'gpt-4.1', 'gpt-4o'];
 let _modeloOk: string | null = null;
+
+// Modelos de imagen (fondos de slides). Mismo esquema de cadena+cache.
+const IMG_CHAIN = ['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1'];
+let _imgModeloOk: string | null = null;
 
 const REGLAS_COPY = `REGLAS DE COPY:
 - Español natural y hablado, adaptado al tono pedido. Frases cortas (menos de 12 palabras cuando se pueda). Segunda persona.
@@ -275,6 +280,42 @@ async function pedirJSON(system: string, user: ChatContent): Promise<Record<stri
   throw lastErr instanceof Error ? lastErr : new Error('ningún modelo disponible');
 }
 
+// Genera una imagen de fondo con gpt-image (misma key de OpenAI). JPEG comprimido
+// para que la respuesta viaje liviana y el export a PNG no arrastre peso de más.
+async function generarImagen(prompt: string): Promise<string> {
+  const base = process.env.CARRUSELES_IMG_MODEL
+    ? [process.env.CARRUSELES_IMG_MODEL, ...IMG_CHAIN.filter(m => m !== process.env.CARRUSELES_IMG_MODEL)]
+    : IMG_CHAIN;
+  const lista = _imgModeloOk ? [_imgModeloOk, ...base.filter(m => m !== _imgModeloOk)] : base;
+
+  let lastErr: unknown = null;
+  for (const model of lista) {
+    try {
+      const res = await getOpenAI().images.generate({
+        model,
+        prompt,
+        size: '1024x1536',        // vertical, casi 4:5 — la slide lo muestra en cover
+        quality: 'medium',
+        output_format: 'jpeg',
+        output_compression: 80,
+      });
+      const b64 = res.data?.[0]?.b64_json;
+      if (!b64) throw new Error('la respuesta vino sin imagen');
+      _imgModeloOk = model;
+      return `data:image/jpeg;base64,${b64}`;
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : '';
+      if (/model|not found|does not exist|unsupported|access|invalid value/i.test(msg)) {
+        console.error(`[carruseles] modelo de imagen ${model} no disponible:`, msg.slice(0, 160));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('ningún modelo de imagen disponible');
+}
+
 // Genera el carrusel completo; si la respuesta viene rota/incompleta, reintenta
 // UNA vez con una corrección explícita (evita el "no devolvió un carrusel usable").
 async function generarCarrusel(system: string, user: ChatContent): Promise<Carrusel> {
@@ -338,6 +379,14 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
       // El tipo de slide no cambia desde acá (el rol lo define su posición).
       nueva.tipo = slide.tipo;
       return Response.json({ slide: nueva });
+    }
+
+    // ── 'fondo': imagen de fondo para una slide (gpt-image) ──────────────────
+    if (accion === 'fondo') {
+      const prompt = String(body.prompt || '').trim().slice(0, 900);
+      if (!prompt) return Response.json({ error: 'Falta describir el fondo.' }, { status: 400 });
+      const image = await generarImagen(prompt);
+      return Response.json({ image });
     }
 
     // ── 'plan': lote / calendario de contenido ───────────────────────────────
