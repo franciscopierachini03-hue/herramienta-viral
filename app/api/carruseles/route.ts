@@ -6,7 +6,8 @@ import type { Carrusel, CarruselInput, Slide, TemaExtraido, BriefLote } from '@/
 // POST /api/carruseles — el cerebro de la máquina de carruseles.
 //
 // Acciones (campo "accion" del body):
-//   (sin accion) → generar un carrusel completo. Modos: 'idea' (texto),
+//   (sin accion) → generar un carrusel completo. Modos: 'idea' (texto, opcionalmente
+//                  con "transcript" de un video para convertirlo en carrusel),
 //                  'adaptar' (capturas de un carrusel ajeno → visión) y
 //                  'diseno' (capturas de tu propio diseño → visión).
 //                  En los modos con capturas devuelve además "temaExtraido"
@@ -24,45 +25,61 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
-const REGLAS_COPY = `REGLAS DE COPY:
-- Español natural y hablado, adaptado al tono pedido. Si el tono es informal, sé informal.
-- Frases cortas. Cero palabras de relleno ("en conclusión", "cabe destacar", "hoy en día").
-- El TÍTULO de cada slide entra de un vistazo: máximo ~70 caracteres. El CUERPO máximo ~160 caracteres (en "resumen" y layout "lista", cada punto en su propia línea con \\n, máximo 5 puntos).
-- El "kicker" es una etiqueta cortísima (1-3 palabras o un número), ej. "GUÍA", "ERROR 1", "PASO 2", "GUARDÁ ESTO", "TU TURNO".
-- No inventes datos ni cifras falsas. Si das un número, que sea defendible o general.
+// ── Modelos ──────────────────────────────────────────────────────────────────
+// Probamos del mejor al más viejo; el primero que responda queda cacheado por
+// la vida de la lambda. Los gpt-5.x razonan (reasoning_effort, sin temperature);
+// los gpt-4.x usan temperature. Override manual: env CARRUSELES_MODEL.
+const MODEL_CHAIN = ['gpt-5.5', 'gpt-5.4', 'gpt-5.1', 'gpt-4.1', 'gpt-4o'];
+let _modeloOk: string | null = null;
 
-LAYOUTS (campo "layout" de cada slide — variálos para que el carrusel respire):
-- "centrado": la frase es la protagonista. El default para hooks y CTAs.
-- "lista": el cuerpo son puntos (uno por línea con \\n, 3-5 puntos numerables).
-- "stat": una cifra manda. Poné la cifra en "stat" (ej. "87%", "x3", "0→100K") y el título la explica.
-- "cita": una frase citable/memorable, como para compartirla sola.`;
+const REGLAS_COPY = `REGLAS DE COPY:
+- Español natural y hablado, adaptado al tono pedido. Frases cortas (menos de 12 palabras cuando se pueda). Segunda persona.
+- El TÍTULO de cada slide entra de un vistazo: máximo ~70 caracteres. El CUERPO máximo ~160 caracteres (en "resumen" y layout "lista", cada punto en su propia línea con \\n, máximo 5 puntos).
+- El "kicker" es una etiqueta cortísima (1-3 palabras o un número), ej. "ERROR 1", "PASO 2", "GUARDÁ ESTO", "NADIE HACE ESTO".
+- "stat" es SOLO una cifra o dato corto (máximo 10 caracteres), ej. "87%", "x3", "0→100K". Nunca una frase.
+- No inventes datos ni cifras falsas. Si das un número, que sea defendible o presentado como regla propia ("mi regla: 3 reels x semana").
+
+LO PROHIBIDO (esto es exactamente lo que hace que un carrusel se sienta básico — si aparece, fallaste):
+- Consejos que cualquiera daría: "sé consistente", "usa hashtags", "conoce a tu audiencia", "aporta valor", "interactúa con tu comunidad", "publica en el mejor horario". Si el consejo podría estar en cualquier carrusel de 2020, NO va.
+- Cuerpos que solo re-explican el título o lo adornan con una metáfora floja ("postear sin plan es como tirar dardos a ciegas").
+- Tono de folleto: "es fundamental", "es clave", "no olvides", "recuerda que", "en el mundo de hoy".
+- Hooks blandos tipo "Sorpréndete con...", "Descubre los secretos de...".
+- Las palabras "real" y "reales" (regla de la casa: no se usan nunca).
+
+CÓMO SE LOGRA EL IMPACTO (aplicá TODAS en cada carrusel):
+1. ESPECIFICIDAD BRUTAL: números, plazos, cantidades, mini-ejemplos concretos. "3 reels guionados por semana durante 90 días", no "sé constante". "Respondé los primeros 20 comentarios en 30 minutos", no "interactúa".
+2. MECANISMO, NO MORALINA: explicá el PORQUÉ oculto que casi nadie conoce ("Instagram re-muestra tu carrusel con la slide 2 a quien lo ignoró → tenés DOS portadas, no una").
+3. CONTRASTE: esto NO → esto SÍ. Error → corrección exacta. Antes → después. El cerebro guarda contrastes, no consejos.
+4. COSTO DE IGNORARLO: qué pierde el que no aplica el punto (meses, seguidores, plata). Que duela un poco.
+5. UNA OPINIÓN FUERTE por carrusel (mínimo): algo defendible que un "gurú" diría al revés. Genera comentarios.
+6. TEST DE LA CAPTURA: cada slide tiene que valer una captura de pantalla POR SÍ SOLA. Si una slide no lo pasa, reescribila antes de devolverla.`;
 
 const FORMA_SLIDE = `{ "tipo": "hook" | "contenido" | "resumen" | "cta", "layout": "centrado" | "lista" | "stat" | "cita", "kicker": string, "titulo": string, "cuerpo": string, "pie": string, "stat": string }`;
 
-const SYSTEM_PROMPT = `Eres un estratega de carruseles virales para Instagram y LinkedIn. Tu trabajo NO es escribir bonito: es escribir carruseles que la gente GUARDA, COMPARTE y termina de deslizar.
+const SYSTEM_PROMPT = `Sos el mejor estratega de carruseles en español para Instagram y LinkedIn. Escribís como un creador que ya pasó por todo esto y tiene opiniones fuertes — NUNCA como un manual de marketing. Tu métrica es una sola: que el carrusel se GUARDE y se mande por DM.
 
-Sabes cómo funciona el algoritmo de carruseles:
-- Gana el tiempo de permanencia: cada slide que se desliza es más watch-time. Por eso cada slide tiene que empujar a la siguiente.
-- La métrica reina es GUARDADOS. Se guarda lo que es de referencia: listas, frameworks, pasos, errores a evitar.
+Sabés cómo funciona el algoritmo de carruseles:
+- Gana el tiempo de permanencia: cada slide deslizada es más watch-time. Cada slide tiene que EMPUJAR a la siguiente (bucles abiertos, "el 4 casi nadie lo hace").
+- La métrica reina es GUARDADOS: se guarda lo que sirve de referencia (listas, frameworks, reglas con números, errores con corrección).
 - Se comparte por DM lo que da estatus al que lo manda.
-- Instagram re-muestra el carrusel usando la SLIDE 2 si no hubo interacción con la portada → la slide 2 también es una portada.
+- Instagram re-muestra el carrusel con la SLIDE 2 a quien no interactuó → la slide 2 es tu segunda portada.
 
-ANATOMÍA OBLIGATORIA (de la primera a la última):
-1. HOOK (slide 1): para el scroll en seco. Promesa concreta + brecha de curiosidad. Frase corta y potente. Nada de introducciones. Prohibido "En este carrusel te voy a contar".
-2. RETENCIÓN (slide 2): confirma la promesa y obliga a seguir. Puede sembrar curiosidad ("el punto 4 casi nadie lo aplica").
-3. CONTENIDO (slides intermedias): UNA sola idea por slide. Título corto y accionable + 1 o 2 frases de apoyo. Concreto, con ejemplos, sin relleno.
-4. RESUMEN (penúltima): la slide GUARDABLE. Recap en puntos cortos de todo el carrusel. Es la que justifica el guardado.
-5. CTA (última): una sola acción (seguir / guardar / comentar una palabra / compartir) + un motivo. Cierra con la identidad de la cuenta.
+ANATOMÍA OBLIGATORIA:
+1. HOOK (slide 1): frena el scroll en seco. Promesa concreta + brecha de curiosidad, con número o tensión. Prohibido presentarse o anunciar el tema.
+2. RETENCIÓN (slide 2): confirma que la promesa va en serio Y siembra curiosidad por lo que viene. Es tu segunda portada: tiene que funcionar sola.
+3. CONTENIDO: UNA idea por slide. Título accionable + mecanismo o ejemplo concreto en el cuerpo. Variá los layouts (una "stat", una "cita" citable, una "lista").
+4. RESUMEN (penúltima): la slide GUARDABLE. Recap en puntos cortos y concretos. Es la que justifica el guardado.
+5. CTA (última): UNA sola acción + un motivo con beneficio ("Guardalo: lo vas a necesitar el día que un reel te explote").
 
 ${REGLAS_COPY}
 
-Además entregas munición extra:
-- "hooksAlternativos": 6 portadas alternativas para el slide 1, cada una con un ángulo distinto (número/lista, error a evitar, contraste antes-después, pregunta que duele, promesa directa, contraintuitivo).
-- "caption": pie de foto listo para pegar. Primera línea = gancho. Cierra pidiendo el guardado/compartido. 3-6 líneas.
+Además entregás munición extra:
+- "hooksAlternativos": 6 portadas alternativas, cada una con un ángulo distinto (número, error, contraste antes-después, pregunta que duele, promesa directa, contraintuitivo). TODAS con especificidad (número, plazo o tensión concreta).
+- "caption": pie de foto listo para pegar. Primera línea = gancho distinto al del slide 1. Cierra pidiendo guardado o una palabra en comentarios. 3-6 líneas.
 - "hashtags": 8 a 12, mezcla de nicho amplio y específico, sin el símbolo #.
-- "score": autoevaluación HONESTA y exigente (0-100 cada eje). Si el gancho es flojo, dilo. "mejoras" = 2-4 acciones concretas para subir el potencial.
+- "score": autoevaluación HONESTA y exigente (0-100 por eje). Aplicá el "test de la captura" slide por slide en "veredicto". "mejoras" = 2-4 acciones concretas.
 
-Devuelve ÚNICAMENTE un objeto JSON válido con EXACTAMENTE esta forma (sin texto fuera del JSON):
+Devolvé ÚNICAMENTE un objeto JSON válido con EXACTAMENTE esta forma (sin texto fuera del JSON):
 {
   "slides": [ ${FORMA_SLIDE} ],
   "hooksAlternativos": [string, string, string, string, string, string],
@@ -70,7 +87,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con EXACTAMENTE esta forma (sin text
   "hashtags": [string, ...],
   "score": { "total": number, "gancho": number, "valor": number, "guardabilidad": number, "claridad": number, "veredicto": string, "mejoras": [string, ...] }
 }
-La primera slide debe ser tipo "hook", la penúltima tipo "resumen" y la última tipo "cta". El resto, "contenido". El campo "cuerpo" puede ir vacío ("") en el hook si la frase se basta sola. "pie" y "stat" son opcionales (pueden ser "").`;
+La primera slide debe ser tipo "hook", la penúltima tipo "resumen" y la última tipo "cta". El resto, "contenido". El "cuerpo" puede ir vacío ("") en el hook si la frase se basta sola. "pie" y "stat" son opcionales (pueden ser "").`;
 
 // Instrucciones extra para los modos con capturas. Se suman al SYSTEM_PROMPT.
 const EXTRA_ADAPTAR = `
@@ -80,14 +97,16 @@ MODO ADAPTAR — el usuario te pasa capturas de un carrusel AJENO que funcionó:
 2. Escribí un carrusel NUEVO y ORIGINAL para el nicho/tema del usuario aplicando esa mecánica. PROHIBIDO copiar o parafrasear frase por frase: cambiá ejemplos, ángulo y voz. Si la referencia está en otro idioma, tu resultado va en español.
 3. Devolvé ADEMÁS el campo "temaExtraido" con el estilo visual de la referencia:
    "temaExtraido": { "nombre": string (2-3 palabras que describan el estilo), "bg": string (color css o gradiente css del fondo), "fg": string hex (texto principal), "muted": string hex (texto secundario), "accent": string hex (color de acento dominante), "onAccent": string hex (texto legible ENCIMA del accent), "panel": string rgba (fondo de etiquetas, del accent al ~12% de opacidad), "dark": boolean, "serif": boolean (true si los títulos se ven serif/editoriales), "notas": string (1 frase del look) }
-   Los colores tienen que salir de las capturas, no inventados.`;
+   Los colores tienen que salir de las capturas, no inventados.
+4. Si las capturas NO parecen un carrusel (una pantalla entera de computadora, una foto suelta, un meme), NO te trabes ni devuelvas vacío: extraé el temaExtraido de los colores dominantes de la imagen y generá el carrusel completo usando la IDEA dada.`;
 
 const EXTRA_DISENO = `
 
 MODO MI DISEÑO — las capturas son la PLANTILLA/diseño PROPIO del usuario:
 1. Devolvé el campo "temaExtraido" (misma forma que abajo) clavando la paleta EXACTA de las capturas (hex) y si los títulos son serif:
    "temaExtraido": { "nombre": string, "bg": string, "fg": string, "muted": string, "accent": string, "onAccent": string, "panel": string, "dark": boolean, "serif": boolean, "notas": string }
-2. Escribí el carrusel sobre la IDEA dada, con longitudes de texto parecidas a las que se ven en el diseño (que el texto quepa cómodo en esa plantilla).`;
+2. Escribí el carrusel sobre la IDEA dada, con longitudes de texto parecidas a las que se ven en el diseño (que el texto quepa cómodo en esa plantilla).
+3. Si las capturas no se entienden, extraé el tema de los colores dominantes igual y generá el carrusel completo con la IDEA dada.`;
 
 const SYSTEM_SLIDE = `Sos un editor de slides de carruseles de Instagram. Te paso UNA slide, su contexto dentro del carrusel y una instrucción. Reescribí SOLO esa slide siguiendo la instrucción al pie de la letra, manteniendo su rol (hook/contenido/resumen/cta) y la coherencia con el resto.
 
@@ -97,18 +116,23 @@ Devolvé ÚNICAMENTE JSON válido con esta forma exacta: { "slide": ${FORMA_SLID
 
 const SYSTEM_PLAN = `Sos un estratega de contenido para Instagram. Armá un plan de carruseles sobre el tema/nicho dado. Cada carrusel ataca un ÁNGULO DISTINTO (lista práctica, error a evitar, mito vs. verdad, framework con nombre, historia/caso, contraste antes-después, pregunta incómoda, checklist, contraintuitivo…). Nada de repetir el mismo ángulo dos veces.
 
+Cada "idea" tiene que ser específica y con gancho (números, tensión, resultado concreto), no un tema genérico. Cada "hook" con especificidad brutal: número, plazo o contraste — prohibido "descubre", "sorpréndete" y las palabras "real"/"reales".
+
 Devolvé ÚNICAMENTE JSON válido: { "plan": [ { "idea": string (la idea completa y específica, lista para generar el carrusel con ella), "angulo": string (el ángulo en 2-4 palabras), "hook": string (portada propuesta, potente, ≤70 caracteres) } ] }`;
 
-function buildUserMessage(inp: CarruselInput): string {
+function buildUserMessage(inp: CarruselInput, transcript?: string): string {
   const n = Math.min(Math.max(inp.numSlides ?? 7, 4), 10);
   const modo = inp.modo === 'adaptar' || inp.modo === 'diseno' ? inp.modo : 'idea';
   const etiquetaIdea = modo === 'adaptar'
     ? 'ADAPTAR PARA (mi nicho / tema / giro que quiero darle):'
     : 'IDEA / TEMA DEL CARRUSEL:';
+  const bloqueTranscript = transcript?.trim()
+    ? `\nTRANSCRIPCIÓN DEL VIDEO VIRAL DE REFERENCIA (convertí SU contenido en el carrusel: mantené sus ideas, datos y ganchos fuertes, reescrito al formato carrusel — no copies literal ni menciones "el video"):\n"""\n${transcript.trim().slice(0, 8000)}\n"""\n`
+    : '';
   return `
 ${etiquetaIdea}
 ${inp.idea.trim() || '(usá el mismo tema de la referencia, mejorado)'}
-
+${bloqueTranscript}
 NICHO / CUENTA: ${inp.nicho?.trim() || 'general'}
 TONO: ${inp.tono?.trim() || 'cercano y directo'}
 AUDIENCIA: ${inp.audiencia?.trim() || 'seguidores del nicho que quieren un resultado concreto'}
@@ -134,7 +158,7 @@ function sanitizeSlide(s: unknown): Slide {
     titulo: typeof o.titulo === 'string' ? o.titulo : '',
     cuerpo: typeof o.cuerpo === 'string' ? o.cuerpo : '',
     pie: typeof o.pie === 'string' ? o.pie : '',
-    stat: typeof o.stat === 'string' ? o.stat : '',
+    stat: typeof o.stat === 'string' ? o.stat.slice(0, 14) : '',
   };
 }
 
@@ -191,7 +215,7 @@ function normalize(raw: unknown): Carrusel {
 }
 
 // ── Capturas (visión) ────────────────────────────────────────────────────────
-// La UI comprime a JPEG ≤1100px antes de mandar; acá sólo ponemos límites duros.
+// La UI comprime a JPEG con presupuesto total antes de mandar; acá, límites duros.
 function sanitizeImagenes(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
@@ -211,19 +235,62 @@ type ChatContent =
   | string
   | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }>;
 
-async function pedirJSON(system: string, user: ChatContent, temperature = 0.8): Promise<Record<string, unknown>> {
-  const completion = await getOpenAI().chat.completions.create({
-    model: 'gpt-4o',
-    temperature,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: system },
-      // El SDK tipa content de user como string | array de partes; casteamos la unión.
-      { role: 'user', content: user as never },
-    ],
-  });
-  const text = completion.choices[0]?.message?.content || '{}';
-  return JSON.parse(text) as Record<string, unknown>;
+// Llama al mejor modelo disponible y devuelve el JSON parseado.
+// Si un modelo no existe/no está habilitado para la cuenta, baja al siguiente.
+async function pedirJSON(system: string, user: ChatContent): Promise<Record<string, unknown>> {
+  const base = process.env.CARRUSELES_MODEL
+    ? [process.env.CARRUSELES_MODEL, ...MODEL_CHAIN.filter(m => m !== process.env.CARRUSELES_MODEL)]
+    : MODEL_CHAIN;
+  const lista = _modeloOk ? [_modeloOk, ...base.filter(m => m !== _modeloOk)] : base;
+
+  let lastErr: unknown = null;
+  for (const model of lista) {
+    try {
+      const completion = await getOpenAI().chat.completions.create({
+        model,
+        response_format: { type: 'json_object' },
+        // Los gpt-5.x son razonadores: reasoning_effort y sin temperature.
+        ...(model.startsWith('gpt-5')
+          ? { reasoning_effort: 'low' as const }
+          : { temperature: 0.8 }),
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user as string | OpenAI.Chat.Completions.ChatCompletionContentPart[] },
+        ],
+      });
+      _modeloOk = model;
+      const text = completion.choices[0]?.message?.content || '{}';
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : '';
+      // Modelo inexistente / sin acceso / parámetro no soportado → siguiente de la lista.
+      if (/model|not found|does not exist|unsupported|access/i.test(msg)) {
+        console.error(`[carruseles] modelo ${model} no disponible:`, msg.slice(0, 160));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('ningún modelo disponible');
+}
+
+// Genera el carrusel completo; si la respuesta viene rota/incompleta, reintenta
+// UNA vez con una corrección explícita (evita el "no devolvió un carrusel usable").
+async function generarCarrusel(system: string, user: ChatContent): Promise<Carrusel> {
+  try {
+    const out = await pedirJSON(system, user);
+    const c = normalize(out);
+    if (c.slides.length >= 2) return c;
+    console.error('[carruseles] intento 1 sin slides usables:', JSON.stringify(out).slice(0, 400));
+  } catch (err) {
+    console.error('[carruseles] intento 1 falló:', err instanceof Error ? err.message.slice(0, 200) : String(err));
+  }
+  const out2 = await pedirJSON(
+    system + '\n\nATENCIÓN: tu respuesta anterior NO cumplió el formato (faltaron slides o el JSON vino incompleto). Devolvé ahora el JSON COMPLETO con la forma EXACTA pedida, con TODAS las slides.',
+    user,
+  );
+  return normalize(out2);
 }
 
 export async function POST(req: NextRequest) {
@@ -263,7 +330,7 @@ INSTRUCCIÓN DEL USUARIO: ${instruccion}
 
 Devolvé sólo el JSON con la slide reescrita.`.trim();
 
-      const out = await pedirJSON(SYSTEM_SLIDE, user, 0.8);
+      const out = await pedirJSON(SYSTEM_SLIDE, user);
       const nueva = sanitizeSlide(out.slide);
       if (!nueva.titulo && !nueva.cuerpo) {
         return Response.json({ error: 'La IA no devolvió una slide usable. Probá otra instrucción.' }, { status: 502 });
@@ -287,7 +354,7 @@ CANTIDAD DE CARRUSELES: exactamente ${cantidad}.
 
 Armá el plan. Devolvé sólo el JSON.`.trim();
 
-      const out = await pedirJSON(SYSTEM_PLAN, user, 0.9);
+      const out = await pedirJSON(SYSTEM_PLAN, user);
       const planRaw = Array.isArray(out.plan) ? out.plan : [];
       const plan: BriefLote[] = planRaw.map((b) => {
         const o = (b ?? {}) as Record<string, unknown>;
@@ -312,9 +379,10 @@ Armá el plan. Devolvé sólo el JSON.`.trim();
       numSlides: typeof body.numSlides === 'number' ? body.numSlides : undefined,
     };
     const imagenes = sanitizeImagenes(body.imagenes);
+    const transcript = typeof body.transcript === 'string' ? body.transcript.slice(0, 12000) : undefined;
     const conCapturas = inp.modo === 'adaptar' || inp.modo === 'diseno';
 
-    if (!conCapturas && !inp.idea.trim()) {
+    if (!conCapturas && !inp.idea.trim() && !transcript?.trim()) {
       return Response.json({ error: 'Escribí la idea o el tema del carrusel.' }, { status: 400 });
     }
     if (conCapturas && !imagenes.length) {
@@ -324,16 +392,15 @@ Armá el plan. Devolvé sólo el JSON.`.trim();
     const system = SYSTEM_PROMPT + (inp.modo === 'adaptar' ? EXTRA_ADAPTAR : inp.modo === 'diseno' ? EXTRA_DISENO : '');
     const user: ChatContent = conCapturas
       ? [
-          { type: 'text', text: buildUserMessage(inp) + `\n\nA continuación, las ${imagenes.length} capturas (en orden).` },
+          { type: 'text', text: buildUserMessage(inp, transcript) + `\n\nA continuación, las ${imagenes.length} capturas (en orden).` },
           ...imagenes.map((url) => ({ type: 'image_url' as const, image_url: { url, detail: 'high' as const } })),
         ]
-      : buildUserMessage(inp);
+      : buildUserMessage(inp, transcript);
 
-    const out = await pedirJSON(system, user, 0.8);
-    const carrusel = normalize(out);
+    const carrusel = await generarCarrusel(system, user);
 
     if (carrusel.slides.length < 2) {
-      return Response.json({ error: 'La IA no devolvió un carrusel usable. Probá de nuevo o reformulá la idea.' }, { status: 502 });
+      return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Probá con menos capturas o reformulá la idea.' }, { status: 502 });
     }
     // temaExtraido sólo tiene sentido en los modos con capturas.
     if (!conCapturas) delete carrusel.temaExtraido;

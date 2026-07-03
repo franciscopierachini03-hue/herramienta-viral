@@ -28,14 +28,20 @@ const TOOL_GRAD = 'linear-gradient(135deg, #10b981, #06b6d4)';
 const PREVIEW_W = 384; // ancho del preview en pantalla; el render de export es 1080
 const SCALE = PREVIEW_W / CARRUSEL_W;
 
-type ModoUI = 'idea' | 'adaptar' | 'diseno' | 'lote';
+type ModoUI = 'idea' | 'link' | 'adaptar' | 'diseno' | 'lote';
 
 const MODOS: { key: ModoUI; icon: string; label: string; desc: string }[] = [
   { key: 'idea', icon: '💡', label: 'Idea', desc: 'Escribí una idea y la IA arma todo.' },
+  { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pegá el link de un reel, TikTok o short: lo transcribo y lo convierto en carrusel.' },
   { key: 'adaptar', icon: '📸', label: 'Adaptar viral', desc: 'Capturas de un carrusel ajeno → lo rehace para tu nicho y clona su estilo.' },
   { key: 'diseno', icon: '🖼️', label: 'Mi diseño', desc: 'Subí tu plantilla → clona tu paleta y escribe el contenido encima.' },
   { key: 'lote', icon: '📅', label: 'Lote', desc: 'Un tema → plan de varios carruseles con ángulos distintos.' },
 ];
+
+// ¿El link es de una plataforma que el transcriptor entiende?
+function esLinkTranscribible(u: string): boolean {
+  return /^https?:\/\/(www\.)?(instagram\.com|tiktok\.com|youtube\.com|youtu\.be|facebook\.com|fb\.watch)\//i.test(u.trim());
+}
 
 const EJEMPLOS = [
   '5 errores que frenan tu crecimiento en redes',
@@ -82,6 +88,8 @@ async function comprimir(file: File, maxDim = 1100, calidad = 0.82): Promise<str
 export default function CarruselesPage() {
   // ── Entrada ──
   const [modo, setModo] = useState<ModoUI>('idea');
+  const [link, setLink] = useState('');          // modo 'link': URL del video
+  const [fase, setFase] = useState('');          // etiqueta de progreso del botón
   const [idea, setIdea] = useState('');
   const [nicho, setNicho] = useState('');
   const [tono, setTono] = useState('');
@@ -135,7 +143,12 @@ export default function CarruselesPage() {
       if (pre) {
         sessionStorage.removeItem('carruseles.prefill');
         const p = JSON.parse(pre);
-        if (p?.idea) { setModo('idea'); setIdea(String(p.idea).slice(0, 400)); }
+        // Con URL transcribible → modo link (transcribe el video y lo convierte);
+        // si no, la idea precargada al modo clásico.
+        if (p?.url && esLinkTranscribible(String(p.url))) {
+          setModo('link'); setLink(String(p.url));
+          if (p?.idea) setIdea(String(p.idea).slice(0, 400));
+        } else if (p?.idea) { setModo('idea'); setIdea(String(p.idea).slice(0, 400)); }
       }
     } catch { /* ignore */ }
   }, []);
@@ -191,26 +204,54 @@ export default function CarruselesPage() {
 
   async function generar(ideaParam?: string, modoParam?: 'idea' | 'adaptar' | 'diseno') {
     if (busy) return;
-    const elModo = modoParam ?? (modo === 'lote' ? 'idea' : modo);
+    const esLink = !modoParam && modo === 'link';
+    const elModo = modoParam ?? (modo === 'lote' || modo === 'link' ? 'idea' : modo);
     const laIdea = (ideaParam ?? idea).trim();
     const conCapturas = elModo === 'adaptar' || elModo === 'diseno';
 
-    if (!conCapturas && !laIdea) { setError('Escribí la idea o el tema del carrusel.'); return; }
+    if (esLink && !esLinkTranscribible(link)) { setError('Pegá un link de Instagram, TikTok, YouTube o Facebook.'); return; }
+    if (!esLink && !conCapturas && !laIdea) { setError('Escribí la idea o el tema del carrusel.'); return; }
     if (conCapturas && imagenes.length === 0) { setError('Subí al menos una captura (arrastrá, pegá con ⌘V o tocá el recuadro).'); return; }
     if (elModo === 'diseno' && !laIdea) { setError('Escribí la idea del carrusel (el diseño pone el estilo, la idea pone el contenido).'); return; }
+
+    setBusy(true); setError(''); setCarrusel(null); setActiva(0);
+
+    // Modo link: primero transcribimos el video (misma infra que "Transcribir").
+    let transcript = '';
+    if (esLink) {
+      setFase('🎧 Transcribiendo el video…');
+      try {
+        const rt = await fetch('/api/transcribir', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: link.trim() }),
+        });
+        const dt: Record<string, unknown> = await rt.json().catch(() => ({}));
+        const texto = typeof dt.texto === 'string' ? dt.texto : '';
+        if (!rt.ok || !texto) {
+          setError(typeof dt.error === 'string' ? dt.error : 'No se pudo transcribir el video. Probá con otro link.');
+          setBusy(false); setFase(''); return;
+        }
+        transcript = texto;
+      } catch {
+        setError('Error de conexión transcribiendo el video.');
+        setBusy(false); setFase(''); return;
+      }
+    }
+
+    setFase(conCapturas ? '🧬 Analizando capturas y escribiendo…' : '🎠 Armando el carrusel…');
 
     // Chequeo de peso ANTES de mandar: si el pedido supera el límite del server
     // (4.5MB), Vercel lo corta con un 413 que ni llega a nuestra función.
     const body = JSON.stringify({
       modo: elModo, idea: laIdea, nicho, tono, cta, numSlides,
       ...(conCapturas ? { imagenes } : {}),
+      ...(transcript ? { transcript } : {}),
     });
     if (body.length > 3_800_000) {
       setError('Las capturas pesan demasiado para mandarlas juntas. Sacá alguna (con 3-5 alcanza para leer el estilo) e intentá de nuevo.');
-      return;
+      setBusy(false); setFase(''); return;
     }
 
-    setBusy(true); setError(''); setCarrusel(null); setActiva(0);
     try {
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -235,7 +276,7 @@ export default function CarruselesPage() {
         }
       }
     } catch { setError('Error de conexión. Probá de nuevo.'); }
-    setBusy(false);
+    setBusy(false); setFase('');
   }
 
   async function generarPlan() {
@@ -402,6 +443,7 @@ export default function CarruselesPage() {
 
   const labelGenerar = modo === 'adaptar' ? '🧬 Adaptar a mi carrusel'
     : modo === 'diseno' ? '🎨 Escribir sobre mi diseño'
+    : modo === 'link' ? '🔗 Transcribir y armar carrusel'
     : '✨ Generar carrusel';
 
   return (
@@ -424,7 +466,7 @@ export default function CarruselesPage() {
               <h2 className="text-lg font-bold mb-3">1 · Punto de partida</h2>
 
               {/* Tabs de modo */}
-              <div className="grid grid-cols-4 gap-1.5 mb-2">
+              <div className="grid grid-cols-5 gap-1.5 mb-2">
                 {MODOS.map(m => (
                   <button key={m.key} onClick={() => { setModo(m.key); setError(''); }}
                     className="rounded-xl px-1 py-2 text-center transition-all"
@@ -452,10 +494,18 @@ export default function CarruselesPage() {
                 />
               )}
 
+              {/* Link del video (modo link) */}
+              {modo === 'link' && (
+                <input value={link} onChange={e => setLink(e.target.value)} inputMode="url"
+                  placeholder="https://www.instagram.com/reel/…  (IG, TikTok, YouTube, Facebook)"
+                  className={input + ' mb-3'} style={inputStyle} />
+              )}
+
               {/* Idea / tema */}
               <textarea value={idea} onChange={e => setIdea(e.target.value)} rows={3} maxLength={400}
                 placeholder={
                   modo === 'adaptar' ? 'Opcional: ¿para qué nicho o con qué giro lo adaptamos? Ej: finanzas para creadores…'
+                  : modo === 'link' ? 'Opcional: tu giro o nicho. Ej: adaptalo a bienes raíces, tono más polémico…'
                   : modo === 'diseno' ? 'La idea del carrusel. Ej: 5 errores que frenan tu crecimiento…'
                   : modo === 'lote' ? 'El tema o nicho del plan. Ej: marca personal para agentes inmobiliarios…'
                   : 'Ej: 5 errores que frenan tu crecimiento en redes…'
@@ -509,7 +559,7 @@ export default function CarruselesPage() {
                   <button onClick={() => void generar()} disabled={busy}
                     className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 mt-1"
                     style={{ background: TOOL_GRAD, color: '#04211c' }}>
-                    {busy ? (conCapturas ? 'Analizando capturas y generando…' : 'Generando tu carrusel…') : labelGenerar}
+                    {busy ? (fase || 'Generando…') : labelGenerar}
                   </button>
                 </>
               ) : (

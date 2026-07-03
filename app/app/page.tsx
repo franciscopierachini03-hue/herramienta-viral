@@ -134,9 +134,15 @@ function proxyThumb(url: string | undefined, platform: string): string | undefin
   return url;
 }
 
-// Manda un video del buscador a la máquina de carruseles con la idea precargada.
+// Manda un video del buscador a la máquina de carruseles. Con URL, la máquina
+// lo abre en modo "De un link" (transcribe el video y lo convierte en carrusel).
 function mandarACarrusel(v: Video) {
-  try { sessionStorage.setItem('carruseles.prefill', JSON.stringify({ idea: (v.title || '').slice(0, 400) })); } catch { /* ignore */ }
+  try {
+    sessionStorage.setItem('carruseles.prefill', JSON.stringify({
+      idea: (v.title || '').slice(0, 400),
+      url: v.url || '',
+    }));
+  } catch { /* ignore */ }
   window.location.assign('/carruseles');
 }
 
