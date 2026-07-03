@@ -164,13 +164,29 @@ export default function CarruselesPage() {
   const slides = carrusel?.slides ?? [];
   const slideActiva = slides[activa];
 
+  // Presupuesto TOTAL de capturas en base64. Vercel rechaza requests de más de
+  // 4.5MB con un 413 ANTES de llegar a nuestra función, así que nos quedamos
+  // bien abajo (≈2.3MB binario) y comprimimos más fuerte si hace falta.
+  const BUDGET_IMAGENES = 3_200_000;
+
   async function agregarImagenes(files: File[]) {
+    setError('');
+    let total = imagenes.reduce((n, s) => n + s.length, 0);
     const nuevas: string[] = [];
+    let capado = false;
     for (const f of files) {
-      const d = await comprimir(f);
-      if (d) nuevas.push(d);
+      if (imagenes.length + nuevas.length >= 8) { capado = true; break; }
+      let d = await comprimir(f, 1000, 0.8);
+      if (!d) continue;
+      if (total + d.length > BUDGET_IMAGENES) {
+        d = await comprimir(f, 720, 0.66); // más liviana: la IA la lee igual de bien
+        if (!d || total + d.length > BUDGET_IMAGENES) { capado = true; break; }
+      }
+      total += d.length;
+      nuevas.push(d);
     }
     if (nuevas.length) setImagenes(prev => [...prev, ...nuevas].slice(0, 8));
+    if (capado) setError('Llegamos al tope de peso/cantidad de capturas. Con las que ya subiste alcanza para leer el estilo y la estructura.');
   }
 
   async function generar(ideaParam?: string, modoParam?: 'idea' | 'adaptar' | 'diseno') {
@@ -183,17 +199,32 @@ export default function CarruselesPage() {
     if (conCapturas && imagenes.length === 0) { setError('Subí al menos una captura (arrastrá, pegá con ⌘V o tocá el recuadro).'); return; }
     if (elModo === 'diseno' && !laIdea) { setError('Escribí la idea del carrusel (el diseño pone el estilo, la idea pone el contenido).'); return; }
 
+    // Chequeo de peso ANTES de mandar: si el pedido supera el límite del server
+    // (4.5MB), Vercel lo corta con un 413 que ni llega a nuestra función.
+    const body = JSON.stringify({
+      modo: elModo, idea: laIdea, nicho, tono, cta, numSlides,
+      ...(conCapturas ? { imagenes } : {}),
+    });
+    if (body.length > 3_800_000) {
+      setError('Las capturas pesan demasiado para mandarlas juntas. Sacá alguna (con 3-5 alcanza para leer el estilo) e intentá de nuevo.');
+      return;
+    }
+
     setBusy(true); setError(''); setCarrusel(null); setActiva(0);
     try {
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modo: elModo, idea: laIdea, nicho, tono, cta, numSlides,
-          ...(conCapturas ? { imagenes } : {}),
-        }),
+        body,
       });
-      const d = await res.json();
-      if (!res.ok) { setError(d.error || 'No se pudo generar.'); }
+      // Respuesta defensiva: un 413 del borde de Vercel devuelve texto plano, no JSON.
+      const raw = await res.text();
+      let d: Record<string, unknown> = {};
+      try { d = JSON.parse(raw); } catch { /* no-JSON */ }
+      if (!res.ok) {
+        setError(typeof d.error === 'string' ? d.error
+          : res.status === 413 ? 'Las capturas pesan demasiado (límite del servidor). Sacá alguna e intentá de nuevo.'
+          : `No se pudo generar (HTTP ${res.status}). Probá de nuevo.`);
+      }
       else {
         const c = d as Carrusel;
         setCarrusel(c); exportRefs.current = [];
