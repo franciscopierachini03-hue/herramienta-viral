@@ -15,6 +15,10 @@ import type { Carrusel, CarruselInput, Slide, TemaExtraido, BriefLote } from '@/
 //   'slide'      → regenerar UNA slide con una instrucción (editor fino).
 //   'plan'       → plan de lote: N ideas de carrusel con ángulos distintos.
 //   'fondo'      → imagen de fondo para una slide (gpt-image, misma API key).
+//   'link'       → link de Instagram: si el post es un carrusel/imagen, baja sus
+//                  fotos (looter2, la misma API del transcriptor) y lo ADAPTA
+//                  directo con visión; si es un video, responde {transcribir:true}
+//                  y el cliente sigue por /api/transcribir.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -132,7 +136,7 @@ function buildUserMessage(inp: CarruselInput, transcript?: string): string {
     ? 'ADAPTAR PARA (mi nicho / tema / giro que quiero darle):'
     : 'IDEA / TEMA DEL CARRUSEL:';
   const bloqueTranscript = transcript?.trim()
-    ? `\nTRANSCRIPCIÓN DEL VIDEO VIRAL DE REFERENCIA (convertí SU contenido en el carrusel: mantené sus ideas, datos y ganchos fuertes, reescrito al formato carrusel — no copies literal ni menciones "el video"):\n"""\n${transcript.trim().slice(0, 8000)}\n"""\n`
+    ? `\nCONTENIDO DE LA REFERENCIA — transcripción del video o caption del post (convertí SU contenido en el carrusel: mantené sus ideas, datos y ganchos fuertes, reescrito al formato carrusel — no copies literal ni menciones "el video" o "el post"):\n"""\n${transcript.trim().slice(0, 8000)}\n"""\n`
     : '';
   return `
 ${etiquetaIdea}
@@ -280,6 +284,75 @@ async function pedirJSON(system: string, user: ChatContent): Promise<Record<stri
   throw lastErr instanceof Error ? lastErr : new Error('ningún modelo disponible');
 }
 
+// ── Link de Instagram (modo 'link') ─────────────────────────────────────────
+// Lee el post con instagram-looter2 (la misma API que usa el transcriptor).
+const g = (o: unknown, k: string): unknown =>
+  (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined);
+
+type InfoPost =
+  | { tipo: 'video' }
+  | { tipo: 'imagenes'; urls: string[]; caption: string }
+  | { tipo: 'error'; error: string };
+
+async function inspeccionarInstagram(url: string): Promise<InfoPost> {
+  const key = process.env.RAPIDAPI_KEY;
+  if (!key) return { tipo: 'error', error: 'Falta configurar RAPIDAPI_KEY para leer posts de Instagram.' };
+  try {
+    const res = await fetch(`https://instagram-looter2.p.rapidapi.com/post?link=${encodeURIComponent(url)}`, {
+      headers: { 'x-rapidapi-host': 'instagram-looter2.p.rapidapi.com', 'x-rapidapi-key': key },
+    });
+    const data: unknown = await res.json().catch(() => ({}));
+    const item = Array.isArray(data) ? data[0] : data;
+    if (!res.ok || !item) return { tipo: 'error', error: 'No se pudo leer el post de Instagram. ¿Es público?' };
+    if (/exceeded|quota|plan|limit/i.test(String(g(item, 'message') || ''))) {
+      return { tipo: 'error', error: 'Se agotó el cupo de lecturas de Instagram. Probá más tarde.' };
+    }
+
+    // Reel / video → lo transcribe el flujo de video (cliente → /api/transcribir).
+    if (g(item, 'is_video') === true || typeof g(item, 'video_url') === 'string') return { tipo: 'video' };
+
+    // Carrusel: hijos del sidecar; post simple: display_url del propio item.
+    const edges = g(g(item, 'edge_sidecar_to_children'), 'edges');
+    const urls: string[] = [];
+    if (Array.isArray(edges)) {
+      for (const e of edges) {
+        const node = g(e, 'node');
+        if (g(node, 'is_video') === true) continue;
+        const du = g(node, 'display_url');
+        if (typeof du === 'string' && du.startsWith('http')) urls.push(du);
+      }
+    }
+    if (!urls.length) {
+      const du = g(item, 'display_url');
+      if (typeof du === 'string' && du.startsWith('http')) urls.push(du);
+    }
+    if (!urls.length) return { tipo: 'error', error: 'El post no tiene imágenes ni video legibles.' };
+
+    const capEdges = g(g(item, 'edge_media_to_caption'), 'edges');
+    const caption = String(g(g(Array.isArray(capEdges) ? capEdges[0] : undefined, 'node'), 'text') || '');
+    return { tipo: 'imagenes', urls: urls.slice(0, 8), caption };
+  } catch {
+    return { tipo: 'error', error: 'No se pudo leer el post de Instagram.' };
+  }
+}
+
+// Baja las imágenes del post y las convierte a dataURL (el CDN de Instagram no
+// siempre deja que OpenAI las lea directo; en base64 nunca falla).
+async function descargarImagenes(urls: string[]): Promise<string[]> {
+  const bajadas = await Promise.all(urls.map(async (u) => {
+    try {
+      const r = await fetch(u);
+      if (!r.ok) return null;
+      const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      if (!mime.startsWith('image/')) return null;
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 1_800_000) return null; // demasiado pesada, la salteamos
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    } catch { return null; }
+  }));
+  return bajadas.filter((x): x is string => !!x);
+}
+
 // Genera una imagen de fondo con gpt-image (misma key de OpenAI). JPEG comprimido
 // para que la respuesta viaje liviana y el export a PNG no arrastre peso de más.
 async function generarImagen(prompt: string): Promise<string> {
@@ -379,6 +452,46 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
       // El tipo de slide no cambia desde acá (el rol lo define su posición).
       nueva.tipo = slide.tipo;
       return Response.json({ slide: nueva });
+    }
+
+    // ── 'link': post de Instagram → carrusel de imágenes se adapta directo ───
+    if (accion === 'link') {
+      const url = String(body.url || '').trim().slice(0, 500);
+      if (!/^https?:\/\/(www\.)?instagram\.com\//i.test(url)) {
+        // No es Instagram → es un video: que el cliente siga por /api/transcribir.
+        return Response.json({ transcribir: true });
+      }
+      const info = await inspeccionarInstagram(url);
+      if (info.tipo === 'error') return Response.json({ error: info.error }, { status: 502 });
+      if (info.tipo === 'video') return Response.json({ transcribir: true });
+
+      const imagenes = await descargarImagenes(info.urls);
+      if (!imagenes.length) {
+        return Response.json({ error: 'No pude bajar las imágenes del post. Sacale capturas y usá el modo Adaptar.' }, { status: 502 });
+      }
+
+      const inp: CarruselInput = {
+        modo: 'adaptar',
+        idea: String(body.idea || ''),
+        nicho: typeof body.nicho === 'string' ? body.nicho : undefined,
+        tono: typeof body.tono === 'string' ? body.tono : undefined,
+        cta: typeof body.cta === 'string' ? body.cta : undefined,
+        numSlides: typeof body.numSlides === 'number' ? body.numSlides : undefined,
+      };
+      const system = SYSTEM_PROMPT + EXTRA_ADAPTAR;
+      const user: ChatContent = [
+        {
+          type: 'text',
+          text: buildUserMessage(inp, info.caption ? `(Caption del post original)\n${info.caption}` : undefined)
+            + `\n\nA continuación, las ${imagenes.length} slides del carrusel de referencia (en orden).`,
+        },
+        ...imagenes.map((u) => ({ type: 'image_url' as const, image_url: { url: u, detail: 'high' as const } })),
+      ];
+      const carrusel = await generarCarrusel(system, user);
+      if (carrusel.slides.length < 2) {
+        return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Probá de nuevo.' }, { status: 502 });
+      }
+      return Response.json(carrusel);
     }
 
     // ── 'fondo': imagen de fondo para una slide (gpt-image) ──────────────────

@@ -32,15 +32,25 @@ type ModoUI = 'idea' | 'link' | 'adaptar' | 'diseno' | 'lote';
 
 const MODOS: { key: ModoUI; icon: string; label: string; desc: string }[] = [
   { key: 'idea', icon: '💡', label: 'Idea', desc: 'Escribí una idea y la IA arma todo.' },
-  { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pegá el link de un reel, TikTok o short: lo transcribo y lo convierto en carrusel.' },
+  { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pegá un link: un video se transcribe; un carrusel de Instagram se adapta con sus imágenes.' },
   { key: 'adaptar', icon: '📸', label: 'Adaptar viral', desc: 'Capturas de un carrusel ajeno → lo rehace para tu nicho y clona su estilo.' },
   { key: 'diseno', icon: '🖼️', label: 'Mi diseño', desc: 'Subí tu plantilla → clona tu paleta y escribe el contenido encima.' },
   { key: 'lote', icon: '📅', label: 'Lote', desc: 'Un tema → plan de varios carruseles con ángulos distintos.' },
 ];
 
-// ¿El link es de una plataforma que el transcriptor entiende?
+// ¿De qué plataforma es el link? (decide el flujo: IG puede ser carrusel de
+// imágenes → adaptar directo; el resto siempre es video → transcribir)
+function plataformaDe(u: string): 'instagram' | 'tiktok' | 'youtube' | 'facebook' | null {
+  const s = u.trim().toLowerCase();
+  if (!/^https?:\/\//.test(s)) return null;
+  if (s.includes('instagram.com/')) return 'instagram';
+  if (s.includes('tiktok.com/')) return 'tiktok';
+  if (s.includes('youtube.com/') || s.includes('youtu.be/')) return 'youtube';
+  if (s.includes('facebook.com/') || s.includes('fb.watch/')) return 'facebook';
+  return null;
+}
 function esLinkTranscribible(u: string): boolean {
-  return /^https?:\/\/(www\.)?(instagram\.com|tiktok\.com|youtube\.com|youtu\.be|facebook\.com|fb\.watch)\//i.test(u.trim());
+  return plataformaDe(u) !== null;
 }
 
 const EJEMPLOS = [
@@ -216,14 +226,45 @@ export default function CarruselesPage() {
 
     setBusy(true); setError(''); setCarrusel(null); setActiva(0);
 
-    // Modo link: primero transcribimos el video (misma infra que "Transcribir").
+    // Modo link. Instagram primero pasa por el inspector del server: si el post
+    // es un carrusel/imagen, vuelve YA adaptado (visión); si es video, seguimos
+    // por transcripción. Las otras plataformas siempre son video.
     let transcript = '';
     if (esLink) {
+      const u = link.trim();
+      const plataforma = plataformaDe(u);
+
+      if (plataforma === 'instagram') {
+        setFase('🔎 Leyendo el post de Instagram…');
+        try {
+          const ri = await fetch('/api/carruseles', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accion: 'link', url: u, idea: laIdea, nicho, tono, cta, numSlides }),
+          });
+          const rawI = await ri.text();
+          let di: Record<string, unknown> = {};
+          try { di = JSON.parse(rawI); } catch { /* no-JSON */ }
+          if (!ri.ok) {
+            setError(typeof di.error === 'string' ? di.error : `No se pudo leer el post (HTTP ${ri.status}).`);
+            setBusy(false); setFase(''); return;
+          }
+          if (!di.transcribir) {
+            // Era un carrusel/imagen: llegó el carrusel completo, adaptado y con estilo clonado.
+            aplicarCarrusel(di as unknown as Carrusel);
+            setBusy(false); setFase(''); return;
+          }
+          // Era un video → seguimos al flujo de transcripción.
+        } catch {
+          setError('Error de conexión leyendo el post.');
+          setBusy(false); setFase(''); return;
+        }
+      }
+
       setFase('🎧 Transcribiendo el video…');
       try {
         const rt = await fetch('/api/transcribir', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: link.trim() }),
+          body: JSON.stringify({ url: u, platform: plataforma }),
         });
         const dt: Record<string, unknown> = await rt.json().catch(() => ({}));
         const texto = typeof dt.texto === 'string' ? dt.texto : '';
@@ -267,13 +308,7 @@ export default function CarruselesPage() {
           : `No se pudo generar (HTTP ${res.status}). Probá de nuevo.`);
       }
       else {
-        const c = d as Carrusel;
-        setCarrusel(c); exportRefs.current = [];
-        if (c.temaExtraido) {
-          const t = temaDesdeExtraido(c.temaExtraido);
-          setTemaClonado(t);
-          setTemaKey(TEMA_CLONADO_KEY);
-        }
+        aplicarCarrusel(d as unknown as Carrusel);
       }
     } catch { setError('Error de conexión. Probá de nuevo.'); }
     setBusy(false); setFase('');
@@ -299,6 +334,16 @@ export default function CarruselesPage() {
     setModo('idea');
     setIdea(b.idea);
     void generar(b.idea, 'idea');
+  }
+
+  // Aplica un carrusel recibido de la API (y su tema clonado, si vino).
+  function aplicarCarrusel(c: Carrusel) {
+    setCarrusel(c);
+    exportRefs.current = [];
+    if (c.temaExtraido) {
+      setTemaClonado(temaDesdeExtraido(c.temaExtraido));
+      setTemaKey(TEMA_CLONADO_KEY);
+    }
   }
 
   function editarSlide(patch: Partial<Slide>) {
