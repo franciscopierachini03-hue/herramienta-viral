@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { getAccess } from '@/lib/access';
-import type { Carrusel, CarruselInput, Slide, TemaExtraido, BriefLote } from '@/lib/carruseles';
+import type { Carrusel, CarruselInput, Slide, TemaExtraido, DisenoTema, BriefLote } from '@/lib/carruseles';
 
 // POST /api/carruseles — el cerebro de la máquina de carruseles.
 //
@@ -98,22 +98,27 @@ Devolvé ÚNICAMENTE un objeto JSON válido con EXACTAMENTE esta forma (sin text
 }
 La primera slide debe ser tipo "hook", la penúltima tipo "resumen" y la última tipo "cta". El resto, "contenido". El "cuerpo" puede ir vacío ("") en el hook si la frase se basta sola. "pie" y "stat" son opcionales (pueden ser "").`;
 
+// Spec compartida del campo temaExtraido (paleta + composición/diseño).
+const TEMA_SPEC = `"temaExtraido": { "nombre": string (2-3 palabras que describan el estilo), "bg": string (color css o gradiente css del fondo), "fg": string hex (texto principal), "muted": string hex (texto secundario), "accent": string hex (color de acento dominante), "onAccent": string hex (texto legible ENCIMA del accent), "panel": string rgba (fondo de etiquetas, del accent al ~12% de opacidad), "dark": boolean, "serif": boolean (true si los títulos se ven serif/editoriales), "notas": string (1 frase del look), "diseno": { "composicion": "centrado" | "izquierda" (¿el bloque de texto vive CENTRADO en el medio de la slide, o arriba/izquierda?), "resaltado": "marcador" | "ninguno" (¿pinta palabras clave con resaltador/marcador?), "colorResaltado": string hex (color del marcador), "subrayadoMano": boolean (¿subraya palabras con un trazo dibujado a mano?), "colorSubrayado": string hex, "mostrarKicker": boolean (¿usa etiquetas/chips tipo "PASO 1" arriba?), "mostrarProgreso": boolean (¿muestra puntos/barra de progreso?), "mostrarPie": boolean (¿muestra "desliza"/flecha al pie?) } }
+   Los colores y el diseño tienen que salir de las capturas, no inventados. El objetivo es que una slide generada se confunda con una slide de la referencia.
+
+REALCE DE PALABRAS (sólo si la referencia lo usa): si detectaste marcador o subrayado a mano, envolvé LA palabra con más carga de cada título así: ==palabra== (marcador) o __palabra__ (subrayado a mano). Máximo 1-2 realces por slide, sólo en títulos. Si la referencia no destaca palabras, NO uses estos tokens.`;
+
 // Instrucciones extra para los modos con capturas. Se suman al SYSTEM_PROMPT.
 const EXTRA_ADAPTAR = `
 
 MODO ADAPTAR — el usuario te pasa capturas de un carrusel AJENO que funcionó:
 1. Detectá su mecánica: tipo de gancho, estructura, ritmo, por qué retiene y por qué se guarda.
 2. Escribí un carrusel NUEVO y ORIGINAL para el nicho/tema del usuario aplicando esa mecánica. PROHIBIDO copiar o parafrasear frase por frase: cambiá ejemplos, ángulo y voz. Si la referencia está en otro idioma, tu resultado va en español.
-3. Devolvé ADEMÁS el campo "temaExtraido" con el estilo visual de la referencia:
-   "temaExtraido": { "nombre": string (2-3 palabras que describan el estilo), "bg": string (color css o gradiente css del fondo), "fg": string hex (texto principal), "muted": string hex (texto secundario), "accent": string hex (color de acento dominante), "onAccent": string hex (texto legible ENCIMA del accent), "panel": string rgba (fondo de etiquetas, del accent al ~12% de opacidad), "dark": boolean, "serif": boolean (true si los títulos se ven serif/editoriales), "notas": string (1 frase del look) }
-   Los colores tienen que salir de las capturas, no inventados.
+3. Devolvé ADEMÁS el campo "temaExtraido" con el estilo Y EL DISEÑO de la referencia:
+   ${TEMA_SPEC}
 4. Si las capturas NO parecen un carrusel (una pantalla entera de computadora, una foto suelta, un meme), NO te trabes ni devuelvas vacío: extraé el temaExtraido de los colores dominantes de la imagen y generá el carrusel completo usando la IDEA dada.`;
 
 const EXTRA_DISENO = `
 
 MODO MI DISEÑO — las capturas son la PLANTILLA/diseño PROPIO del usuario:
-1. Devolvé el campo "temaExtraido" (misma forma que abajo) clavando la paleta EXACTA de las capturas (hex) y si los títulos son serif:
-   "temaExtraido": { "nombre": string, "bg": string, "fg": string, "muted": string, "accent": string, "onAccent": string, "panel": string, "dark": boolean, "serif": boolean, "notas": string }
+1. Devolvé el campo "temaExtraido" clavando la paleta EXACTA de las capturas (hex), la tipografía y el diseño:
+   ${TEMA_SPEC}
 2. Escribí el carrusel sobre la IDEA dada, con longitudes de texto parecidas a las que se ven en el diseño (que el texto quepa cómodo en esa plantilla).
 3. Si las capturas no se entienden, extraé el tema de los colores dominantes igual y generá el carrusel completo con la IDEA dada.`;
 
@@ -178,6 +183,21 @@ function cssColor(v: unknown, fallback: string): string {
   return s && /^[#a-zA-Z0-9(),.%\s\/-]+$/.test(s) ? s : fallback;
 }
 
+function sanitizeDiseno(raw: unknown): DisenoTema | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  return {
+    composicion: o.composicion === 'centrado' ? 'centrado' : 'izquierda',
+    resaltado: o.resaltado === 'marcador' ? 'marcador' : 'ninguno',
+    colorResaltado: cssColor(o.colorResaltado, '#fde047'),
+    subrayadoMano: !!o.subrayadoMano,
+    colorSubrayado: cssColor(o.colorSubrayado, '#ef4444'),
+    mostrarKicker: o.mostrarKicker !== false,
+    mostrarProgreso: o.mostrarProgreso !== false,
+    mostrarPie: o.mostrarPie !== false,
+  };
+}
+
 function sanitizeTema(raw: unknown): TemaExtraido | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
@@ -193,6 +213,7 @@ function sanitizeTema(raw: unknown): TemaExtraido | undefined {
     dark,
     serif: !!o.serif,
     notas: typeof o.notas === 'string' ? o.notas.slice(0, 200) : '',
+    diseno: sanitizeDiseno(o.diseno),
   };
 }
 

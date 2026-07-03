@@ -34,6 +34,20 @@ export type ScoreViral = {
   mejoras: string[];      // 2-4 mejoras accionables
 };
 
+// Diseño/composición extraídos de la referencia — va más allá de la paleta:
+// dónde vive el texto, con qué recursos destaca palabras y qué "muebles"
+// (etiqueta, progreso, pie) usa. El render (SlideView) respeta todo esto.
+export type DisenoTema = {
+  composicion: 'centrado' | 'izquierda'; // bloque de texto centrado vs arriba-izquierda
+  resaltado: 'marcador' | 'ninguno';     // ¿pinta palabras clave con resaltador?
+  colorResaltado: string;
+  subrayadoMano: boolean;                // ¿subraya palabras con trazo a mano?
+  colorSubrayado: string;
+  mostrarKicker: boolean;                // ¿usa etiquetas/chips arriba?
+  mostrarProgreso: boolean;              // ¿muestra los puntos de progreso?
+  mostrarPie: boolean;                   // ¿muestra "desliza →" al pie?
+};
+
 // Tema visual extraído por visión desde capturas (modos adaptar / mi diseño).
 export type TemaExtraido = {
   nombre: string;
@@ -46,6 +60,7 @@ export type TemaExtraido = {
   dark: boolean;
   serif: boolean;    // true si los títulos de la referencia se ven serif/editoriales
   notas?: string;    // descripción corta del estilo detectado
+  diseno?: DisenoTema;
 };
 
 export type Carrusel = {
@@ -96,6 +111,7 @@ export type Tema = {
   display: string;   // font-family de títulos
   body: string;      // font-family de cuerpo
   dark: boolean;     // true si el fondo es oscuro (define color de la barra de progreso)
+  diseno?: DisenoTema; // sólo en temas clonados: composición/recursos de la referencia
 };
 
 const SANS = 'var(--font-outfit, system-ui, -apple-system, sans-serif)';
@@ -192,7 +208,8 @@ export function temaDesdeExtraido(t: TemaExtraido): Tema {
     bg: t.bg, fg: t.fg, muted: t.muted, accent: t.accent, onAccent: t.onAccent,
     panel: t.panel, dark: !!t.dark,
     display: t.serif ? SERIF : DISPLAY,
-    body: SANS,
+    body: t.serif ? SERIF : SANS,
+    diseno: t.diseno,
   };
 }
 
