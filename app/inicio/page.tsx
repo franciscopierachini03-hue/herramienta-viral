@@ -9,13 +9,14 @@ import { TOOLS } from '@/lib/tools';
 export const dynamic = 'force-dynamic';
 
 export default async function Inicio() {
-  const { email, name, ent } = await getAccess();
+  const { email, name, ent, admin } = await getAccess();
   if (!email) redirect('/login?next=/inicio');
   const profile = { name };
 
   // Las cards salen de lib/tools.ts (fuente única). Cada una se desbloquea según
   // el entitlement que necesita. Sumar una herramienta = agregar 1 entrada allí.
-  const cards = TOOLS.map(t => ({
+  // Las herramientas adminOnly (Avatares IA, Carruseles) solo las ve el admin.
+  const cards = TOOLS.filter(t => !t.adminOnly || admin).map(t => ({
     ...t,
     // unlockOn:'any' → se abre con cualquier plan pago (add-ons por créditos);
     // si no, requiere el entitlement puntual del producto.

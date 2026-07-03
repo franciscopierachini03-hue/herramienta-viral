@@ -134,8 +134,37 @@ function proxyThumb(url: string | undefined, platform: string): string | undefin
   return url;
 }
 
+// Manda un video del buscador a la máquina de carruseles con la idea precargada.
+function mandarACarrusel(v: Video) {
+  try { sessionStorage.setItem('carruseles.prefill', JSON.stringify({ idea: (v.title || '').slice(0, 400) })); } catch { /* ignore */ }
+  window.location.assign('/carruseles');
+}
+
+// ¿Es admin? Un solo request compartido por todas las tarjetas (el botón 🎠
+// sólo se muestra al admin porque /carruseles es de administrador por ahora).
+let _esAdminPromise: Promise<boolean> | null = null;
+function esAdminOnce(): Promise<boolean> {
+  if (!_esAdminPromise) {
+    _esAdminPromise = fetch('/api/auth/is-admin', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { isAdmin: false }))
+      .then(d => !!d?.isAdmin)
+      .catch(() => false);
+  }
+  return _esAdminPromise;
+}
+function useEsAdmin(): boolean {
+  const [esAdmin, setEsAdmin] = useState(false);
+  useEffect(() => {
+    let cancel = false;
+    void esAdminOnce().then(ok => { if (!cancel) setEsAdmin(ok); });
+    return () => { cancel = true; };
+  }, []);
+  return esAdmin;
+}
+
 function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTranscribir: () => void }) {
   const plat = v.platform || 'youtube';
+  const esAdmin = useEsAdmin();
   const color = PLAT_COLOR[plat];
   const label = PLAT_LABEL[plat];
   const icon = PLAT_ICON[plat];
@@ -197,22 +226,33 @@ function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTrans
           </p>
         </a>
         <p className="text-xs mb-3 truncate" style={{ color: '#a1a1aa' }}>{v.channel}</p>
-        <button
-          onClick={onTranscribir}
-          className="mt-auto w-full py-2 text-xs font-semibold rounded-xl transition-all duration-200"
-          style={{ background: '#1a1a1a', border: `1px solid #2a2a2a`, color: '#aaa' }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.background = color;
-            (e.currentTarget as HTMLButtonElement).style.borderColor = color;
-            (e.currentTarget as HTMLButtonElement).style.color = '#000';
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a';
-            (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2a2a';
-            (e.currentTarget as HTMLButtonElement).style.color = '#aaa';
-          }}>
-          Transcribir →
-        </button>
+        <div className="mt-auto flex gap-1.5">
+          <button
+            onClick={onTranscribir}
+            className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all duration-200"
+            style={{ background: '#1a1a1a', border: `1px solid #2a2a2a`, color: '#aaa' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = color;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = color;
+              (e.currentTarget as HTMLButtonElement).style.color = '#000';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2a2a';
+              (e.currentTarget as HTMLButtonElement).style.color = '#aaa';
+            }}>
+            Transcribir →
+          </button>
+          {esAdmin && (
+            <button
+              onClick={() => mandarACarrusel(v)}
+              title="Convertir en carrusel"
+              className="px-3 py-2 text-xs font-semibold rounded-xl transition-all duration-200"
+              style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#7fd9c4' }}>
+              🎠
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -221,6 +261,7 @@ function VideoCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTrans
 function VideoCardVertical({ v, rank, onTranscribir }: { v: Video; rank: number; onTranscribir: () => void }) {
   const plat = v.platform || 'youtube';
   const color = PLAT_COLOR[plat];
+  const esAdmin = useEsAdmin();
 
   return (
     <div className="relative rounded-xl overflow-hidden group transition-all duration-200 hover:scale-[1.02]"
@@ -289,14 +330,24 @@ function VideoCardVertical({ v, rank, onTranscribir }: { v: Video; rank: number;
           )}
         </div>
 
-        {/* Transcribir btn — encima del link del card */}
-        <button onClick={e => { e.preventDefault(); e.stopPropagation(); onTranscribir(); }}
-          className="w-full py-1.5 rounded-lg text-[10px] font-bold text-white transition-all duration-200 opacity-0 group-hover:opacity-100 relative z-30"
-          style={{ background: `${color}bb`, backdropFilter: 'blur(6px)', border: `1px solid ${color}88` }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = color; (e.currentTarget as HTMLButtonElement).style.color = '#000'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${color}bb`; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}>
-          Transcribir →
-        </button>
+        {/* Transcribir + carrusel — encima del link del card */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 relative z-30">
+          <button onClick={e => { e.preventDefault(); e.stopPropagation(); onTranscribir(); }}
+            className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white transition-all duration-200"
+            style={{ background: `${color}bb`, backdropFilter: 'blur(6px)', border: `1px solid ${color}88` }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = color; (e.currentTarget as HTMLButtonElement).style.color = '#000'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${color}bb`; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}>
+            Transcribir →
+          </button>
+          {esAdmin && (
+            <button onClick={e => { e.preventDefault(); e.stopPropagation(); mandarACarrusel(v); }}
+              title="Convertir en carrusel"
+              className="px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
+              style={{ background: 'rgba(16,185,129,0.72)', backdropFilter: 'blur(6px)', border: '1px solid rgba(16,185,129,0.5)', color: '#fff' }}>
+              🎠
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -331,6 +382,7 @@ function AnalyzeCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTra
   const plat = v.platform || 'youtube';
   const color = PLAT_COLOR[plat];
   const eng = engagementPct(v);
+  const esAdmin = useEsAdmin();
 
   return (
     <div
@@ -408,13 +460,23 @@ function AnalyzeCard({ v, rank, onTranscribir }: { v: Video; rank: number; onTra
           </div>
         )}
 
-        <button onClick={onTranscribir}
-          className="mt-1 w-full py-1.5 text-[10px] font-bold rounded-lg transition-all"
-          style={{ background: '#1a1a1a', border: `1px solid #2a2a2a`, color: '#aaa' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = color; (e.currentTarget as HTMLButtonElement).style.color = '#000'; (e.currentTarget as HTMLButtonElement).style.borderColor = color; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a'; (e.currentTarget as HTMLButtonElement).style.color = '#aaa'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2a2a'; }}>
-          Transcribir →
-        </button>
+        <div className="mt-1 flex gap-1">
+          <button onClick={onTranscribir}
+            className="flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all"
+            style={{ background: '#1a1a1a', border: `1px solid #2a2a2a`, color: '#aaa' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = color; (e.currentTarget as HTMLButtonElement).style.color = '#000'; (e.currentTarget as HTMLButtonElement).style.borderColor = color; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a'; (e.currentTarget as HTMLButtonElement).style.color = '#aaa'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#2a2a2a'; }}>
+            Transcribir →
+          </button>
+          {esAdmin && (
+            <button onClick={() => mandarACarrusel(v)}
+              title="Convertir en carrusel"
+              className="px-2.5 py-1.5 text-[10px] font-bold rounded-lg transition-all"
+              style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#7fd9c4' }}>
+              🎠
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

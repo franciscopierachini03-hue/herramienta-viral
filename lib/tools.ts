@@ -23,6 +23,7 @@ export type Tool = {
   producto: 'viraladn' | 'topcut' | 'combo'; // para el CTA de desbloqueo
   price: string;             // texto del precio en el CTA bloqueado
   includedNote?: string;     // ej. "Incluido con ViralADN"
+  adminOnly?: boolean;       // true = solo el admin la ve en el hub y puede entrar
   grad: string; border: string; glow: string; iconGlow: string;
   unlockBorder: string; unlockColor: string;
 };
@@ -51,11 +52,24 @@ export const TOOLS: Tool[] = [
     key: 'studio', name: 'Avatares IA', href: '/studio', icon: '🎭',
     desc: 'Crea tu avatar con IA y conviértelo en video. Tu foto cobra vida para tus reels.',
     needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
-    includedNote: 'Incluido con tu plan (por créditos)',
+    includedNote: 'Incluido con tu plan (por créditos)', adminOnly: true,
     grad: 'linear-gradient(135deg, #db2777, #f59e0b)',
     border: '#f472b644', glow: '#f472b614', iconGlow: '#f472b633',
     unlockBorder: '#f472b655', unlockColor: '#fbcfe8',
   },
-  // Guiones NO es card del hub: vive DENTRO de ViralADN (pestaña "📚 Guiones" en
-  // /app, con botón "Generar guion" → /guiones). Es parte del plan ViralADN.
+  {
+    key: 'carruseles', name: 'Carruseles', href: '/carruseles', icon: '🎠',
+    desc: 'De una idea a un carrusel listo para publicar: gancho, valor y CTA, con tu marca.',
+    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
+    includedNote: 'Incluido con tu plan', adminOnly: true,
+    grad: 'linear-gradient(135deg, #10b981, #06b6d4)',
+    border: '#10b98144', glow: '#10b98114', iconGlow: '#10b98133',
+    unlockBorder: '#10b98155', unlockColor: '#6ee7b7',
+  },
+  // Guiones y Teleprompter NO son cards del hub: viven DENTRO de ViralADN.
+  // - Guiones: pestaña "📚 Guiones" en /app, con botón "Generar guion" → /guiones.
+  // - Teleprompter (/teleprompter): se abre desde la pestaña "📚 Guiones" (botón
+  //   "🎬 Teleprompter" del encabezado y la acción por guion). Importa guiones de
+  //   la biblioteca para leerlos/grabarlos.
+  // Ambos son parte del plan ViralADN.
 ];
