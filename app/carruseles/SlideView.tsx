@@ -12,8 +12,32 @@
 // centrado, palabras con ==marcador== o __subrayado a mano__, y muebles
 // (kicker/progreso/pie) apagados si la referencia no los usa.
 
-import type { CSSProperties, ReactNode } from 'react';
-import { CARRUSEL_W, CARRUSEL_H, type Slide, type Tema, type BrandKit } from '@/lib/carruseles';
+import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { CARRUSEL_W, CARRUSEL_H, TEMA_CLONADO_KEY, type Slide, type Tema, type BrandKit } from '@/lib/carruseles';
+
+// ── Modo fiel: utilidades para parchear el HTML de la slide ────────────────
+// El HTML viene del server ya saneado; acá sólo se reemplazan textos por data-rol.
+export function patchHtml(html: string, rol: string, texto: string): string {
+  if (typeof DOMParser === 'undefined') return html; // SSR: sin tocar
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const el = doc.querySelector(`[data-rol="${rol}"]`);
+    if (!el) return html;
+    el.textContent = texto;
+    return doc.body.innerHTML;
+  } catch { return html; }
+}
+// Aplica todos los textos de la slide sobre su html (para ediciones/regeneraciones).
+export function patchRoles(html: string, s: Slide): string {
+  const limpio = (t?: string) => (t ?? '').replace(/==|__/g, '');
+  let h = html;
+  h = patchHtml(h, 'kicker', limpio(s.kicker));
+  h = patchHtml(h, 'titulo', limpio(s.titulo));
+  h = patchHtml(h, 'cuerpo', limpio(s.cuerpo));
+  h = patchHtml(h, 'pie', limpio(s.pie));
+  h = patchHtml(h, 'stat', limpio(s.stat));
+  return h;
+}
 
 // ── Realce de palabras: ==marcador== y __subrayado a mano__ ────────────────
 function estiloMarcador(color: string): CSSProperties {
@@ -54,6 +78,24 @@ export default function SlideView({ slide, tema, accent, brand, idx, total }: {
   const esUltima = idx === total - 1;
   const conFondo = !!slide.fondo;
   const dis = tema.diseno;
+
+  // MODO FIEL: si la slide trae su propio HTML (réplica de la referencia) y el
+  // tema activo es el clonado, se muestra ESE diseño. Sólo inyectamos el @handle.
+  const usarHtml = !!slide.html && tema.key === TEMA_CLONADO_KEY;
+  const htmlFiel = useMemo(() => {
+    if (!usarHtml || !slide.html) return '';
+    const handle = brand.handle ? (brand.handle.startsWith('@') ? brand.handle : '@' + brand.handle) : '';
+    return patchHtml(slide.html, 'handle', handle);
+  }, [usarHtml, slide.html, brand.handle]);
+
+  if (usarHtml) {
+    return (
+      <div
+        style={{ width: CARRUSEL_W, height: CARRUSEL_H, position: 'relative', overflow: 'hidden', background: '#ffffff' }}
+        dangerouslySetInnerHTML={{ __html: htmlFiel }}
+      />
+    );
+  }
 
   // Con imagen de fondo forzamos texto claro sobre velo oscuro (siempre legible).
   const fg = conFondo ? '#ffffff' : tema.fg;

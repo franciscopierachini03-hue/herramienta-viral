@@ -104,6 +104,21 @@ const TEMA_SPEC = `"temaExtraido": { "nombre": string (2-3 palabras que describa
 
 REALCE DE PALABRAS (sólo si la referencia lo usa): si detectaste marcador o subrayado a mano, envolvé LA palabra con más carga de cada título así: ==palabra== (marcador) o __palabra__ (subrayado a mano). Máximo 1-2 realces por slide, sólo en títulos. Si la referencia no destaca palabras, NO uses estos tokens.`;
 
+// Modo fiel (accion 'vestir'): reglas duras del HTML de una slide replicada.
+const HTML_SPEC = `El "html" es un único <div> raíz de EXACTAMENTE 1080×1350 px que replica el diseño de la referencia con el contenido dado — misma composición, jerarquía tipográfica, tamaños relativos, márgenes, alineación y recursos gráficos (marcador, subrayados a mano, formas, numeraciones). El objetivo: puesto al lado de la referencia, que parezca del MISMO autor. Reglas duras:
+- TODO con estilos inline (style="..."). PROHIBIDO <style>, <script>, class, id, recursos externos (<img src="http…">, url(http…)). Formas y subrayados: CSS puro o SVG inline / url(data:…).
+- Tipografías del sistema que más se parezcan: Georgia / 'Times New Roman' (serif editorial) o -apple-system / Arial (sans). Nada de @font-face.
+- El div raíz arranca: style="width:1080px;height:1350px;position:relative;overflow:hidden;…" con el fondo de la referencia.
+- Textos editables marcados con data-rol en el elemento que los contiene: data-rol="kicker" | "titulo" | "cuerpo" | "pie" | "stat". El nodo data-rol="cuerpo" es UN solo elemento de texto con white-space:pre-line en su style (los puntos de una lista van como líneas del mismo texto, con el símbolo que use la referencia). Incluí además un nodo con data-rol="handle" vacío, ubicado y estilado donde firma la referencia (o abajo a la izquierda, sutil, si no firma).
+- El texto del html es EL MISMO que titulo/cuerpo/kicker de esa slide, SIN los tokens == y __ (en html el realce va con spans estilados, como en la referencia).`;
+
+const SYSTEM_VESTIR = `Sos un maquetador pixel-perfect de slides de Instagram. Te paso capturas de un carrusel de REFERENCIA, su estilo extraído (paleta + diseño) y UNA slide nueva (sólo texto). Tu único trabajo: devolver esa slide "vestida" con el diseño de la referencia.
+
+${HTML_SPEC}
+- Es la slide N de M: si la referencia trata distinto la portada, las interiores y el cierre, respetá el patrón de ESA posición.
+
+Devolvé ÚNICAMENTE JSON válido: { "html": string }`;
+
 // Instrucciones extra para los modos con capturas. Se suman al SYSTEM_PROMPT.
 const EXTRA_ADAPTAR = `
 
@@ -126,7 +141,9 @@ const SYSTEM_SLIDE = `Sos un editor de slides de carruseles de Instagram. Te pas
 
 ${REGLAS_COPY}
 
-Devolvé ÚNICAMENTE JSON válido con esta forma exacta: { "slide": ${FORMA_SLIDE} }`;
+Si la slide trae un campo "html" (modo fiel a una referencia): devolvé también "html" actualizado manteniendo EXACTAMENTE la misma estructura, estilos inline y data-rol — sólo cambian los textos según la instrucción (salvo que la instrucción pida un cambio visual: ahí ajustá los estilos inline respetando el lenguaje del diseño). Mismas reglas duras: sin <style>/<script>/class/id ni recursos externos.
+
+Devolvé ÚNICAMENTE JSON válido con esta forma exacta: { "slide": ${FORMA_SLIDE.replace('"stat": string', '"stat": string, "html": string')} }`;
 
 const SYSTEM_PLAN = `Sos un estratega de contenido para Instagram. Armá un plan de carruseles sobre el tema/nicho dado. Cada carrusel ataca un ÁNGULO DISTINTO (lista práctica, error a evitar, mito vs. verdad, framework con nombre, historia/caso, contraste antes-después, pregunta incómoda, checklist, contraintuitivo…). Nada de repetir el mismo ángulo dos veces.
 
@@ -161,6 +178,20 @@ Generá el carrusel completo siguiendo la anatomía obligatoria. Devolvé sólo 
 // ── Saneo defensivo ──────────────────────────────────────────────────────────
 const LAYOUTS = new Set(['centrado', 'lista', 'stat', 'cita']);
 
+// HTML de slide (modo fiel): sin scripts/eventos/recursos externos; el render lo
+// inyecta con dangerouslySetInnerHTML, así que acá se corta todo lo peligroso.
+function sanitizeHtmlSlide(v: unknown): string {
+  if (typeof v !== 'string' || !v.trim()) return '';
+  let h = v.slice(0, 14000);
+  h = h.replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form)[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  h = h.replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form)[^>]*\/?\s*>/gi, '');
+  h = h.replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  h = h.replace(/javascript\s*:/gi, '');
+  h = h.replace(/url\(\s*(['"]?)(?!\s*data:)[^)]*\)/gi, 'none');            // css: sólo data:
+  h = h.replace(/\s(src|href)\s*=\s*(["'])(?!data:)[^"']*\2/gi, '');        // src/href: sólo data:
+  return h;
+}
+
 function sanitizeSlide(s: unknown): Slide {
   const o = (s ?? {}) as Record<string, unknown>;
   const tipo = o.tipo === 'hook' || o.tipo === 'resumen' || o.tipo === 'cta' ? o.tipo : 'contenido';
@@ -173,6 +204,7 @@ function sanitizeSlide(s: unknown): Slide {
     cuerpo: typeof o.cuerpo === 'string' ? o.cuerpo : '',
     pie: typeof o.pie === 'string' ? o.pie : '',
     stat: typeof o.stat === 'string' ? o.stat.slice(0, 14) : '',
+    html: sanitizeHtmlSlide(o.html),
   };
 }
 
@@ -513,6 +545,47 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
         return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Probá de nuevo.' }, { status: 502 });
       }
       return Response.json(carrusel);
+    }
+
+    // ── 'vestir': réplica fiel — genera el HTML de cada slide EN PARALELO ────
+    // (separado de la generación para no chocar con el límite de 60s de Vercel)
+    if (accion === 'vestir') {
+      let refs = sanitizeImagenes(body.imagenes);
+      if (!refs.length) {
+        const url = String(body.url || '').trim();
+        if (/^https?:\/\/(www\.)?instagram\.com\//i.test(url)) {
+          const info = await inspeccionarInstagram(url);
+          if (info.tipo === 'imagenes') refs = await descargarImagenes(info.urls);
+        }
+      }
+      if (!refs.length) return Response.json({ error: 'Faltan las capturas de referencia para clonar el diseño.' }, { status: 400 });
+
+      const slidesIn = Array.isArray(body.slides) ? body.slides.map(sanitizeSlide).slice(0, 10) : [];
+      if (!slidesIn.length) return Response.json({ error: 'Faltan las slides a vestir.' }, { status: 400 });
+      const temaRef = sanitizeTema(body.temaExtraido);
+
+      // 3 capturas alcanzan para el lenguaje visual (primera/medio/última).
+      const refsMini = [refs[0], refs[Math.floor(refs.length / 2)], refs[refs.length - 1]]
+        .filter((v, i, a) => a.indexOf(v) === i);
+
+      const htmls = await Promise.all(slidesIn.map(async (s, i) => {
+        try {
+          const user: ChatContent = [
+            {
+              type: 'text',
+              text: `ESTILO EXTRAÍDO DE LA REFERENCIA:\n${JSON.stringify(temaRef ?? {})}\n\nSLIDE ${i + 1} de ${slidesIn.length} (tipo: ${s.tipo}):\n${JSON.stringify({ ...s, html: undefined, fondo: undefined })}\n\nCapturas de la referencia a continuación. Devolvé sólo el JSON { "html": ... }.`,
+            },
+            ...refsMini.map(u => ({ type: 'image_url' as const, image_url: { url: u, detail: 'low' as const } })),
+          ];
+          const out = await pedirJSON(SYSTEM_VESTIR, user);
+          return sanitizeHtmlSlide(out.html);
+        } catch { return ''; }
+      }));
+
+      if (!htmls.some(Boolean)) {
+        return Response.json({ error: 'No se pudo clonar el diseño esta vez. El carrusel queda con el render clásico.' }, { status: 502 });
+      }
+      return Response.json({ htmls });
     }
 
     // ── 'fondo': imagen de fondo para una slide (gpt-image) ──────────────────

@@ -22,6 +22,10 @@ export type Slide = {
   pie?: string;      // footer opcional (ej. "desliza →")
   stat?: string;     // layout 'stat': la cifra protagonista (ej. "87%", "x3", "0→100K")
   fondo?: string;    // dataURL de imagen de fondo (subida o generada) — opcional
+  html?: string;     // modo fiel (adaptar/diseño/link): la slide replicada TAL CUAL
+                     // la referencia, como HTML autocontenido 1080×1350 con estilos
+                     // inline y textos marcados con data-rol. Se usa cuando el tema
+                     // activo es el clonado; otras plantillas usan el render clásico.
 };
 
 export type ScoreViral = {

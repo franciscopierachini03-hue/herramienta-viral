@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ProductNav from '../_components/ProductNav';
 import AdminGate from '../_components/AdminGate';
-import SlideView from './SlideView';
+import SlideView, { patchRoles } from './SlideView';
 import {
   TEMAS, temaPorKey, temaDesdeExtraido, TEMA_CLONADO_KEY,
   BRAND_KIT_VACIO, CARRUSEL_W, CARRUSEL_H,
@@ -130,6 +130,7 @@ export default function CarruselesPage() {
   const [instruccion, setInstruccion] = useState('');
   const [regenBusy, setRegenBusy] = useState(false);
   const [fondoBusy, setFondoBusy] = useState(false);
+  const [vistiendo, setVistiendo] = useState(false); // clonando el diseño (modo fiel)
 
   const exportRefs = useRef<(HTMLDivElement | null)[]>([]);
   const fondoInputRef = useRef<HTMLInputElement>(null);
@@ -250,7 +251,9 @@ export default function CarruselesPage() {
           }
           if (!di.transcribir) {
             // Era un carrusel/imagen: llegó el carrusel completo, adaptado y con estilo clonado.
-            aplicarCarrusel(di as unknown as Carrusel);
+            const c = di as unknown as Carrusel;
+            aplicarCarrusel(c);
+            if (c.temaExtraido) void vestirCarrusel(c, { url: u }); // fase 2: réplica fiel
             setBusy(false); setFase(''); return;
           }
           // Era un video → seguimos al flujo de transcripción.
@@ -308,7 +311,10 @@ export default function CarruselesPage() {
           : `No se pudo generar (HTTP ${res.status}). Probá de nuevo.`);
       }
       else {
-        aplicarCarrusel(d as unknown as Carrusel);
+        const c = d as unknown as Carrusel;
+        aplicarCarrusel(c);
+        // Modos con capturas: fase 2 — réplica fiel del diseño de la referencia.
+        if (conCapturas && c.temaExtraido) void vestirCarrusel(c, { imagenes });
       }
     } catch { setError('Error de conexión. Probá de nuevo.'); }
     setBusy(false); setFase('');
@@ -346,14 +352,58 @@ export default function CarruselesPage() {
     }
   }
 
+  // Modo fiel: segunda fase — pide los HTML que replican la referencia (el server
+  // los genera en paralelo). Mientras tanto el carrusel ya se puede editar; al
+  // llegar, cada html se parchea con los textos ACTUALES (por si editaste algo).
+  async function vestirCarrusel(c: Carrusel, fuente: { imagenes?: string[]; url?: string }) {
+    if (!c.temaExtraido || !c.slides.length || (!fuente.imagenes?.length && !fuente.url)) return;
+    setVistiendo(true);
+    try {
+      const res = await fetch('/api/carruseles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'vestir',
+          slides: c.slides.map(s => ({ ...s, html: undefined, fondo: undefined })),
+          temaExtraido: c.temaExtraido,
+          ...fuente,
+        }),
+      });
+      const d: Record<string, unknown> = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(d.htmls)) {
+        const htmls = d.htmls as unknown[];
+        setCarrusel(prev => {
+          if (!prev) return prev;
+          const next = prev.slides.map((s, i) => {
+            const h = typeof htmls[i] === 'string' && htmls[i] ? patchRoles(htmls[i] as string, s) : '';
+            return h ? { ...s, html: h } : s;
+          });
+          return { ...prev, slides: next };
+        });
+      }
+    } catch { /* si falla, queda el render clásico — no es un error para el usuario */ }
+    setVistiendo(false);
+  }
+
   function editarSlide(patch: Partial<Slide>) {
     if (!carrusel) return;
-    const next = carrusel.slides.map((s, i) => (i === activa ? { ...s, ...patch } : s));
+    const next = carrusel.slides.map((s, i) => {
+      if (i !== activa) return s;
+      const nueva = { ...s, ...patch };
+      // Modo fiel: los textos editados también se reflejan dentro del html clonado.
+      const tocaTexto = ['kicker', 'titulo', 'cuerpo', 'pie', 'stat'].some(k => k in patch);
+      if (nueva.html && tocaTexto) nueva.html = patchRoles(nueva.html, nueva);
+      return nueva;
+    });
     setCarrusel({ ...carrusel, slides: next });
   }
   function usarHook(texto: string) {
     if (!carrusel) return;
-    const next = carrusel.slides.map((s, i) => (i === 0 ? { ...s, titulo: texto } : s));
+    const next = carrusel.slides.map((s, i) => {
+      if (i !== 0) return s;
+      const nueva = { ...s, titulo: texto };
+      if (nueva.html) nueva.html = patchRoles(nueva.html, nueva);
+      return nueva;
+    });
     setCarrusel({ ...carrusel, slides: next });
     setActiva(0);
   }
@@ -374,8 +424,11 @@ export default function CarruselesPage() {
       const d = await res.json();
       if (!res.ok) setError(d.error || 'No se pudo regenerar la slide.');
       else {
+        const recibida = d.slide as Slide;
         const fondo = slideActiva.fondo; // el fondo elegido se conserva
-        const next = carrusel.slides.map((s, i) => (i === activa ? { ...(d.slide as Slide), fondo } : s));
+        // Modo fiel: si la IA no devolvió html, mantenemos el clonado con los textos nuevos.
+        const html = recibida.html || (slideActiva.html ? patchRoles(slideActiva.html, recibida) : undefined);
+        const next = carrusel.slides.map((s, i) => (i === activa ? { ...recibida, fondo, html } : s));
         setCarrusel({ ...carrusel, slides: next });
         setInstruccion('');
       }
@@ -485,6 +538,9 @@ export default function CarruselesPage() {
   const accent = brand.accent || tema.accent;
   const conCapturas = modo === 'adaptar' || modo === 'diseno';
   const modoActivo = MODOS.find(m => m.key === modo)!;
+  // Modo fiel: la slide activa tiene su HTML clonado y el tema activo es el clonado
+  // → se edita el texto, el diseño lo pone la referencia (sin layouts ni fondos).
+  const modoFiel = temaKey === TEMA_CLONADO_KEY && !!slideActiva?.html;
 
   const labelGenerar = modo === 'adaptar' ? '🧬 Adaptar a mi carrusel'
     : modo === 'diseno' ? '🎨 Escribir sobre mi diseño'
@@ -759,6 +815,12 @@ export default function CarruselesPage() {
                     ))}
                   </div>
 
+                  {vistiendo && (
+                    <p className="text-[11px] text-center mt-2 animate-pulse" style={{ color: '#7fd9c4' }}>
+                      👔 Clonando el diseño tal cual la referencia… (~20s, podés ir editando)
+                    </p>
+                  )}
+
                   <div className="flex items-center justify-between mt-3 gap-2">
                     <button onClick={() => setActiva(a => Math.max(0, a - 1))} disabled={activa === 0}
                       className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-30" style={btnGhost}>← Anterior</button>
@@ -807,8 +869,16 @@ export default function CarruselesPage() {
                         rows={3} placeholder="Texto de apoyo (en listas, un punto por línea)" className={input} style={inputStyle} />
                     </div>
 
+                    {/* Modo fiel: aviso en lugar de layouts/fondos */}
+                    {modoFiel && (
+                      <p className="text-[11px] mt-2 rounded-lg px-2.5 py-1.5" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#8fd0bd' }}>
+                        🎯 Modo fiel al original: editás los textos y el diseño clonado se mantiene tal cual.
+                        Elegí otra plantilla en «2 · Estilo» para re-vestirlo (y volver a layouts y fondos).
+                      </p>
+                    )}
+
                     {/* Layout de la slide */}
-                    {slideActiva && slideActiva.tipo !== 'resumen' && (
+                    {!modoFiel && slideActiva && slideActiva.tipo !== 'resumen' && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[11px]" style={{ color: '#8b8b96' }}>Layout:</span>
                         {LAYOUTS_UI.map(l => (
@@ -824,28 +894,30 @@ export default function CarruselesPage() {
                         ))}
                       </div>
                     )}
-                    {slideActiva?.layout === 'stat' && slideActiva.tipo !== 'resumen' && (
+                    {!modoFiel && slideActiva?.layout === 'stat' && slideActiva.tipo !== 'resumen' && (
                       <input value={slideActiva.stat ?? ''} onChange={e => editarSlide({ stat: e.target.value })}
                         placeholder='La cifra protagonista (ej: "87%", "x3", "0→100K")' className={input + ' mt-2'} style={inputStyle} />
                     )}
 
-                    {/* Fondo de la slide */}
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      <span className="text-[11px]" style={{ color: '#8b8b96' }}>Fondo:</span>
-                      <button onClick={() => fondoInputRef.current?.click()}
-                        className="text-[11px] px-2 py-1 rounded-lg font-bold" style={btnGhost}>📎 Subir</button>
-                      <button onClick={() => void generarFondoIA()} disabled={fondoBusy}
-                        className="text-[11px] px-2 py-1 rounded-lg font-bold disabled:opacity-50" style={btnGhost}>
-                        {fondoBusy ? '✨ Generando… (~30s)' : '✨ Con IA'}
-                      </button>
-                      {slideActiva?.fondo && (
-                        <button onClick={() => editarSlide({ fondo: '' })}
-                          className="text-[11px] px-2 py-1 rounded-lg font-bold"
-                          style={{ background: '#1c1016', border: '1px solid #4a2030', color: '#f08fa8' }}>✕ Quitar</button>
-                      )}
-                      <input ref={fondoInputRef} type="file" accept="image/*" hidden
-                        onChange={e => { const f = e.target.files?.[0]; if (f) void subirFondo(f); e.target.value = ''; }} />
-                    </div>
+                    {/* Fondo de la slide (no aplica en modo fiel: el diseño lo trae la referencia) */}
+                    {!modoFiel && (
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[11px]" style={{ color: '#8b8b96' }}>Fondo:</span>
+                        <button onClick={() => fondoInputRef.current?.click()}
+                          className="text-[11px] px-2 py-1 rounded-lg font-bold" style={btnGhost}>📎 Subir</button>
+                        <button onClick={() => void generarFondoIA()} disabled={fondoBusy}
+                          className="text-[11px] px-2 py-1 rounded-lg font-bold disabled:opacity-50" style={btnGhost}>
+                          {fondoBusy ? '✨ Generando… (~30s)' : '✨ Con IA'}
+                        </button>
+                        {slideActiva?.fondo && (
+                          <button onClick={() => editarSlide({ fondo: '' })}
+                            className="text-[11px] px-2 py-1 rounded-lg font-bold"
+                            style={{ background: '#1c1016', border: '1px solid #4a2030', color: '#f08fa8' }}>✕ Quitar</button>
+                        )}
+                        <input ref={fondoInputRef} type="file" accept="image/*" hidden
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void subirFondo(f); e.target.value = ''; }} />
+                      </div>
+                    )}
 
                     {/* Regenerar con instrucción */}
                     <div className="flex gap-1.5 mt-3">
@@ -890,8 +962,9 @@ export default function CarruselesPage() {
                   {/* Estilo clonado detectado */}
                   {carrusel.temaExtraido && (
                     <div className="rounded-2xl p-3 text-xs" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#9fc9bb' }}>
-                      🎨 Cloné el estilo de tus capturas como <b style={{ color: '#e8e8ee' }}>{carrusel.temaExtraido.nombre}</b> y lo dejé aplicado.
-                      {carrusel.temaExtraido.notas ? ` ${carrusel.temaExtraido.notas}` : ''} Podés cambiarlo en «2 · Estilo».
+                      🎨 Cloné el diseño de la referencia como <b style={{ color: '#e8e8ee' }}>{carrusel.temaExtraido.nombre}</b>
+                      {carrusel.slides.some(s => s.html) ? ' — cada slide replica su composición tal cual (modo fiel).' : ' y lo dejé aplicado.'}
+                      {carrusel.temaExtraido.notas ? ` ${carrusel.temaExtraido.notas}` : ''} Podés re-vestirlo en «2 · Estilo».
                     </div>
                   )}
 
