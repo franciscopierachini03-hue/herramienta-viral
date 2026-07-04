@@ -34,11 +34,20 @@ export type Slide = {
 // ── Modo Director (chat creativo) ───────────────────────────────────────────
 // La IA y el usuario acuerdan un brief ANTES de generar. El brief guía tanto
 // los copys (gpt-5.x) como el arte de cada slide (gpt-image).
+
+// Plan de UNA slide dentro del brief: qué dice, qué se ve y si lleva tu foto.
+export type PlanSlide = {
+  texto: string;   // qué dice/promete esta slide (idea o frase clave)
+  visual: string;  // qué se VE: composición, elemento protagonista
+  usaFoto: boolean; // true → una foto del usuario va dentro del diseño
+};
+
 export type BriefCreativo = {
   resumen: string;           // la idea acordada, en 1-2 líneas
   copys: string;             // dirección de copy: ángulo, tono, tipo de gancho
   diseno: string;            // dirección de ARTE detallada (estilo, paleta, tipografía, composición)
   recomendaciones: string[]; // 2-5 recomendaciones accionables
+  slides?: PlanSlide[];      // plan slide-por-slide acordado en el chat (manda sobre numSlides)
 };
 
 export type MensajeDirector = {

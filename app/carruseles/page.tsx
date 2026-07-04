@@ -21,7 +21,7 @@ import {
   TEMAS, temaPorKey, temaDesdeExtraido, TEMA_CLONADO_KEY,
   BRAND_KIT_VACIO, CARRUSEL_W, CARRUSEL_H,
   type Carrusel, type Slide, type SlideLayout, type Tema, type BrandKit, type BriefLote,
-  type BriefCreativo, type MensajeDirector,
+  type BriefCreativo, type MensajeDirector, type PlanSlide,
 } from '@/lib/carruseles';
 
 const TOOL = '#10b981';
@@ -74,14 +74,24 @@ const LAYOUTS_UI: { key: SlideLayout; label: string }[] = [
 ];
 
 // Prompt de imagen para dibujar UNA slide completa según el brief del Director.
-function promptImagenSlide(b: BriefCreativo, s: Slide, i: number, total: number, conReferencia: boolean): string {
+function promptImagenSlide(
+  b: BriefCreativo, s: Slide, i: number, total: number,
+  opts: { nFotos: number; conRefs: boolean; plan?: PlanSlide },
+): string {
+  const { nFotos, conRefs, plan } = opts;
   const limpio = (t?: string) => (t ?? '').replace(/==|__/g, '').trim();
+  const adjuntos = nFotos && conRefs
+    ? `ADJUNTOS: las primeras ${nFotos} imagen(es) son FOTOS DE LA PERSONA (protagonista de esta slide — integrala al diseño manteniendo su identidad TAL CUAL se ve en la foto); las restantes son REFERENCIAS DE ESTILO (seguí su lenguaje visual sin copiar su texto).`
+    : nFotos
+      ? `ADJUNTOS: la(s) imagen(es) adjunta(s) son FOTOS DE LA PERSONA (el usuario): protagonista de esta slide — integrala al diseño manteniendo su identidad TAL CUAL se ve en la foto.`
+      : conRefs
+        ? `Las imágenes adjuntas son el CARRUSEL/ESTILO DE REFERENCIA: seguí su lenguaje visual (paleta, tipografía, composición, recursos) aplicando la dirección de arte acordada — como si esta slide fuera del mismo autor. No copies su texto.`
+        : '';
   return [
     `Slide ${i + 1} de ${total} de un carrusel de Instagram. Imagen vertical 1080x1350 (4:5), diseño terminado de nivel agencia, todo el arte y el texto DENTRO de la imagen.`,
-    conReferencia
-      ? `Las imágenes adjuntas son el CARRUSEL DE REFERENCIA: seguí su lenguaje visual (paleta, tipografía, composición, recursos) aplicando la dirección de arte acordada — como si esta slide fuera del mismo autor. No copies su texto.`
-      : '',
+    adjuntos,
     `DIRECCIÓN DE ARTE (mantenela consistente en toda la serie): ${b.diseno}`,
+    plan?.visual ? `QUÉ SE VE en esta slide según el plan acordado: ${plan.visual}` : '',
     `TEXTO EXACTO QUE DEBE APARECER, bien compuesto y 100% legible, en español y sin errores de ortografía:`,
     limpio(s.kicker) ? `- Etiqueta chica: "${limpio(s.kicker)}"` : '',
     `- Título protagonista: "${limpio(s.titulo)}"`,
@@ -165,6 +175,7 @@ export default function CarruselesPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [brief, setBrief] = useState<BriefCreativo | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]); // TUS fotos → van DENTRO del diseño
   const [generandoArte, setGenerandoArte] = useState(false);
   const [imgProgreso, setImgProgreso] = useState<('pend' | 'ok' | 'err')[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -244,6 +255,16 @@ export default function CarruselesPage() {
   // 4.5MB con un 413 ANTES de llegar a nuestra función, así que nos quedamos
   // bien abajo (≈2.3MB binario) y comprimimos más fuerte si hace falta.
   const BUDGET_IMAGENES = 3_200_000;
+
+  // Fotos del usuario (van dentro del diseño): hasta 3, comprimidas.
+  async function agregarFotos(files: File[]) {
+    const nuevas: string[] = [];
+    for (const f of files) {
+      const d = await comprimir(f, 1000, 0.82);
+      if (d) nuevas.push(d);
+    }
+    if (nuevas.length) setFotos(prev => [...prev, ...nuevas].slice(0, 3));
+  }
 
   async function agregarImagenes(files: File[]) {
     setError('');
@@ -403,7 +424,11 @@ export default function CarruselesPage() {
     try {
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'chat', mensajes: nuevo, ...(imagenes.length ? { imagenes } : {}) }),
+        body: JSON.stringify({
+          accion: 'chat', mensajes: nuevo,
+          ...(imagenes.length ? { imagenes } : {}),
+          ...(fotos.length ? { fotos } : {}),
+        }),
       });
       const d: Record<string, unknown> = await res.json().catch(() => ({}));
       if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'El director no respondió. Probá de nuevo.');
@@ -427,15 +452,23 @@ export default function CarruselesPage() {
     return url ? { url } : {};
   }
 
-  // Dibuja UNA slide (con referencia si hay) y la aplica al estado.
+  // Dibuja UNA slide (con referencias de estilo y tus fotos si el plan lo pide).
   async function dibujarSlide(s: Slide, i: number, total: number, b: BriefCreativo): Promise<boolean> {
     const ref = fuenteReferencia();
+    const plan = b.slides?.[i];
+    // ¿Va tu foto en esta slide? Lo dice el plan; sin plan, solo en la portada.
+    const usarFotos = fotos.length > 0 && (plan ? plan.usaFoto : i === 0);
     try {
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accion: 'fondo',
-          prompt: promptImagenSlide(b, s, i, total, Object.keys(ref).length > 0),
+          prompt: promptImagenSlide(b, s, i, total, {
+            nFotos: usarFotos ? Math.min(fotos.length, 2) : 0,
+            conRefs: Object.keys(ref).length > 0,
+            plan,
+          }),
+          ...(usarFotos ? { fotos: fotos.slice(0, 2) } : {}),
           ...ref,
         }),
       });
@@ -466,7 +499,10 @@ export default function CarruselesPage() {
     try {
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modo: 'idea', idea: brief.resumen, brief, nicho, tono, cta, numSlides }),
+        body: JSON.stringify({
+          modo: 'idea', idea: brief.resumen, brief, nicho, tono, cta,
+          numSlides: brief.slides?.length || numSlides, // el plan del chat manda
+        }),
       });
       const d: Record<string, unknown> = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -503,12 +539,19 @@ export default function CarruselesPage() {
     setFondoBusy(true); setError('');
     try {
       const ref = fuenteReferencia();
+      const plan = brief?.slides?.[activa];
+      const usarFotos = fotos.length > 0 && (plan ? plan.usaFoto : activa === 0);
       const extra = instruccion.trim() ? `\nAJUSTE PEDIDO POR EL USUARIO (prioridad alta): ${instruccion.trim().slice(0, 300)}` : '';
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accion: 'fondo',
-          prompt: promptImagenSlide(b, slideActiva, activa, slides.length, Object.keys(ref).length > 0) + extra,
+          prompt: promptImagenSlide(b, slideActiva, activa, slides.length, {
+            nFotos: usarFotos ? Math.min(fotos.length, 2) : 0,
+            conRefs: Object.keys(ref).length > 0,
+            plan,
+          }) + extra,
+          ...(usarFotos ? { fotos: fotos.slice(0, 2) } : {}),
           ...ref,
         }),
       });
@@ -769,7 +812,13 @@ export default function CarruselesPage() {
                     imagenes={imagenes}
                     onAdd={files => void agregarImagenes(files)}
                     onRemove={i => setImagenes(prev => prev.filter((_, j) => j !== i))}
-                    hint="Opcional: referencias para el análisis (carruseles que te gusten, tu marca…)"
+                    hint="📸 REFERENCIAS de estilo (carruseles/estéticas a seguir o superar)"
+                  />
+                  <Dropzone
+                    imagenes={fotos}
+                    onAdd={files => void agregarFotos(files)}
+                    onRemove={i => setFotos(prev => prev.filter((_, j) => j !== i))}
+                    hint="🧑 TUS FOTOS — van DENTRO del diseño (el director decide con vos en qué slides)"
                   />
 
                   {/* Conversación */}
@@ -778,8 +827,9 @@ export default function CarruselesPage() {
                     {chat.length === 0 && (
                       <p className="text-xs leading-relaxed" style={{ color: '#6b6b78' }}>
                         👋 Contale al director qué querés lograr: una idea, un link de Instagram
-                        (pegalo acá mismo) o subí capturas arriba. Te devuelve análisis + propuesta
-                        de copys y diseño, ajustan juntos, y recién ahí se genera.
+                        (pegalo acá mismo), referencias de estilo o TUS fotos (arriba). Podés pedir
+                        cosas por slide: «en la portada va mi foto», «la 3 es una lista»… Te devuelve
+                        análisis + propuesta con plan por slide, ajustan juntos, y recién ahí se genera.
                       </p>
                     )}
                     {chat.map((m, i) => (
@@ -814,6 +864,19 @@ export default function CarruselesPage() {
                       <p style={{ color: '#d9efe7' }}><b>Idea:</b> {brief.resumen}</p>
                       <p className="mt-1" style={{ color: '#9fc9bb' }}><b>Copys:</b> {brief.copys}</p>
                       <p className="mt-1" style={{ color: '#9fc9bb' }}><b>Diseño:</b> {brief.diseno}</p>
+                      {(brief.slides?.length ?? 0) > 0 && (
+                        <div className="mt-1.5 rounded-xl p-2" style={{ background: '#0a1310', border: '1px solid #17302a' }}>
+                          <p className="font-bold mb-0.5" style={{ color: '#7fd9c4' }}>🎬 Plan por slide</p>
+                          <ol className="space-y-0.5" style={{ color: '#8fb5a8' }}>
+                            {brief.slides!.map((p, i) => (
+                              <li key={i}>
+                                <b style={{ color: '#c9e8dd' }}>{i + 1}.</b> {p.usaFoto ? '🧑 ' : ''}{p.texto}
+                                {p.visual ? <span style={{ color: '#6f9c8c' }}> — {p.visual}</span> : null}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
                       {brief.recomendaciones.length > 0 && (
                         <ul className="mt-1 space-y-0.5" style={{ color: '#8fb5a8' }}>
                           {brief.recomendaciones.map((r, i) => <li key={i}>• {r}</li>)}
@@ -823,11 +886,17 @@ export default function CarruselesPage() {
                     </div>
                   )}
 
-                  <label className="block mb-3">
-                    <span className="text-xs" style={{ color: '#8b8b96' }}>Slides: <b style={{ color: '#fff' }}>{numSlides}</b></span>
-                    <input type="range" min={4} max={10} value={numSlides} onChange={e => setNumSlides(Number(e.target.value))}
-                      className="w-full mt-1" style={{ accentColor: TOOL }} />
-                  </label>
+                  {(brief?.slides?.length ?? 0) > 0 ? (
+                    <p className="text-xs mb-3" style={{ color: '#8b8b96' }}>
+                      Slides: <b style={{ color: '#fff' }}>{brief!.slides!.length}</b> — las define el plan del chat.
+                    </p>
+                  ) : (
+                    <label className="block mb-3">
+                      <span className="text-xs" style={{ color: '#8b8b96' }}>Slides: <b style={{ color: '#fff' }}>{numSlides}</b></span>
+                      <input type="range" min={4} max={10} value={numSlides} onChange={e => setNumSlides(Number(e.target.value))}
+                        className="w-full mt-1" style={{ accentColor: TOOL }} />
+                    </label>
+                  )}
 
                   <button onClick={() => void generarConBrief()} disabled={!brief || busy || generandoArte}
                     className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"

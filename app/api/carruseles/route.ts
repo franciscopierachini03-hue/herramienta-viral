@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import OpenAI, { toFile } from 'openai';
 import { getAccess } from '@/lib/access';
-import type { Carrusel, CarruselInput, Slide, TemaExtraido, DisenoTema, BriefLote, BriefCreativo } from '@/lib/carruseles';
+import type { Carrusel, CarruselInput, Slide, TemaExtraido, DisenoTema, BriefLote, BriefCreativo, PlanSlide } from '@/lib/carruseles';
 
 // POST /api/carruseles — el cerebro de la máquina de carruseles.
 //
@@ -153,16 +153,17 @@ const SYSTEM_DIRECTOR = `Sos el DIRECTOR CREATIVO de carruseles de Instagram del
    - COPYS: ángulo, tono, tipo de gancho, estructura (nada genérico: números, contraste, opinión fuerte; prohibidas las palabras "real" y "reales").
    - DISEÑO: dirección de ARTE detallada y dibujable por un modelo de imagen — estilo (editorial/brutalista/colage/minimal/3D…), paleta con colores concretos, tipografía (serif/sans, peso), composición, recursos gráficos (texturas, formas, iconos, foto). Sé específico: esto se convierte en el prompt de la imagen. Si hay carrusel de referencia, ANCLÁ el diseño en él (sus colores y tipografía exactos) según el camino elegido: réplica tal cual, o superadora con las mejoras acordadas.
    - RECOMENDACIONES: 2-5 puntas accionables (portada, orden, CTA…).
-3. PEDÍ feedback puntual (una o dos preguntas máximo) y AJUSTÁ el brief con cada respuesta. Cuando el usuario diga que está de acuerdo, confirmalo y decile que toque «Generar con este brief».
+3. PLAN POR SLIDE: en cuanto la idea esté clara (o el usuario pida algo para slides puntuales — "en la 1 va mi foto", "la 3 que sea una lista"), incluí en el brief el campo "slides" con el plan COMPLETO de portada a cierre: qué dice cada una, qué se VE, y si lleva una foto del usuario. Si el usuario adjuntó FOTOS PROPIAS, proponé vos en qué slides rinden más (portada casi siempre) y marcalas con usaFoto.
+4. PEDÍ feedback puntual (una o dos preguntas máximo) y AJUSTÁ el brief con cada respuesta. Cuando el usuario diga que está de acuerdo, confirmalo y decile que toque «Generar con este brief».
 
 Estilo del chat: español natural, directo, mensajes CORTOS (nada de muros de texto), podés usar emojis y saltos de línea. Sos un socio creativo con criterio, no un asistente complaciente: si algo del pedido es flojo, decilo y proponé mejor.
 
 Devolvé SIEMPRE JSON válido con esta forma exacta:
 {
   "respuesta": string (tu mensaje para el chat),
-  "brief": { "resumen": string (la idea acordada en 1-2 líneas), "copys": string, "diseno": string (dirección de arte detallada), "recomendaciones": [string, ...] } | null
+  "brief": { "resumen": string (la idea acordada en 1-2 líneas), "copys": string, "diseno": string (dirección de arte detallada), "recomendaciones": [string, ...], "slides": [ { "texto": string (qué dice esta slide), "visual": string (qué se ve: composición/elemento protagonista), "usaFoto": boolean } , ... ] | null } | null
 }
-Incluí "brief" COMPLETO y ACTUALIZADO en cada respuesta desde que exista una propuesta (aunque el usuario solo haya pedido un ajuste chico); null únicamente si todavía no hay nada para proponer.`;
+Incluí "brief" COMPLETO y ACTUALIZADO en cada respuesta desde que exista una propuesta (aunque el usuario solo haya pedido un ajuste chico); null únicamente si todavía no hay nada para proponer. El plan "slides" también va completo cada vez que exista.`;
 
 const SYSTEM_PLAN = `Sos un estratega de contenido para Instagram. Armá un plan de carruseles sobre el tema/nicho dado. Cada carrusel ataca un ÁNGULO DISTINTO (lista práctica, error a evitar, mito vs. verdad, framework con nombre, historia/caso, contraste antes-después, pregunta incómoda, checklist, contraintuitivo…). Nada de repetir el mismo ángulo dos veces.
 
@@ -174,6 +175,16 @@ function sanitizeBrief(raw: unknown): BriefCreativo | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
   const s = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const slides: PlanSlide[] | undefined = Array.isArray(o.slides)
+    ? o.slides.slice(0, 10).map((p) => {
+        const q = (p ?? {}) as Record<string, unknown>;
+        return {
+          texto: s(q.texto, 300),
+          visual: s(q.visual, 400),
+          usaFoto: q.usaFoto === true,
+        };
+      }).filter(p => p.texto || p.visual)
+    : undefined;
   const brief: BriefCreativo = {
     resumen: s(o.resumen, 400),
     copys: s(o.copys, 1200),
@@ -181,12 +192,14 @@ function sanitizeBrief(raw: unknown): BriefCreativo | undefined {
     recomendaciones: Array.isArray(o.recomendaciones)
       ? o.recomendaciones.filter((r): r is string => typeof r === 'string').map(r => r.slice(0, 300)).slice(0, 6)
       : [],
+    ...(slides?.length ? { slides } : {}),
   };
   return brief.resumen || brief.copys || brief.diseno ? brief : undefined;
 }
 
 function buildUserMessage(inp: CarruselInput, transcript?: string, brief?: BriefCreativo): string {
-  const n = Math.min(Math.max(inp.numSlides ?? 7, 4), 10);
+  // Si el brief trae plan por slide, la cantidad la manda el plan.
+  const n = Math.min(Math.max(brief?.slides?.length || inp.numSlides || 7, 3), 10);
   const modo = inp.modo === 'adaptar' || inp.modo === 'diseno' ? inp.modo : 'idea';
   const etiquetaIdea = modo === 'adaptar'
     ? 'ADAPTAR PARA (mi nicho / tema / giro que quiero darle):'
@@ -195,7 +208,9 @@ function buildUserMessage(inp: CarruselInput, transcript?: string, brief?: Brief
     ? `\nCONTENIDO DE LA REFERENCIA — transcripción del video o caption del post (convertí SU contenido en el carrusel: mantené sus ideas, datos y ganchos fuertes, reescrito al formato carrusel — no copies literal ni menciones "el video" o "el post"):\n"""\n${transcript.trim().slice(0, 8000)}\n"""\n`
     : '';
   const bloqueBrief = brief
-    ? `\nBRIEF ACORDADO CON EL DIRECTOR CREATIVO (respetalo al pie de la letra — es lo que el usuario aprobó):\n- Idea: ${brief.resumen}\n- Dirección de copys: ${brief.copys}\n- Recomendaciones: ${brief.recomendaciones.join(' | ')}\n`
+    ? `\nBRIEF ACORDADO CON EL DIRECTOR CREATIVO (respetalo al pie de la letra — es lo que el usuario aprobó):\n- Idea: ${brief.resumen}\n- Dirección de copys: ${brief.copys}\n- Recomendaciones: ${brief.recomendaciones.join(' | ')}\n${brief.slides?.length
+      ? `- PLAN POR SLIDE (OBLIGATORIO seguirlo, en este orden y cantidad):\n${brief.slides.map((p, i) => `  ${i + 1}. ${p.texto}${p.visual ? ` [se ve: ${p.visual}]` : ''}`).join('\n')}\n`
+      : ''}`
     : '';
   return `
 ${etiquetaIdea}
@@ -649,6 +664,9 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
     if (accion === 'fondo') {
       const prompt = String(body.prompt || '').trim().slice(0, 1800);
       if (!prompt) return Response.json({ error: 'Falta describir la imagen.' }, { status: 400 });
+      // Fotos del usuario van PRIMERO (el prompt las referencia por orden),
+      // después las referencias de estilo.
+      const fotos = sanitizeImagenes(body.fotos).slice(0, 2);
       let referencias = sanitizeImagenes(body.referencias);
       if (!referencias.length) {
         const url = String(body.url || '').trim();
@@ -657,7 +675,7 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
           if (info.tipo === 'imagenes') referencias = await descargarImagenes(info.urls.slice(0, 5));
         }
       }
-      const image = await generarImagen(prompt, referencias);
+      const image = await generarImagen(prompt, [...fotos, ...referencias.slice(0, 5 - fotos.length)]);
       return Response.json({ image });
     }
 
@@ -675,7 +693,9 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
         .filter(m => m.texto);
       if (!historial.length) return Response.json({ error: 'Escribí tu primer mensaje.' }, { status: 400 });
 
-      // Contexto opcional: capturas subidas, o un link de IG pegado en el chat.
+      // Contexto opcional: FOTOS del usuario (van dentro del diseño), capturas de
+      // estilo subidas, o un link de IG pegado en el chat.
+      const fotos = sanitizeImagenes(body.fotos).slice(0, 3);
       let refs = sanitizeImagenes(body.imagenes);
       let contextoExtra = '';
       if (!refs.length) {
@@ -693,11 +713,17 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
         { role: 'system', content: SYSTEM_DIRECTOR },
         ...historial.map((m): MensajeIA => ({ role: m.rol === 'ia' ? 'assistant' : 'user', content: m.texto })),
       ];
-      if (refs.length || contextoExtra) {
+      if (fotos.length || refs.length || contextoExtra) {
+        const etiquetas = [
+          fotos.length ? `Las primeras ${fotos.length} imagen(es) son FOTOS DEL USUARIO — son para usar DENTRO del diseño (planificá en qué slides van, usaFoto).` : '',
+          refs.length ? `Las ${fotos.length ? 'siguientes' : ''} ${refs.length} imagen(es) son REFERENCIAS DE ESTILO (carrusel/estética a seguir o superar).` : '',
+          contextoExtra,
+        ].filter(Boolean).join('\n');
         mensajes.push({
           role: 'user',
           content: [
-            { type: 'text', text: `(Contexto adjunto para tu análisis — no es un mensaje nuevo del usuario.)\n${contextoExtra}`.trim() },
+            { type: 'text', text: `(Contexto adjunto para tu análisis — no es un mensaje nuevo del usuario.)\n${etiquetas}` },
+            ...fotos.map((u) => ({ type: 'image_url' as const, image_url: { url: u, detail: 'low' as const } })),
             ...refs.map((u) => ({ type: 'image_url' as const, image_url: { url: u, detail: 'low' as const } })),
           ],
         });
