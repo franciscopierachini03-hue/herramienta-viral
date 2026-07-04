@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import { getAccess } from '@/lib/access';
 import type { Carrusel, CarruselInput, Slide, TemaExtraido, DisenoTema, BriefLote, BriefCreativo } from '@/lib/carruseles';
 
@@ -145,12 +145,13 @@ Si la slide trae un campo "html" (modo fiel a una referencia): devolvé también
 
 Devolvé ÚNICAMENTE JSON válido con esta forma exacta: { "slide": ${FORMA_SLIDE.replace('"stat": string', '"stat": string, "html": string')} }`;
 
-const SYSTEM_DIRECTOR = `Sos el DIRECTOR CREATIVO de carruseles de Instagram del usuario. Trabajan en dos tiempos: primero ACUERDAN el plan en este chat, después la máquina genera (copys con IA de texto + cada slide DIBUJADA por una IA de imagen). Tu trabajo acá:
+const SYSTEM_DIRECTOR = `Sos el DIRECTOR CREATIVO de carruseles de Instagram del usuario. Trabajan en dos tiempos: primero ACUERDAN el plan en este chat (texto = barato), después la máquina dibuja cada slide con IA de imagen (caro) UNA sola vez. El chat existe exactamente para eso: cerrar todo ANTES de gastar en imágenes. La portada se dibuja primero como prueba; el resto recién cuando el usuario la aprueba.
 
 1. ANALIZÁ el punto de partida (idea, link, capturas o caption que te pasen): qué funciona, qué le falta, qué oportunidad hay.
+   ⭐ SI HAY UN CARRUSEL DE REFERENCIA (capturas o link): tu primera respuesta describe su diseño con ojo de director de arte — paleta (con hex aproximados), tipografía, composición, recursos gráficos y por qué funciona — y ofrecés DOS caminos: (a) RÉPLICA del estilo con el contenido nuevo, o (b) VERSIÓN SUPERADORA: qué mejorarías exactamente (jerarquía, contraste, gancho visual, legibilidad en feed) y por qué. Preguntale cuál quiere.
 2. PROPONÉ un brief concreto en tu primer mensaje útil:
    - COPYS: ángulo, tono, tipo de gancho, estructura (nada genérico: números, contraste, opinión fuerte; prohibidas las palabras "real" y "reales").
-   - DISEÑO: dirección de ARTE detallada y dibujable por un modelo de imagen — estilo (editorial/brutalista/colage/minimal/3D…), paleta con colores concretos, tipografía (serif/sans, peso), composición, recursos gráficos (texturas, formas, iconos, foto). Sé específico: esto se convierte en el prompt de la imagen.
+   - DISEÑO: dirección de ARTE detallada y dibujable por un modelo de imagen — estilo (editorial/brutalista/colage/minimal/3D…), paleta con colores concretos, tipografía (serif/sans, peso), composición, recursos gráficos (texturas, formas, iconos, foto). Sé específico: esto se convierte en el prompt de la imagen. Si hay carrusel de referencia, ANCLÁ el diseño en él (sus colores y tipografía exactos) según el camino elegido: réplica tal cual, o superadora con las mejoras acordadas.
    - RECOMENDACIONES: 2-5 puntas accionables (portada, orden, CTA…).
 3. PEDÍ feedback puntual (una o dos preguntas máximo) y AJUSTÁ el brief con cada respuesta. Cuando el usuario diga que está de acuerdo, confirmalo y decile que toque «Generar con este brief».
 
@@ -448,25 +449,37 @@ async function descargarImagenes(urls: string[]): Promise<string[]> {
   return bajadas.filter((x): x is string => !!x);
 }
 
-// Genera una imagen de fondo con gpt-image (misma key de OpenAI). JPEG comprimido
-// para que la respuesta viaje liviana y el export a PNG no arrastre peso de más.
-async function generarImagen(prompt: string): Promise<string> {
+// Genera una imagen con gpt-image (misma key de OpenAI). Si vienen REFERENCIAS
+// (capturas del carrusel original), usa el modo imagen-a-imagen (images.edit):
+// el modelo VE el estilo original y dibuja la slide nueva "del mismo autor".
+// JPEG comprimido para que la respuesta viaje liviana.
+async function generarImagen(prompt: string, referencias: string[] = []): Promise<string> {
   const base = process.env.CARRUSELES_IMG_MODEL
     ? [process.env.CARRUSELES_IMG_MODEL, ...IMG_CHAIN.filter(m => m !== process.env.CARRUSELES_IMG_MODEL)]
     : IMG_CHAIN;
   const lista = _imgModeloOk ? [_imgModeloOk, ...base.filter(m => m !== _imgModeloOk)] : base;
 
+  // dataURL → File para el endpoint de edits (hasta 5 referencias alcanzan).
+  const archivos = await Promise.all(referencias.slice(0, 5).map(async (d, i) => {
+    const m = d.match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
+    if (!m) return null;
+    return toFile(Buffer.from(m[2], 'base64'), `ref-${i}.jpg`, { type: m[1] });
+  })).then(a => a.filter((x): x is NonNullable<typeof x> => !!x));
+
   let lastErr: unknown = null;
   for (const model of lista) {
     try {
-      const res = await getOpenAI().images.generate({
+      const params = {
         model,
         prompt,
-        size: '1024x1536',        // vertical, casi 4:5 — la slide lo muestra en cover
-        quality: 'medium',
-        output_format: 'jpeg',
+        size: '1024x1536' as const,  // vertical, casi 4:5 — la slide lo muestra en cover
+        quality: 'medium' as const,
+        output_format: 'jpeg' as const,
         output_compression: 80,
-      });
+      };
+      const res = archivos.length
+        ? await getOpenAI().images.edit({ ...params, image: archivos })
+        : await getOpenAI().images.generate(params);
       const b64 = res.data?.[0]?.b64_json;
       if (!b64) throw new Error('la respuesta vino sin imagen');
       _imgModeloOk = model;
@@ -631,10 +644,20 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
     }
 
     // ── 'fondo': imagen para una slide (gpt-image) — fondos Y slides enteras ──
+    // Con "referencias" (capturas) o "url" (post de IG, se re-bajan las fotos)
+    // usa imagen-a-imagen: el estilo del original guía el dibujo.
     if (accion === 'fondo') {
       const prompt = String(body.prompt || '').trim().slice(0, 1800);
       if (!prompt) return Response.json({ error: 'Falta describir la imagen.' }, { status: 400 });
-      const image = await generarImagen(prompt);
+      let referencias = sanitizeImagenes(body.referencias);
+      if (!referencias.length) {
+        const url = String(body.url || '').trim();
+        if (/^https?:\/\/(www\.)?instagram\.com\//i.test(url)) {
+          const info = await inspeccionarInstagram(url);
+          if (info.tipo === 'imagenes') referencias = await descargarImagenes(info.urls.slice(0, 5));
+        }
+      }
+      const image = await generarImagen(prompt, referencias);
       return Response.json({ image });
     }
 

@@ -74,10 +74,13 @@ const LAYOUTS_UI: { key: SlideLayout; label: string }[] = [
 ];
 
 // Prompt de imagen para dibujar UNA slide completa según el brief del Director.
-function promptImagenSlide(b: BriefCreativo, s: Slide, i: number, total: number): string {
+function promptImagenSlide(b: BriefCreativo, s: Slide, i: number, total: number, conReferencia: boolean): string {
   const limpio = (t?: string) => (t ?? '').replace(/==|__/g, '').trim();
   return [
     `Slide ${i + 1} de ${total} de un carrusel de Instagram. Imagen vertical 1080x1350 (4:5), diseño terminado de nivel agencia, todo el arte y el texto DENTRO de la imagen.`,
+    conReferencia
+      ? `Las imágenes adjuntas son el CARRUSEL DE REFERENCIA: seguí su lenguaje visual (paleta, tipografía, composición, recursos) aplicando la dirección de arte acordada — como si esta slide fuera del mismo autor. No copies su texto.`
+      : '',
     `DIRECCIÓN DE ARTE (mantenela consistente en toda la serie): ${b.diseno}`,
     `TEXTO EXACTO QUE DEBE APARECER, bien compuesto y 100% legible, en español y sin errores de ortografía:`,
     limpio(s.kicker) ? `- Etiqueta chica: "${limpio(s.kicker)}"` : '',
@@ -85,6 +88,15 @@ function promptImagenSlide(b: BriefCreativo, s: Slide, i: number, total: number)
     limpio(s.cuerpo) ? `- Texto de apoyo: "${limpio(s.cuerpo).replace(/\n/g, ' · ')}"` : '',
     `Nada de texto extra inventado, sin marcas de agua, sin logos.`,
   ].filter(Boolean).join('\n');
+}
+
+// Último link de Instagram mencionado en el chat (referencia para dibujar).
+function linkIGEnChat(mensajes: MensajeDirector[]): string {
+  for (let i = mensajes.length - 1; i >= 0; i--) {
+    const m = mensajes[i].texto.match(/https?:\/\/(www\.)?instagram\.com\/[^\s)]+/i);
+    if (m) return m[0];
+  }
+  return '';
 }
 
 // Comprime una imagen en el navegador antes de mandarla o usarla de fondo.
@@ -408,7 +420,44 @@ export default function CarruselesPage() {
     try { localStorage.removeItem('carruseles.director'); } catch { /* ignore */ }
   }
 
-  // Genera con el brief acordado: 1) copys (texto) → 2) cada slide DIBUJADA en paralelo.
+  // Fuente de referencia para el dibujo: capturas subidas, o el link de IG del chat.
+  function fuenteReferencia(): Record<string, unknown> {
+    if (imagenes.length) return { referencias: imagenes };
+    const url = linkIGEnChat(chat);
+    return url ? { url } : {};
+  }
+
+  // Dibuja UNA slide (con referencia si hay) y la aplica al estado.
+  async function dibujarSlide(s: Slide, i: number, total: number, b: BriefCreativo): Promise<boolean> {
+    const ref = fuenteReferencia();
+    try {
+      const res = await fetch('/api/carruseles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'fondo',
+          prompt: promptImagenSlide(b, s, i, total, Object.keys(ref).length > 0),
+          ...ref,
+        }),
+      });
+      const d: Record<string, unknown> = await res.json().catch(() => ({}));
+      if (res.ok && typeof d.image === 'string') {
+        const img = d.image;
+        setCarrusel(prev => prev
+          ? { ...prev, slides: prev.slides.map((x, j) => (j === i ? { ...x, imagen: img } : x)) }
+          : prev);
+        setImgProgreso(p => p.map((v, j) => (j === i ? 'ok' : v)));
+        return true;
+      }
+      setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v)));
+      return false;
+    } catch {
+      setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v)));
+      return false;
+    }
+  }
+
+  // Genera con el brief acordado: 1) copys (texto, barato) → 2) SOLO la portada
+  // dibujada (prueba de estilo) → confirmás → 3) el resto en paralelo.
   async function generarConBrief() {
     if (!brief || busy || generandoArte) return;
     setBusy(true); setError(''); setCarrusel(null); setActiva(0);
@@ -429,41 +478,39 @@ export default function CarruselesPage() {
     } catch { setError('Error de conexión.'); setBusy(false); setFase(''); return; }
     setBusy(false); setFase('');
 
-    // Fase 2: el arte. Una imagen por slide, todas en paralelo; van apareciendo.
+    // Fase 2: dibujamos SOLO la portada como prueba de estilo (ahorra imágenes).
     setGenerandoArte(true);
     setImgProgreso(c.slides.map(() => 'pend'));
-    const total = c.slides.length;
-    await Promise.all(c.slides.map(async (s, i) => {
-      try {
-        const res = await fetch('/api/carruseles', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accion: 'fondo', prompt: promptImagenSlide(brief, s, i, total) }),
-        });
-        const d: Record<string, unknown> = await res.json().catch(() => ({}));
-        if (res.ok && typeof d.image === 'string') {
-          const img = d.image;
-          setCarrusel(prev => prev
-            ? { ...prev, slides: prev.slides.map((x, j) => (j === i ? { ...x, imagen: img } : x)) }
-            : prev);
-          setImgProgreso(p => p.map((v, j) => (j === i ? 'ok' : v)));
-        } else {
-          setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v)));
-        }
-      } catch { setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v))); }
-    }));
+    const okPortada = await dibujarSlide(c.slides[0], 0, c.slides.length, brief);
+    setGenerandoArte(false);
+    if (!okPortada) setError('No se pudo dibujar la portada. Tocá «🎨 Redibujar esta slide» para reintentar.');
+  }
+
+  // Confirmaste la portada → se dibuja el resto en paralelo.
+  async function dibujarRestantes() {
+    if (!carrusel || !brief || generandoArte) return;
+    setGenerandoArte(true);
+    const total = carrusel.slides.length;
+    await Promise.all(carrusel.slides.map((s, i) => (i === 0 || s.imagen) ? Promise.resolve(true) : dibujarSlide(s, i, total, brief)));
     setGenerandoArte(false);
   }
 
-  // Redibuja la imagen de la slide activa (usa la instrucción del editor si hay).
+  // Redibuja la imagen de la slide activa (usa la instrucción del editor si hay,
+  // y las mismas referencias del original si existen).
   async function regenerarImagen() {
     if (!slideActiva || fondoBusy) return;
     const b: BriefCreativo = brief ?? { resumen: idea, copys: '', diseno: 'diseño limpio, moderno y consistente con el contenido', recomendaciones: [] };
     setFondoBusy(true); setError('');
     try {
+      const ref = fuenteReferencia();
       const extra = instruccion.trim() ? `\nAJUSTE PEDIDO POR EL USUARIO (prioridad alta): ${instruccion.trim().slice(0, 300)}` : '';
       const res = await fetch('/api/carruseles', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'fondo', prompt: promptImagenSlide(b, slideActiva, activa, slides.length) + extra }),
+        body: JSON.stringify({
+          accion: 'fondo',
+          prompt: promptImagenSlide(b, slideActiva, activa, slides.length, Object.keys(ref).length > 0) + extra,
+          ...ref,
+        }),
       });
       const d: Record<string, unknown> = await res.json().catch(() => ({}));
       if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'No se pudo redibujar la slide.');
@@ -785,10 +832,12 @@ export default function CarruselesPage() {
                   <button onClick={() => void generarConBrief()} disabled={!brief || busy || generandoArte}
                     className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
                     style={{ background: TOOL_GRAD, color: '#04211c' }}>
-                    {busy ? (fase || 'Generando…') : generandoArte ? '🎨 Dibujando las slides…' : '🎨 Generar con este brief'}
+                    {busy ? (fase || 'Generando…') : generandoArte ? '🎨 Dibujando…' : '🎨 Generar (copys + portada de prueba)'}
                   </button>
                   <p className="text-[11px] mt-2 text-center" style={{ color: '#6b6b78' }}>
-                    {brief ? 'Escribe los copys y DIBUJA cada slide con IA de imagen (~40-60s, van apareciendo).' : 'Acordá el brief en el chat para habilitar la generación.'}
+                    {brief
+                      ? 'Para ahorrar: escribe los copys y dibuja SOLO la portada (~40s). El resto, recién cuando la apruebes.'
+                      : 'Acordá el brief en el chat (texto, barato) para habilitar la generación.'}
                   </p>
                 </>
               )}
@@ -1043,6 +1092,21 @@ export default function CarruselesPage() {
                     <p className="text-[11px] text-center mt-2" style={{ color: '#fbbf24' }}>
                       ⚠️ {imgProgreso.filter(v => v === 'err').length} slide(s) no se pudieron dibujar — abrilas y tocá «Redibujar».
                     </p>
+                  )}
+
+                  {/* Gate de costo: portada dibujada → confirmás → recién ahí el resto */}
+                  {brief && !generandoArte && slides[0]?.imagen && slides.slice(1).some(s => !s.imagen) && (
+                    <div className="mt-3 rounded-2xl px-3 py-2.5" style={{ background: '#1a1408', border: '1px solid #a1620a55' }}>
+                      <p className="text-[11px] mb-2" style={{ color: '#fbbf24' }}>
+                        🖼 <b>Portada lista.</b> Si te gusta el estilo, dibujamos el resto. Si no,
+                        pedile cambios al director o tocá «Redibujar» — gratis hasta que confirmes.
+                      </p>
+                      <button onClick={() => void dibujarRestantes()}
+                        className="w-full py-2 rounded-xl text-xs font-bold"
+                        style={{ background: TOOL_GRAD, color: '#04211c' }}>
+                        ✅ Me gusta — dibujar las {slides.filter((s, i) => i > 0 && !s.imagen).length} restantes
+                      </button>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-between mt-3 gap-2">
