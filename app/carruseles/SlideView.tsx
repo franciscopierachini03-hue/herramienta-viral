@@ -79,6 +79,10 @@ export default function SlideView({ slide, tema, accent, brand, idx, total }: {
   const conFondo = !!slide.fondo;
   const dis = tema.diseno;
 
+  // MODO DIRECTOR: la slide entera viene DIBUJADA por la IA de imagen.
+  // Prioridad máxima; encima solo va el @handle del brand kit (sutil).
+  const handleTxt = brand.handle ? (brand.handle.startsWith('@') ? brand.handle : '@' + brand.handle) : '';
+
   // MODO FIEL: si la slide trae su propio HTML (réplica de la referencia) y el
   // tema activo es el clonado, se muestra ESE diseño. Sólo inyectamos el @handle.
   const usarHtml = !!slide.html && tema.key === TEMA_CLONADO_KEY;
@@ -87,6 +91,22 @@ export default function SlideView({ slide, tema, accent, brand, idx, total }: {
     const handle = brand.handle ? (brand.handle.startsWith('@') ? brand.handle : '@' + brand.handle) : '';
     return patchHtml(slide.html, 'handle', handle);
   }, [usarHtml, slide.html, brand.handle]);
+
+  if (slide.imagen) {
+    return (
+      <div style={{ width: CARRUSEL_W, height: CARRUSEL_H, position: 'relative', overflow: 'hidden', background: '#0a0a0a' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={slide.imagen} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        {handleTxt && (
+          <span style={{
+            position: 'absolute', left: 44, bottom: 36, fontSize: 26, fontWeight: 600,
+            color: 'rgba(255,255,255,0.9)', textShadow: '0 1px 10px rgba(0,0,0,0.65)',
+            fontFamily: '-apple-system, system-ui, sans-serif',
+          }}>{handleTxt}</span>
+        )}
+      </div>
+    );
+  }
 
   if (usarHtml) {
     return (

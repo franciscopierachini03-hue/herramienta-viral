@@ -21,6 +21,7 @@ import {
   TEMAS, temaPorKey, temaDesdeExtraido, TEMA_CLONADO_KEY,
   BRAND_KIT_VACIO, CARRUSEL_W, CARRUSEL_H,
   type Carrusel, type Slide, type SlideLayout, type Tema, type BrandKit, type BriefLote,
+  type BriefCreativo, type MensajeDirector,
 } from '@/lib/carruseles';
 
 const TOOL = '#10b981';
@@ -28,9 +29,10 @@ const TOOL_GRAD = 'linear-gradient(135deg, #10b981, #06b6d4)';
 const PREVIEW_W = 384; // ancho del preview en pantalla; el render de export es 1080
 const SCALE = PREVIEW_W / CARRUSEL_W;
 
-type ModoUI = 'idea' | 'link' | 'adaptar' | 'diseno' | 'lote';
+type ModoUI = 'director' | 'idea' | 'link' | 'adaptar' | 'diseno' | 'lote';
 
 const MODOS: { key: ModoUI; icon: string; label: string; desc: string }[] = [
+  { key: 'director', icon: '💬', label: 'Director', desc: 'Charlá con tu director creativo: análisis + propuesta de copys y diseño. Cuando acuerdan, la IA de imagen dibuja cada slide.' },
   { key: 'idea', icon: '💡', label: 'Idea', desc: 'Escribí una idea y la IA arma todo.' },
   { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pegá un link: un video se transcribe; un carrusel de Instagram se adapta con sus imágenes.' },
   { key: 'adaptar', icon: '📸', label: 'Adaptar viral', desc: 'Capturas de un carrusel ajeno → lo rehace para tu nicho y clona su estilo.' },
@@ -70,6 +72,20 @@ const LAYOUTS_UI: { key: SlideLayout; label: string }[] = [
   { key: 'stat', label: 'Cifra' },
   { key: 'cita', label: 'Cita' },
 ];
+
+// Prompt de imagen para dibujar UNA slide completa según el brief del Director.
+function promptImagenSlide(b: BriefCreativo, s: Slide, i: number, total: number): string {
+  const limpio = (t?: string) => (t ?? '').replace(/==|__/g, '').trim();
+  return [
+    `Slide ${i + 1} de ${total} de un carrusel de Instagram. Imagen vertical 1080x1350 (4:5), diseño terminado de nivel agencia, todo el arte y el texto DENTRO de la imagen.`,
+    `DIRECCIÓN DE ARTE (mantenela consistente en toda la serie): ${b.diseno}`,
+    `TEXTO EXACTO QUE DEBE APARECER, bien compuesto y 100% legible, en español y sin errores de ortografía:`,
+    limpio(s.kicker) ? `- Etiqueta chica: "${limpio(s.kicker)}"` : '',
+    `- Título protagonista: "${limpio(s.titulo)}"`,
+    limpio(s.cuerpo) ? `- Texto de apoyo: "${limpio(s.cuerpo).replace(/\n/g, ' · ')}"` : '',
+    `Nada de texto extra inventado, sin marcas de agua, sin logos.`,
+  ].filter(Boolean).join('\n');
+}
 
 // Comprime una imagen en el navegador antes de mandarla o usarla de fondo.
 async function comprimir(file: File, maxDim = 1100, calidad = 0.82): Promise<string | null> {
@@ -132,6 +148,15 @@ export default function CarruselesPage() {
   const [fondoBusy, setFondoBusy] = useState(false);
   const [vistiendo, setVistiendo] = useState(false); // clonando el diseño (modo fiel)
 
+  // ── Modo Director (chat) ──
+  const [chat, setChat] = useState<MensajeDirector[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
+  const [brief, setBrief] = useState<BriefCreativo | null>(null);
+  const [generandoArte, setGenerandoArte] = useState(false);
+  const [imgProgreso, setImgProgreso] = useState<('pend' | 'ok' | 'err')[]>([]);
+  const chatRef = useRef<HTMLDivElement>(null);
+
   const exportRefs = useRef<(HTMLDivElement | null)[]>([]);
   const fondoInputRef = useRef<HTMLInputElement>(null);
   const tema = useMemo(
@@ -148,6 +173,14 @@ export default function CarruselesPage() {
     try {
       const rawTema = localStorage.getItem('carruseles.temaClonado');
       if (rawTema) setTemaClonado(JSON.parse(rawTema));
+    } catch { /* ignore */ }
+    try {
+      const rawDir = localStorage.getItem('carruseles.director');
+      if (rawDir) {
+        const p = JSON.parse(rawDir);
+        if (Array.isArray(p?.chat)) setChat(p.chat);
+        if (p?.brief) setBrief(p.brief);
+      }
     } catch { /* ignore */ }
     try {
       const pre = sessionStorage.getItem('carruseles.prefill');
@@ -172,6 +205,13 @@ export default function CarruselesPage() {
       else localStorage.removeItem('carruseles.temaClonado');
     } catch { /* ignore */ }
   }, [temaClonado]);
+  // La conversación con el Director sobrevive recargas (y el brief acordado también).
+  useEffect(() => {
+    try { localStorage.setItem('carruseles.director', JSON.stringify({ chat: chat.slice(-16), brief })); } catch { /* ignore */ }
+  }, [chat, brief]);
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: 999999 });
+  }, [chat, chatBusy]);
 
   // Pegar capturas con ⌘V en los modos con imágenes.
   useEffect(() => {
@@ -216,7 +256,7 @@ export default function CarruselesPage() {
   async function generar(ideaParam?: string, modoParam?: 'idea' | 'adaptar' | 'diseno') {
     if (busy) return;
     const esLink = !modoParam && modo === 'link';
-    const elModo = modoParam ?? (modo === 'lote' || modo === 'link' ? 'idea' : modo);
+    const elModo = modoParam ?? (modo === 'lote' || modo === 'link' || modo === 'director' ? 'idea' : modo);
     const laIdea = (ideaParam ?? idea).trim();
     const conCapturas = elModo === 'adaptar' || elModo === 'diseno';
 
@@ -340,6 +380,96 @@ export default function CarruselesPage() {
     setModo('idea');
     setIdea(b.idea);
     void generar(b.idea, 'idea');
+  }
+
+  // ── Modo Director ──────────────────────────────────────────────────────────
+  async function enviarChat() {
+    const texto = chatInput.trim();
+    if (!texto || chatBusy) return;
+    const nuevo: MensajeDirector[] = [...chat, { rol: 'user', texto }];
+    setChat(nuevo); setChatInput(''); setChatBusy(true); setError('');
+    try {
+      const res = await fetch('/api/carruseles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'chat', mensajes: nuevo, ...(imagenes.length ? { imagenes } : {}) }),
+      });
+      const d: Record<string, unknown> = await res.json().catch(() => ({}));
+      if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'El director no respondió. Probá de nuevo.');
+      else {
+        setChat([...nuevo, { rol: 'ia', texto: String(d.respuesta || '') }]);
+        if (d.brief) setBrief(d.brief as BriefCreativo);
+      }
+    } catch { setError('Error de conexión con el director.'); }
+    setChatBusy(false);
+  }
+
+  function nuevaConversacion() {
+    setChat([]); setBrief(null); setChatInput('');
+    try { localStorage.removeItem('carruseles.director'); } catch { /* ignore */ }
+  }
+
+  // Genera con el brief acordado: 1) copys (texto) → 2) cada slide DIBUJADA en paralelo.
+  async function generarConBrief() {
+    if (!brief || busy || generandoArte) return;
+    setBusy(true); setError(''); setCarrusel(null); setActiva(0);
+    setFase('✍️ Escribiendo los copys del brief…');
+    let c: Carrusel | null = null;
+    try {
+      const res = await fetch('/api/carruseles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'idea', idea: brief.resumen, brief, nicho, tono, cta, numSlides }),
+      });
+      const d: Record<string, unknown> = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof d.error === 'string' ? d.error : 'No se pudieron escribir los copys.');
+        setBusy(false); setFase(''); return;
+      }
+      c = d as unknown as Carrusel;
+      aplicarCarrusel(c);
+    } catch { setError('Error de conexión.'); setBusy(false); setFase(''); return; }
+    setBusy(false); setFase('');
+
+    // Fase 2: el arte. Una imagen por slide, todas en paralelo; van apareciendo.
+    setGenerandoArte(true);
+    setImgProgreso(c.slides.map(() => 'pend'));
+    const total = c.slides.length;
+    await Promise.all(c.slides.map(async (s, i) => {
+      try {
+        const res = await fetch('/api/carruseles', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accion: 'fondo', prompt: promptImagenSlide(brief, s, i, total) }),
+        });
+        const d: Record<string, unknown> = await res.json().catch(() => ({}));
+        if (res.ok && typeof d.image === 'string') {
+          const img = d.image;
+          setCarrusel(prev => prev
+            ? { ...prev, slides: prev.slides.map((x, j) => (j === i ? { ...x, imagen: img } : x)) }
+            : prev);
+          setImgProgreso(p => p.map((v, j) => (j === i ? 'ok' : v)));
+        } else {
+          setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v)));
+        }
+      } catch { setImgProgreso(p => p.map((v, j) => (j === i ? 'err' : v))); }
+    }));
+    setGenerandoArte(false);
+  }
+
+  // Redibuja la imagen de la slide activa (usa la instrucción del editor si hay).
+  async function regenerarImagen() {
+    if (!slideActiva || fondoBusy) return;
+    const b: BriefCreativo = brief ?? { resumen: idea, copys: '', diseno: 'diseño limpio, moderno y consistente con el contenido', recomendaciones: [] };
+    setFondoBusy(true); setError('');
+    try {
+      const extra = instruccion.trim() ? `\nAJUSTE PEDIDO POR EL USUARIO (prioridad alta): ${instruccion.trim().slice(0, 300)}` : '';
+      const res = await fetch('/api/carruseles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'fondo', prompt: promptImagenSlide(b, slideActiva, activa, slides.length) + extra }),
+      });
+      const d: Record<string, unknown> = await res.json().catch(() => ({}));
+      if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'No se pudo redibujar la slide.');
+      else { editarSlide({ imagen: d.image as string }); setInstruccion(''); }
+    } catch { setError('Error de conexión dibujando la slide.'); }
+    setFondoBusy(false);
   }
 
   // Aplica un carrusel recibido de la API (y su tema clonado, si vino).
@@ -541,6 +671,8 @@ export default function CarruselesPage() {
   // Modo fiel: la slide activa tiene su HTML clonado y el tema activo es el clonado
   // → se edita el texto, el diseño lo pone la referencia (sin layouts ni fondos).
   const modoFiel = temaKey === TEMA_CLONADO_KEY && !!slideActiva?.html;
+  // Modo imagen (Director): la slide entera está dibujada por IA.
+  const modoImagen = !!slideActiva?.imagen;
 
   const labelGenerar = modo === 'adaptar' ? '🧬 Adaptar a mi carrusel'
     : modo === 'diseno' ? '🎨 Escribir sobre mi diseño'
@@ -567,7 +699,7 @@ export default function CarruselesPage() {
               <h2 className="text-lg font-bold mb-3">1 · Punto de partida</h2>
 
               {/* Tabs de modo */}
-              <div className="grid grid-cols-5 gap-1.5 mb-2">
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
                 {MODOS.map(m => (
                   <button key={m.key} onClick={() => { setModo(m.key); setError(''); }}
                     className="rounded-xl px-1 py-2 text-center transition-all"
@@ -582,6 +714,84 @@ export default function CarruselesPage() {
                 ))}
               </div>
               <p className="text-xs mb-4" style={{ color: '#9a9aa6' }}>{modoActivo.desc}</p>
+
+              {/* ── MODO DIRECTOR: chat + brief + generar ── */}
+              {modo === 'director' && (
+                <>
+                  <Dropzone
+                    imagenes={imagenes}
+                    onAdd={files => void agregarImagenes(files)}
+                    onRemove={i => setImagenes(prev => prev.filter((_, j) => j !== i))}
+                    hint="Opcional: referencias para el análisis (carruseles que te gusten, tu marca…)"
+                  />
+
+                  {/* Conversación */}
+                  <div ref={chatRef} className="rounded-2xl p-3 mb-2 overflow-y-auto flex flex-col gap-2"
+                    style={{ background: '#0a0a12', border: '1px solid #1d1d28', maxHeight: 340, minHeight: 150 }}>
+                    {chat.length === 0 && (
+                      <p className="text-xs leading-relaxed" style={{ color: '#6b6b78' }}>
+                        👋 Contale al director qué querés lograr: una idea, un link de Instagram
+                        (pegalo acá mismo) o subí capturas arriba. Te devuelve análisis + propuesta
+                        de copys y diseño, ajustan juntos, y recién ahí se genera.
+                      </p>
+                    )}
+                    {chat.map((m, i) => (
+                      <div key={i} className="text-xs px-3 py-2 rounded-xl whitespace-pre-wrap leading-relaxed"
+                        style={m.rol === 'user'
+                          ? { background: '#10231d', border: '1px solid #1d3b34', color: '#d9efe7', alignSelf: 'flex-end', maxWidth: '92%' }
+                          : { background: '#12121c', border: '1px solid #23232f', color: '#c9c9d4', alignSelf: 'flex-start', maxWidth: '92%' }}>
+                        {m.texto}
+                      </div>
+                    ))}
+                    {chatBusy && <p className="text-xs animate-pulse" style={{ color: '#7fd9c4' }}>💬 El director está pensando…</p>}
+                  </div>
+                  <div className="flex gap-1.5 mb-2">
+                    <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} rows={2}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void enviarChat(); } }}
+                      placeholder="Tu mensaje… (Enter envía, Shift+Enter salto)"
+                      className={input} style={inputStyle} />
+                    <button onClick={() => void enviarChat()} disabled={chatBusy}
+                      className="shrink-0 px-4 rounded-xl text-sm font-bold disabled:opacity-50"
+                      style={{ background: TOOL_GRAD, color: '#04211c' }}>➤</button>
+                  </div>
+                  {chat.length > 0 && (
+                    <button onClick={nuevaConversacion} className="text-[11px] mb-3" style={{ color: '#8b8b96' }}>
+                      🗑 Nueva conversación
+                    </button>
+                  )}
+
+                  {/* Brief acordado */}
+                  {brief && (
+                    <div className="rounded-2xl p-3 mb-3 text-xs leading-relaxed" style={{ background: '#0e1a17', border: '1px solid #1d3b34' }}>
+                      <p className="font-bold mb-1" style={{ color: '#7fd9c4' }}>📋 Brief actual</p>
+                      <p style={{ color: '#d9efe7' }}><b>Idea:</b> {brief.resumen}</p>
+                      <p className="mt-1" style={{ color: '#9fc9bb' }}><b>Copys:</b> {brief.copys}</p>
+                      <p className="mt-1" style={{ color: '#9fc9bb' }}><b>Diseño:</b> {brief.diseno}</p>
+                      {brief.recomendaciones.length > 0 && (
+                        <ul className="mt-1 space-y-0.5" style={{ color: '#8fb5a8' }}>
+                          {brief.recomendaciones.map((r, i) => <li key={i}>• {r}</li>)}
+                        </ul>
+                      )}
+                      <p className="mt-1.5" style={{ color: '#5f8a7d' }}>¿Cambios? Pedíselos en el chat: el brief se actualiza solo.</p>
+                    </div>
+                  )}
+
+                  <label className="block mb-3">
+                    <span className="text-xs" style={{ color: '#8b8b96' }}>Slides: <b style={{ color: '#fff' }}>{numSlides}</b></span>
+                    <input type="range" min={4} max={10} value={numSlides} onChange={e => setNumSlides(Number(e.target.value))}
+                      className="w-full mt-1" style={{ accentColor: TOOL }} />
+                  </label>
+
+                  <button onClick={() => void generarConBrief()} disabled={!brief || busy || generandoArte}
+                    className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                    style={{ background: TOOL_GRAD, color: '#04211c' }}>
+                    {busy ? (fase || 'Generando…') : generandoArte ? '🎨 Dibujando las slides…' : '🎨 Generar con este brief'}
+                  </button>
+                  <p className="text-[11px] mt-2 text-center" style={{ color: '#6b6b78' }}>
+                    {brief ? 'Escribe los copys y DIBUJA cada slide con IA de imagen (~40-60s, van apareciendo).' : 'Acordá el brief en el chat para habilitar la generación.'}
+                  </p>
+                </>
+              )}
 
               {/* Capturas (adaptar / diseño) */}
               {conCapturas && (
@@ -602,16 +812,18 @@ export default function CarruselesPage() {
                   className={input + ' mb-3'} style={inputStyle} />
               )}
 
-              {/* Idea / tema */}
-              <textarea value={idea} onChange={e => setIdea(e.target.value)} rows={3} maxLength={400}
-                placeholder={
-                  modo === 'adaptar' ? 'Opcional: ¿para qué nicho o con qué giro lo adaptamos? Ej: finanzas para creadores…'
-                  : modo === 'link' ? 'Opcional: tu giro o nicho. Ej: adaptalo a bienes raíces, tono más polémico…'
-                  : modo === 'diseno' ? 'La idea del carrusel. Ej: 5 errores que frenan tu crecimiento…'
-                  : modo === 'lote' ? 'El tema o nicho del plan. Ej: marca personal para agentes inmobiliarios…'
-                  : 'Ej: 5 errores que frenan tu crecimiento en redes…'
-                }
-                className={input + ' mb-3'} style={inputStyle} />
+              {/* Idea / tema (no aplica en Director: ahí manda el chat) */}
+              {modo !== 'director' && (
+                <textarea value={idea} onChange={e => setIdea(e.target.value)} rows={3} maxLength={400}
+                  placeholder={
+                    modo === 'adaptar' ? 'Opcional: ¿para qué nicho o con qué giro lo adaptamos? Ej: finanzas para creadores…'
+                    : modo === 'link' ? 'Opcional: tu giro o nicho. Ej: adaptalo a bienes raíces, tono más polémico…'
+                    : modo === 'diseno' ? 'La idea del carrusel. Ej: 5 errores que frenan tu crecimiento…'
+                    : modo === 'lote' ? 'El tema o nicho del plan. Ej: marca personal para agentes inmobiliarios…'
+                    : 'Ej: 5 errores que frenan tu crecimiento en redes…'
+                  }
+                  className={input + ' mb-3'} style={inputStyle} />
+              )}
 
               {modo === 'idea' && (
                 <div className="flex flex-wrap gap-1.5 mb-4">
@@ -625,20 +837,22 @@ export default function CarruselesPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <label className="block">
-                  <span className="text-xs" style={{ color: '#8b8b96' }}>Nicho</span>
-                  <input value={nicho} onChange={e => setNicho(e.target.value)} placeholder="finanzas, fitness…"
-                    className={input + ' mt-1'} style={inputStyle} />
-                </label>
-                <label className="block">
-                  <span className="text-xs" style={{ color: '#8b8b96' }}>Tono</span>
-                  <input value={tono} onChange={e => setTono(e.target.value)} placeholder="cercano, experto…"
-                    className={input + ' mt-1'} style={inputStyle} />
-                </label>
-              </div>
+              {modo !== 'director' && (
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <label className="block">
+                    <span className="text-xs" style={{ color: '#8b8b96' }}>Nicho</span>
+                    <input value={nicho} onChange={e => setNicho(e.target.value)} placeholder="finanzas, fitness…"
+                      className={input + ' mt-1'} style={inputStyle} />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs" style={{ color: '#8b8b96' }}>Tono</span>
+                    <input value={tono} onChange={e => setTono(e.target.value)} placeholder="cercano, experto…"
+                      className={input + ' mt-1'} style={inputStyle} />
+                  </label>
+                </div>
+              )}
 
-              {modo !== 'lote' ? (
+              {modo !== 'director' && (modo !== 'lote' ? (
                 <>
                   <label className="block mb-3">
                     <span className="text-xs" style={{ color: '#8b8b96' }}>Slides: <b style={{ color: '#fff' }}>{numSlides}</b></span>
@@ -676,7 +890,7 @@ export default function CarruselesPage() {
                     {planBusy ? 'Armando el plan…' : '🗺️ Generar plan de contenido'}
                   </button>
                 </>
-              )}
+              ))}
             </div>
 
             {/* Plan del lote */}
@@ -820,6 +1034,16 @@ export default function CarruselesPage() {
                       👔 Clonando el diseño tal cual la referencia… (~20s, podés ir editando)
                     </p>
                   )}
+                  {generandoArte && (
+                    <p className="text-[11px] text-center mt-2 animate-pulse" style={{ color: '#7fd9c4' }}>
+                      🎨 Dibujando las slides con IA… ({imgProgreso.filter(v => v === 'ok').length}/{imgProgreso.length || numSlides})
+                    </p>
+                  )}
+                  {!generandoArte && imgProgreso.includes('err') && (
+                    <p className="text-[11px] text-center mt-2" style={{ color: '#fbbf24' }}>
+                      ⚠️ {imgProgreso.filter(v => v === 'err').length} slide(s) no se pudieron dibujar — abrilas y tocá «Redibujar».
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-between mt-3 gap-2">
                     <button onClick={() => setActiva(a => Math.max(0, a - 1))} disabled={activa === 0}
@@ -869,8 +1093,30 @@ export default function CarruselesPage() {
                         rows={3} placeholder="Texto de apoyo (en listas, un punto por línea)" className={input} style={inputStyle} />
                     </div>
 
+                    {/* Modo imagen (Director): la slide está dibujada por IA */}
+                    {modoImagen && (
+                      <div className="mt-2">
+                        <p className="text-[11px] rounded-lg px-2.5 py-1.5 mb-2" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#8fd0bd' }}>
+                          🎨 Slide dibujada por IA: editá los textos, escribí un ajuste (opcional) y tocá
+                          <b> Redibujar</b> para regenerarla con el mismo estilo del brief.
+                        </p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          <button onClick={() => void regenerarImagen()} disabled={fondoBusy}
+                            className="text-[11px] px-2.5 py-1.5 rounded-lg font-bold disabled:opacity-50"
+                            style={{ background: TOOL_GRAD, color: '#04211c' }}>
+                            {fondoBusy ? '🎨 Dibujando… (~30s)' : '🎨 Redibujar esta slide'}
+                          </button>
+                          <button onClick={() => editarSlide({ imagen: '' })}
+                            className="text-[11px] px-2.5 py-1.5 rounded-lg font-bold"
+                            style={{ background: '#1c1016', border: '1px solid #4a2030', color: '#f08fa8' }}>
+                            ✕ Quitar imagen (usar plantilla)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Modo fiel: aviso en lugar de layouts/fondos */}
-                    {modoFiel && (
+                    {!modoImagen && modoFiel && (
                       <p className="text-[11px] mt-2 rounded-lg px-2.5 py-1.5" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#8fd0bd' }}>
                         🎯 Modo fiel al original: editás los textos y el diseño clonado se mantiene tal cual.
                         Elegí otra plantilla en «2 · Estilo» para re-vestirlo (y volver a layouts y fondos).
@@ -878,7 +1124,7 @@ export default function CarruselesPage() {
                     )}
 
                     {/* Layout de la slide */}
-                    {!modoFiel && slideActiva && slideActiva.tipo !== 'resumen' && (
+                    {!modoFiel && !modoImagen && slideActiva && slideActiva.tipo !== 'resumen' && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[11px]" style={{ color: '#8b8b96' }}>Layout:</span>
                         {LAYOUTS_UI.map(l => (
@@ -894,13 +1140,13 @@ export default function CarruselesPage() {
                         ))}
                       </div>
                     )}
-                    {!modoFiel && slideActiva?.layout === 'stat' && slideActiva.tipo !== 'resumen' && (
+                    {!modoFiel && !modoImagen && slideActiva?.layout === 'stat' && slideActiva.tipo !== 'resumen' && (
                       <input value={slideActiva.stat ?? ''} onChange={e => editarSlide({ stat: e.target.value })}
                         placeholder='La cifra protagonista (ej: "87%", "x3", "0→100K")' className={input + ' mt-2'} style={inputStyle} />
                     )}
 
-                    {/* Fondo de la slide (no aplica en modo fiel: el diseño lo trae la referencia) */}
-                    {!modoFiel && (
+                    {/* Fondo de la slide (no aplica en modo fiel/imagen: el diseño ya viene puesto) */}
+                    {!modoFiel && !modoImagen && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[11px]" style={{ color: '#8b8b96' }}>Fondo:</span>
                         <button onClick={() => fondoInputRef.current?.click()}

@@ -26,6 +26,24 @@ export type Slide = {
                      // la referencia, como HTML autocontenido 1080×1350 con estilos
                      // inline y textos marcados con data-rol. Se usa cuando el tema
                      // activo es el clonado; otras plantillas usan el render clásico.
+  imagen?: string;   // modo Director: la slide ENTERA dibujada por gpt-image
+                     // (dataURL). Tiene prioridad sobre html/plantilla al renderizar;
+                     // el @handle del brand kit se superpone encima.
+};
+
+// ── Modo Director (chat creativo) ───────────────────────────────────────────
+// La IA y el usuario acuerdan un brief ANTES de generar. El brief guía tanto
+// los copys (gpt-5.x) como el arte de cada slide (gpt-image).
+export type BriefCreativo = {
+  resumen: string;           // la idea acordada, en 1-2 líneas
+  copys: string;             // dirección de copy: ángulo, tono, tipo de gancho
+  diseno: string;            // dirección de ARTE detallada (estilo, paleta, tipografía, composición)
+  recomendaciones: string[]; // 2-5 recomendaciones accionables
+};
+
+export type MensajeDirector = {
+  rol: 'user' | 'ia';
+  texto: string;
 };
 
 export type ScoreViral = {
