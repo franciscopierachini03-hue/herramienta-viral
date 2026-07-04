@@ -557,12 +557,13 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Facebook ─────────────────────────────────────────────────────────────────
-  // FB no expone el video sin un descargador. Usamos uno de RapidAPI (all-in-one,
-  // configurable por env). Si no hay key / no estás suscrito → mensaje claro (501),
-  // no rompe. Default: social-media-video-downloader.
+  // FB no expone el video sin un descargador. Usamos uno de RapidAPI (configurable
+  // por env). Si no hay key / no estás suscrito → mensaje claro (501), no rompe.
+  // Default: facebook-reel-and-video-downloader — el anterior (social-media-video-
+  // downloader) vació sus endpoints: respondía "does not exist" a todas las rutas.
   if (platform === 'facebook') {
-    const fbHost = process.env.FB_DL_HOST || 'social-media-video-downloader.p.rapidapi.com';
-    const fbPath = process.env.FB_DL_PATH || '/smvd/get/all?url=';
+    const fbHost = process.env.FB_DL_HOST || 'facebook-reel-and-video-downloader.p.rapidapi.com';
+    const fbPath = process.env.FB_DL_PATH || '/app/main.php?url=';
     if (!rapidApiKey) {
       return Response.json({ error: 'La transcripción de Facebook todavía no está configurada (falta el descargador).' }, { status: 501 });
     }
@@ -586,6 +587,11 @@ export async function POST(req: NextRequest) {
       };
       for (const arr of [data?.links, data?.medias, data?.video, data?.videos]) {
         if (Array.isArray(arr)) arr.forEach(push);
+      }
+      // facebook-reel-and-video-downloader devuelve links como OBJETO:
+      // { "links": { "Download High Quality": "https://…", "Download Low Quality": "…" } }
+      if (data?.links && typeof data.links === 'object' && !Array.isArray(data.links)) {
+        Object.values(data.links as Record<string, unknown>).forEach(push);
       }
       for (const s of [data?.url, data?.hd, data?.sd, data?.hd_src, data?.sd_src]) push(s);
       const videoUrl = cands.find(u => /\.mp4|\/video|videoplayback/i.test(u)) || cands[0];
