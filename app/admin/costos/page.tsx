@@ -24,13 +24,26 @@ type Servicio = {
   estado: 'ok' | 'atencion' | 'agotado' | 'roto' | 'sin-dato';
 };
 
+type GastoTarjeta = {
+  key: string;
+  icono: string;
+  nombre: string;
+  costoMes: number | null;
+  ultimo?: number;
+  nota?: string;
+};
+
 type Data = {
   actualizado: string;
   deep: boolean;
   cacheado?: boolean;
+  totalApis: number;
+  totalTarjeta: number;
   totalFijo: number;
+  variableTarjeta: number;
   gastoVariable: number;
   servicios: Servicio[];
+  gastosTarjeta: GastoTarjeta[];
 };
 
 const ESTADO: Record<Servicio['estado'], { label: string; color: string; bg: string }> = {
@@ -101,21 +114,25 @@ export default function CostosPage() {
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
             <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Fijo mensual (planes)</div>
-              <div className="text-2xl font-extrabold">${data.totalFijo}<span className="text-sm font-normal" style={{ color: '#666' }}>/mes</span></div>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Fijo mensual</div>
+              <div className="text-2xl font-extrabold">${data.totalFijo.toFixed(2)}<span className="text-sm font-normal" style={{ color: '#666' }}>/mes</span></div>
+              <div className="text-[11px] mt-1" style={{ color: '#666' }}>APIs ${data.totalApis.toFixed(2)} · tarjeta ${data.totalTarjeta.toFixed(2)}</div>
             </div>
             <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Variable medido (mes)</div>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>Variable</div>
               <div className="text-2xl font-extrabold">
                 {data.servicios.some(s => s.gastoMes != null)
-                  ? <>${data.gastoVariable.toFixed(2)}</>
-                  : <span className="text-base font-bold" style={{ color: '#9ca3af' }}>sin OPENAI_ADMIN_KEY</span>}
+                  ? <>${(data.gastoVariable + data.variableTarjeta).toFixed(2)}</>
+                  : <>~${data.variableTarjeta.toFixed(2)}</>}
+              </div>
+              <div className="text-[11px] mt-1" style={{ color: '#666' }}>
+                ads + comisiones{data.servicios.some(s => s.gastoMes != null) ? ' + OpenAI' : ' · OpenAI: falta OPENAI_ADMIN_KEY'}
               </div>
             </div>
             <div className="rounded-2xl p-4 col-span-2 md:col-span-1" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>Estimado total</div>
               <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>
-                ${(data.totalFijo + data.gastoVariable).toFixed(0)}<span className="text-sm font-normal" style={{ color: '#666' }}>/mes</span>
+                ${(data.totalFijo + data.gastoVariable + data.variableTarjeta).toFixed(0)}<span className="text-sm font-normal" style={{ color: '#666' }}>/mes</span>
               </div>
             </div>
           </div>
@@ -157,6 +174,34 @@ export default function CostosPage() {
               );
             })}
           </div>
+        )}
+
+        {/* Gastos de la tarjeta (sin API consultable) */}
+        {data && (data.gastosTarjeta?.length ?? 0) > 0 && (
+          <>
+            <div className="flex items-baseline justify-between mt-8 mb-3">
+              <h2 className="text-sm font-bold" style={{ color: '#d4d4dc' }}>💳 Otros gastos de la tarjeta (Mercury ••3883)</h2>
+              <span className="text-xs" style={{ color: '#666' }}>
+                Subtotal fijo: <b style={{ color: '#eee' }}>${data.totalTarjeta.toFixed(2)}/mes</b>
+              </span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {data.gastosTarjeta.map(g => (
+                <div key={g.key} className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: g.nota?.startsWith('⚠️') ? '1px solid #a1620a55' : '1px solid #1f1f1f' }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm font-bold">{g.icono} {g.nombre}</div>
+                    <span className="text-base font-extrabold shrink-0">
+                      {g.costoMes != null ? `$${g.costoMes.toFixed(2)}/mes` : g.ultimo != null ? `~$${g.ultimo.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                  {g.nota && <p className="text-[11px] mt-1.5" style={{ color: g.nota.startsWith('⚠️') ? '#fcd34d' : '#777' }}>{g.nota}</p>}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] mt-2" style={{ color: '#555' }}>
+              Estos montos vienen del extracto del banco (no tienen API). Cuando cambie alguno, pedime actualizarlo.
+            </p>
+          </>
         )}
 
         {error && (

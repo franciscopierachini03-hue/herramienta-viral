@@ -33,6 +33,36 @@ type Servicio = {
 let _cache: { data: Record<string, unknown>; ts: number } | null = null;
 const TTL_MS = 15 * 60_000;
 
+// ── Gastos que salen de la tarjeta (Mercury ••3883) sin API consultable ─────
+// Fuente: extracto del banco (actualizado 2026-07-05). Cuando cambie un monto,
+// se edita esta lista (o pedíselo a Claude).
+type GastoTarjeta = {
+  key: string; icono: string; nombre: string;
+  costoMes: number | null;  // null = variable
+  ultimo?: number;          // último cargo conocido (para los variables)
+  nota?: string;
+};
+const GASTOS_TARJETA: GastoTarjeta[] = [
+  { key: 'hetzner', icono: '🖥️', nombre: 'Hetzner Online — servidor', costoMes: 17.09 },
+  { key: 'elevenlabs', icono: '🗣️', nombre: 'ElevenLabs — voz IA', costoMes: 22.00 },
+  { key: 'heygen', icono: '🎭', nombre: 'HeyGen — avatares de video', costoMes: 29.00 },
+  { key: 'captions', icono: '💬', nombre: 'Captions — edición y subtítulos', costoMes: 24.99 },
+  { key: 'higgsfield', icono: '🎥', nombre: 'Higgsfield — video IA', costoMes: 30.51 },
+  {
+    key: 'apify', icono: '🕷️', nombre: 'Apify — scraping', costoMes: 33.09,
+    nota: '⚠️ El buscador de virales ya NO usa Apify (lo reemplazó SerpApi). Si nada más lo usa, cancelalo: ahorro directo de $33/mes.',
+  },
+  { key: 'nokia', icono: '📞', nombre: 'Nokia of America — línea/servicio', costoMes: 9.90 },
+  {
+    key: 'fbads', icono: '📣', nombre: 'Facebook Ads — pauta', costoMes: null, ultimo: 25.00,
+    nota: 'Variable según campañas. Último cargo: $25.00 (3 jul).',
+  },
+  {
+    key: 'fees', icono: '🏦', nombre: 'Comisiones bancarias internacionales', costoMes: null, ultimo: 1.60,
+    nota: '~$0.68–0.92 por cargo internacional (suman ~$1–2/mes).',
+  },
+];
+
 function estadoPorUso(usado?: number, limite?: number): Servicio['estado'] {
   if (usado == null || !limite) return 'sin-dato';
   const f = usado / limite;
@@ -89,12 +119,13 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
     const limite = Number(d.maxCredits) || 0;
     const usado = Number(d.usedCredits) || 0;
     servicios.push({
-      key: 'supadata', icono: '▶️', nombre: 'Supadata — transcripción YouTube', costoMes: 17,
+      key: 'supadata', icono: '▶️', nombre: 'Supadata — transcripción YouTube', costoMes: 20.57,
       limite, usado, restante: limite - usado, unidad: 'créditos',
-      detalle: `Plan ${d.plan || ''}`, estado: estadoPorUso(usado, limite),
+      detalle: `Plan ${d.plan || ''}`, nota: 'Plan $17 + impuestos = cargo $20.57.',
+      estado: estadoPorUso(usado, limite),
     });
   } catch {
-    servicios.push({ key: 'supadata', icono: '▶️', nombre: 'Supadata — YouTube', costoMes: 17, estado: 'sin-dato', nota: 'No respondió /v1/me.' });
+    servicios.push({ key: 'supadata', icono: '▶️', nombre: 'Supadata — YouTube', costoMes: 20.57, estado: 'sin-dato', nota: 'No respondió /v1/me.' });
   }
 
   // ── Instagram · looter2 — medirlo gasta 1 request (por eso la caché) ───────
@@ -179,14 +210,20 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
     });
   }
 
-  const totalFijo = servicios.reduce((n, s) => n + (s.costoMes || 0), 0);
+  const totalApis = servicios.reduce((n, s) => n + (s.costoMes || 0), 0);
+  const totalTarjeta = GASTOS_TARJETA.reduce((n, g) => n + (g.costoMes || 0), 0);
+  const variableTarjeta = GASTOS_TARJETA.reduce((n, g) => n + (g.ultimo || 0), 0);
   const gastoVariable = servicios.reduce((n, s) => n + (s.gastoMes || 0), 0);
   return {
     actualizado: new Date().toISOString(),
     deep,
-    totalFijo,
-    gastoVariable,
+    totalApis: Math.round(totalApis * 100) / 100,
+    totalTarjeta: Math.round(totalTarjeta * 100) / 100,
+    totalFijo: Math.round((totalApis + totalTarjeta) * 100) / 100,
+    variableTarjeta: Math.round(variableTarjeta * 100) / 100,
+    gastoVariable: Math.round(gastoVariable * 100) / 100,
     servicios,
+    gastosTarjeta: GASTOS_TARJETA,
   };
 }
 
