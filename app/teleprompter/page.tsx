@@ -46,7 +46,8 @@ export default function TeleprompterPage() {
   const [fontSize, setFontSize] = useState(64);
   const [velocidad, setVelocidad] = useState(70); // px/s
   const [playing, setPlaying] = useState(false);
-  const [espejo, setEspejo] = useState(false);
+  const [espejo, setEspejo] = useState(false);   // volteo horizontal (vidrio/espejo)
+  const [espejoV, setEspejoV] = useState(false); // volteo vertical (monitor invertido)
   const [editar, setEditar] = useState(true);
   const [fs, setFs] = useState(false);
 
@@ -92,6 +93,7 @@ export default function TeleprompterPage() {
         if (typeof d.fontSize === 'number') setFontSize(clamp(d.fontSize, SIZE_MIN, SIZE_MAX));
         if (typeof d.velocidad === 'number') setVelocidad(clamp(d.velocidad, VEL_MIN, VEL_MAX));
         if (typeof d.espejo === 'boolean') setEspejo(d.espejo);
+        if (typeof d.espejoV === 'boolean') setEspejoV(d.espejoV);
         if (typeof d.texto === 'string') savedTexto = d.texto;
       }
     } catch { /* ignore */ }
@@ -109,9 +111,9 @@ export default function TeleprompterPage() {
     setTexto(savedTexto != null ? savedTexto : EJEMPLO);
   }, []);
   useEffect(() => {
-    try { localStorage.setItem('teleprompter.v1', JSON.stringify({ texto, fontSize, velocidad, espejo })); }
+    try { localStorage.setItem('teleprompter.v1', JSON.stringify({ texto, fontSize, velocidad, espejo, espejoV })); }
     catch { /* ignore */ }
-  }, [texto, fontSize, velocidad, espejo]);
+  }, [texto, fontSize, velocidad, espejo, espejoV]);
 
   // ── Loop de scroll (requestAnimationFrame, independiente del framerate) ──
   useEffect(() => {
@@ -434,20 +436,26 @@ export default function TeleprompterPage() {
             <div className="absolute" style={{ right: 8, top: -5, width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderRight: `9px solid ${TOOL}aa` }} />
           </div>
 
-          {/* Texto que baja */}
-          <div ref={scrollRef} onScroll={onScroll}
-            className="absolute inset-0 overflow-y-auto z-20"
-            style={{ WebkitMaskImage: maskImg, maskImage: maskImg }}>
-            <div
-              style={{
-                paddingTop: '40vh', paddingBottom: '64vh',
-                paddingLeft: '6%', paddingRight: '6%',
-                fontSize, lineHeight: 1.4, fontWeight: 600, textAlign: 'center',
-                color: '#fff', whiteSpace: 'pre-wrap', letterSpacing: '0.3px',
-                transform: espejo ? 'scaleX(-1)' : 'none',
-                textShadow: camara ? '0 2px 12px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.85)' : 'none',
-              }}>
-              {texto.trim() ? texto : 'Pegá tu guion arriba y dale play ▶'}
+          {/* Texto que baja. Los volteos van en ESTE marco (no en el texto):
+              así el espejo horizontal/vertical invierte también el sentido del
+              scroll, que es lo que espera un rig con vidrio o monitor invertido. */}
+          <div className="absolute inset-0 z-20"
+            style={{
+              transform: [espejo ? 'scaleX(-1)' : '', espejoV ? 'scaleY(-1)' : ''].filter(Boolean).join(' ') || 'none',
+            }}>
+            <div ref={scrollRef} onScroll={onScroll}
+              className="w-full h-full overflow-y-auto"
+              style={{ WebkitMaskImage: maskImg, maskImage: maskImg }}>
+              <div
+                style={{
+                  paddingTop: '40vh', paddingBottom: '64vh',
+                  paddingLeft: '6%', paddingRight: '6%',
+                  fontSize, lineHeight: 1.4, fontWeight: 600, textAlign: 'center',
+                  color: '#fff', whiteSpace: 'pre-wrap', letterSpacing: '0.3px',
+                  textShadow: camara ? '0 2px 12px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.85)' : 'none',
+                }}>
+                {texto.trim() ? texto : 'Pegá tu guion arriba y dale play ▶'}
+              </div>
             </div>
           </div>
 
@@ -476,8 +484,10 @@ export default function TeleprompterPage() {
               </>
             )}
             <span className="mx-1 w-px self-stretch" style={{ background: '#2a2a38' }} />
-            <button onClick={() => setEspejo(e => !e)} title="Espejar texto (para vidrio)" className={iconBtn}
+            <button onClick={() => setEspejo(e => !e)} title="Volteo horizontal — para el vidrio del teleprompter" className={iconBtn}
               style={{ width: 40, height: 40, fontSize: 16, background: espejo ? TOOL_GRAD : '#13131d', border: '1px solid #26263a', color: '#fff' }}>🪞</button>
+            <button onClick={() => setEspejoV(e => !e)} title="Volteo vertical — para monitor invertido" className={iconBtn}
+              style={{ width: 40, height: 40, fontSize: 16, background: espejoV ? TOOL_GRAD : '#13131d', border: '1px solid #26263a', color: '#fff' }}>↕️</button>
             <button onClick={toggleFs} title="Pantalla completa" className={iconBtn} style={{ ...ghost, width: 40, height: 40, fontSize: 16 }}>{fs ? '🗗' : '⛶'}</button>
           </div>
         </div>
