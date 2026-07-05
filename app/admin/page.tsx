@@ -440,6 +440,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/admin/costos"
+              className="px-4 py-2 rounded-xl text-xs font-bold"
+              style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>
+              💸 Costos de APIs
+            </Link>
             <ReconcileButton />
             <a href="/api/admin/export" download
               className="px-4 py-2 rounded-xl text-xs font-bold"

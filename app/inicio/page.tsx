@@ -62,6 +62,10 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
               style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)', color: '#fff' }}>
               🛠 Panel admin
             </Link>
+            <Link href="/admin/costos" className="text-xs font-bold px-3 py-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
+              style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>
+              💸 Costos
+            </Link>
             <span className="mx-1 text-xs" style={{ color: '#3f3f4d' }}>|</span>
             <span className="text-xs font-bold" style={{ color: '#8b8b96' }}>👁 Ver como:</span>
             <Link href="/inicio" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(!vista)}>🛡 Admin</Link>
