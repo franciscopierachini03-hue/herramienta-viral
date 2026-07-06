@@ -445,6 +445,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>
               💸 Costos de APIs
             </Link>
+            <Link href="/admin/whatsapp"
+              className="px-4 py-2 rounded-xl text-xs font-bold"
+              style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
+              📲 WhatsApp
+            </Link>
             <ReconcileButton />
             <a href="/api/admin/export" download
               className="px-4 py-2 rounded-xl text-xs font-bold"
