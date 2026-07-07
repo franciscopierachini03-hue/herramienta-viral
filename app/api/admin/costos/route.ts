@@ -36,29 +36,33 @@ const TTL_MS = 15 * 60_000;
 // ── Gastos que salen de la tarjeta (Mercury ••3883) sin API consultable ─────
 // Fuente: extracto del banco (actualizado 2026-07-05). Cuando cambie un monto,
 // se edita esta lista (o pedíselo a Claude).
+// grupo: 'viraladn' = costo de operar la plataforma · 'otros' = resto del negocio.
 type GastoTarjeta = {
   key: string; icono: string; nombre: string;
+  grupo: 'viraladn' | 'otros';
   costoMes: number | null;  // null = variable
   ultimo?: number;          // último cargo conocido (para los variables)
   nota?: string;
 };
 const GASTOS_TARJETA: GastoTarjeta[] = [
-  { key: 'hetzner', icono: '🖥️', nombre: 'Hetzner Online — servidor', costoMes: 17.09 },
-  { key: 'elevenlabs', icono: '🗣️', nombre: 'ElevenLabs — voz IA', costoMes: 22.00 },
-  { key: 'heygen', icono: '🎭', nombre: 'HeyGen — avatares de video', costoMes: 29.00 },
-  { key: 'captions', icono: '💬', nombre: 'Captions — edición y subtítulos', costoMes: 24.99 },
-  { key: 'higgsfield', icono: '🎥', nombre: 'Higgsfield — video IA', costoMes: 30.51 },
+  // ViralADN (contratado para la plataforma):
   {
-    key: 'apify', icono: '🕷️', nombre: 'Apify — scraping', costoMes: 33.09,
-    nota: '⚠️ El buscador de virales ya NO usa Apify (lo reemplazó SerpApi). Si nada más lo usa, cancelalo: ahorro directo de $33/mes.',
+    key: 'apify', icono: '🕷️', nombre: 'Apify — scraping (legado del buscador)', grupo: 'viraladn', costoMes: 33.09,
+    nota: '⚠️ El buscador ya NO usa Apify (lo reemplazó SerpApi). Si nada más lo usa, cancelalo: ahorro directo de $33/mes.',
   },
-  { key: 'nokia', icono: '📞', nombre: 'Nokia of America — línea/servicio', costoMes: 9.90 },
+  // Resto del negocio (no son costos de ViralADN):
+  { key: 'hetzner', icono: '🖥️', nombre: 'Hetzner Online — servidor', grupo: 'otros', costoMes: 17.09 },
+  { key: 'elevenlabs', icono: '🗣️', nombre: 'ElevenLabs — voz IA', grupo: 'otros', costoMes: 22.00 },
+  { key: 'heygen', icono: '🎭', nombre: 'HeyGen — avatares de video', grupo: 'otros', costoMes: 29.00 },
+  { key: 'captions', icono: '💬', nombre: 'Captions — edición y subtítulos', grupo: 'otros', costoMes: 24.99 },
+  { key: 'higgsfield', icono: '🎥', nombre: 'Higgsfield — video IA', grupo: 'otros', costoMes: 30.51 },
+  { key: 'nokia', icono: '📞', nombre: 'Nokia of America — línea/servicio', grupo: 'otros', costoMes: 9.90 },
   {
-    key: 'fbads', icono: '📣', nombre: 'Facebook Ads — pauta', costoMes: null, ultimo: 25.00,
+    key: 'fbads', icono: '📣', nombre: 'Facebook Ads — pauta', grupo: 'otros', costoMes: null, ultimo: 25.00,
     nota: 'Variable según campañas. Último cargo: $25.00 (3 jul).',
   },
   {
-    key: 'fees', icono: '🏦', nombre: 'Comisiones bancarias internacionales', costoMes: null, ultimo: 1.60,
+    key: 'fees', icono: '🏦', nombre: 'Comisiones bancarias internacionales', grupo: 'otros', costoMes: null, ultimo: 1.60,
     nota: '~$0.68–0.92 por cargo internacional (suman ~$1–2/mes).',
   },
 ];
@@ -210,20 +214,28 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
     });
   }
 
+  const r2 = (n: number) => Math.round(n * 100) / 100;
   const totalApis = servicios.reduce((n, s) => n + (s.costoMes || 0), 0);
-  const totalTarjeta = GASTOS_TARJETA.reduce((n, g) => n + (g.costoMes || 0), 0);
-  const variableTarjeta = GASTOS_TARJETA.reduce((n, g) => n + (g.ultimo || 0), 0);
-  const gastoVariable = servicios.reduce((n, s) => n + (s.gastoMes || 0), 0);
+  const tarjetaViral = GASTOS_TARJETA.filter(g => g.grupo === 'viraladn');
+  const tarjetaOtros = GASTOS_TARJETA.filter(g => g.grupo === 'otros');
+  const totalTarjetaViral = tarjetaViral.reduce((n, g) => n + (g.costoMes || 0), 0);
+  const totalOtros = tarjetaOtros.reduce((n, g) => n + (g.costoMes || 0), 0);
+  const variableOtros = tarjetaOtros.reduce((n, g) => n + (g.ultimo || 0), 0);
+  const gastoVariable = servicios.reduce((n, s) => n + (s.gastoMes || 0), 0); // OpenAI (ViralADN)
   return {
     actualizado: new Date().toISOString(),
     deep,
-    totalApis: Math.round(totalApis * 100) / 100,
-    totalTarjeta: Math.round(totalTarjeta * 100) / 100,
-    totalFijo: Math.round((totalApis + totalTarjeta) * 100) / 100,
-    variableTarjeta: Math.round(variableTarjeta * 100) / 100,
-    gastoVariable: Math.round(gastoVariable * 100) / 100,
+    // ViralADN = APIs medidas + lo contratado para la plataforma en la tarjeta.
+    totalViralAdn: r2(totalApis + totalTarjetaViral),
+    totalApis: r2(totalApis),
+    // Resto del negocio (misma tarjeta, no es costo de la plataforma).
+    totalOtros: r2(totalOtros),
+    variableOtros: r2(variableOtros),
+    gastoVariable: r2(gastoVariable),
+    totalFijo: r2(totalApis + totalTarjetaViral + totalOtros),
     servicios,
-    gastosTarjeta: GASTOS_TARJETA,
+    tarjetaViral,
+    tarjetaOtros,
   };
 }
 
