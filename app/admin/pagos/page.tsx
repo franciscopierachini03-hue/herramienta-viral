@@ -72,7 +72,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
       const grupos = new Map<string, GrupoSub>();
       let otros = 0;
       let truncado = false;
-      let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100&expand[]=data.latest_invoice';
+      let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100';
       for (let page = 0; page < 20 && url; page++) {
         const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
         if (!r.ok) return null;
@@ -89,18 +89,29 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           const ciclo: 'mensual' | 'anual' = price.recurring?.interval === 'year' ? 'anual' : 'mensual';
           const k = `${producto}:${ciclo}`;
           const g = grupos.get(k) || { producto, ciclo, n: 0, mrr: 0, porCancelar: 0, bono: 0 };
-          // ¿Pagó de verdad? La última factura cobrada > $0 (descuentos ya aplicados).
-          const pagadoUsd = (Number(sub.latest_invoice?.amount_paid) || 0) / 100;
-          if (pagadoUsd > 0) {
+
+          // Ingreso recurrente NETO: precio de lista del ítem − descuento ACTIVO.
+          // (No usamos latest_invoice: incluye prorrateos, impuestos y meses
+          //  cobrados juntos → inflaba el número.)
+          const qty = Number(it.quantity) || 1;
+          const base = (Number(price.unit_amount) || 0) / 100 * qty; // por período
+          const cup = sub.discount?.coupon;
+          let neto = base;
+          if (cup?.percent_off) neto = base * (1 - Number(cup.percent_off) / 100);
+          else if (cup?.amount_off) neto = Math.max(0, base - Number(cup.amount_off) / 100);
+          neto = Math.round(neto * 100) / 100;
+          const netoMensual = ciclo === 'anual' ? neto / 12 : neto;
+
+          if (neto > 0) {
             g.n += 1;
-            g.mrr += ciclo === 'anual' ? pagadoUsd / 12 : pagadoUsd;
+            g.mrr += netoMensual;
             if (sub.cancel_at_period_end) g.porCancelar += 1;
           } else {
-            g.bono += 1; // activo con última factura $0: cupón 100% / mes de prueba
+            g.bono += 1; // descuento 100% activo → este ciclo paga $0
           }
           grupos.set(k, g);
         }
-        const next = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&expand[]=data.latest_invoice&starting_after=${d.data[d.data.length - 1].id}` : '';
+        const next = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&starting_after=${d.data[d.data.length - 1].id}` : '';
         if (d.has_more && !next) truncado = true;
         if (page === 19 && d.has_more) truncado = true;
         url = next;
@@ -294,8 +305,8 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
         <p className="text-[11px] mb-8" style={{ color: '#555' }}>
           Solo ViralADN · TOPCUT · Combo · Fundadores (clasificación estricta por ID de producto).
           {otrosNegocios > 0 && ` Se excluyeron ${otrosNegocios} suscripciones de otros negocios que comparten la cuenta de Stripe.`}
-          {' '}💰 Pagando = su última factura cobró más de $0 (el ingreso es REAL, con descuentos aplicados; anuales ÷12).
-          {' '}🎁 En bono = activos cuya última factura fue $0 (cupón 100% / mes de prueba).
+          {' '}💰 Pagando = precio del plan − descuento activo &gt; $0 (ingreso recurrente NETO, anuales ÷12; sin prorrateos ni impuestos).
+          {' '}🎁 En bono = descuento 100% activo → este ciclo paga $0.
           {subsTruncado && ' ⚠️ Hay más de 2.000 suscripciones: la lectura quedó parcial.'}
           {!keyLegacy && ' Para incluir a los fundadores $47: agregá STRIPE_SECRET_KEY_LEGACY en Vercel (la key de la cuenta vieja, la tenés en .env.local).'}
         </p>
