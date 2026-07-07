@@ -128,8 +128,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Verificación de firma ──────────────────────────────────────────────────
-  if (webhookSecret) {
-    if (!verifyStripeSignature(body, sig, webhookSecret)) {
+  // Conviven DOS cuentas de Stripe: 2CLICKS (productos nuevos, key de prod) y
+  // la legacy (fundadores $47). Cada endpoint tiene su secret → aceptamos
+  // cualquiera de los dos: STRIPE_WEBHOOK_SECRET (2CLICKS) y
+  // STRIPE_WEBHOOK_SECRET_LEGACY (cuenta vieja).
+  const secrets = [webhookSecret, process.env.STRIPE_WEBHOOK_SECRET_LEGACY].filter((s): s is string => !!s);
+  if (secrets.length) {
+    const valida = secrets.some(s => verifyStripeSignature(body, sig, s));
+    if (!valida) {
       console.error('[stripe-webhook] FIRMA INVÁLIDA — evento rechazado');
       return Response.json({ error: 'Firma inválida.' }, { status: 400 });
     }
