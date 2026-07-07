@@ -2181,6 +2181,59 @@ async function enrichInstagramByUrl(cands: VideoCandidate[]): Promise<void> {
   }));
 }
 
+// ── Barrido MULTI-IDIOMA (pedido de Francisco 2026-07-06) ────────────────────
+// Antes: 1 búsqueda = hasta 8 páginas de SerpApi en UN idioma (hl=es).
+// Ahora: el MISMO presupuesto se reparte en 1 página por idioma → los virales
+// top de 6 idiomas por ~6 créditos (25% menos que antes). El tema se traduce
+// una vez con un nano-modelo (fracción de centavo, cacheado).
+const SHORTS_LANGS = [
+  { code: 'es', gl: 'mx', flag: '🇪🇸', label: 'Español' },
+  { code: 'en', gl: 'us', flag: '🇺🇸', label: 'English' },
+  { code: 'pt', gl: 'br', flag: '🇧🇷', label: 'Português' },
+  { code: 'it', gl: 'it', flag: '🇮🇹', label: 'Italiano' },
+  { code: 'fr', gl: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'de', gl: 'de', flag: '🇩🇪', label: 'Deutsch' },
+] as const;
+
+const _tradCache = new Map<string, Record<string, string>>();
+async function traducirTema(tema: string): Promise<Record<string, string>> {
+  const k = norm(tema);
+  const hit = _tradCache.get(k);
+  if (hit) return hit;
+  const fallback = Object.fromEntries(SHORTS_LANGS.map(l => [l.code, tema]));
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return fallback;
+  for (const model of ['gpt-5-nano', 'gpt-4.1-nano', 'gpt-4o-mini']) {
+    try {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          response_format: { type: 'json_object' },
+          ...(model.startsWith('gpt-5') ? { reasoning_effort: 'minimal' } : {}),
+          messages: [
+            {
+              role: 'system',
+              content: 'Traducís un tema de búsqueda de videos virales a 6 idiomas. Usá el término corto y natural que la gente de verdad busca en cada idioma (no traducción literal rara). Devolvé SOLO JSON: {"es":string,"en":string,"pt":string,"it":string,"fr":string,"de":string}',
+            },
+            { role: 'user', content: tema.slice(0, 120) },
+          ],
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const o = JSON.parse(d.choices?.[0]?.message?.content || '{}') as Record<string, unknown>;
+      const out: Record<string, string> = {};
+      for (const l of SHORTS_LANGS) out[l.code] = String(o[l.code] || tema).slice(0, 120) || tema;
+      _tradCache.set(k, out);
+      return out;
+    } catch { /* siguiente modelo */ }
+  }
+  return fallback;
+}
+
 async function googleSearchBuckets(tema: string): Promise<GBuckets> {
   const keyT = tema.trim().toLowerCase();
   // Coalescing: si llegan las 3 pestañas a la vez (misma instancia), comparten
@@ -2189,7 +2242,39 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
   if (inflight) return inflight;
   const job = (async (): Promise<GBuckets> => {
     const { searchGoogleShorts } = await import('@/lib/google-shorts');
-    const all = await searchGoogleShorts(tema, { limit: 100 }); // todas las plataformas (varias páginas)
+    type GS = Awaited<ReturnType<typeof searchGoogleShorts>>[number];
+
+    // Idiomas activos (env GOOGLE_SHORTS_LANGS="es,en,pt") y páginas por idioma.
+    const csv = (process.env.GOOGLE_SHORTS_LANGS || 'es,en,pt,it,fr,de').split(',').map(s => s.trim().toLowerCase());
+    const langs = SHORTS_LANGS.filter(l => csv.includes(l.code));
+    const pagesPorIdioma = Math.max(1, Math.min(parseInt(process.env.GOOGLE_SHORTS_PAGES_LANG || '1', 10), 3));
+
+    let all: GS[] = [];
+    if (langs.length <= 1) {
+      // Modo clásico de un idioma (respeta GOOGLE_SHORTS_PAGES).
+      all = await searchGoogleShorts(tema, { limit: 100 });
+    } else {
+      const trads = await traducirTema(tema);
+      const porIdioma = await Promise.allSettled(langs.map(async l => {
+        const items = await searchGoogleShorts(trads[l.code] || tema, {
+          hl: l.code, gl: l.gl, pages: pagesPorIdioma, limit: 40,
+        });
+        // Etiquetamos el idioma de origen — el front ya dibuja bandera + label.
+        items.forEach(v => { v.flag = l.flag; v.langLabel = l.label; v.audioLang = l.code; });
+        return items;
+      }));
+      const vistos = new Set<string>();
+      for (const r of porIdioma) {
+        if (r.status !== 'fulfilled') continue;
+        for (const v of r.value) {
+          if (vistos.has(v.url)) continue; // el mismo video rankeando en 2 idiomas
+          vistos.add(v.url);
+          all.push(v);
+        }
+      }
+      // Si TODOS los idiomas fallaron (ej. SerpApi caído a mitad), probamos el clásico.
+      if (!all.length) all = await searchGoogleShorts(tema, { limit: 100 });
+    }
     // Enriquecer vistas en paralelo (no bloquea si una falla).
     const ytKey = process.env.YOUTUBE_API_KEY;
     await Promise.all([
@@ -2217,8 +2302,23 @@ async function googleSearchBuckets(tema: string): Promise<GBuckets> {
       } else {
         b = b.slice(0, IGFB_CAP); // IG/FB: top por relevancia (con o sin enriquecimiento)
       }
+      // YouTube suele venir flaco del vertical de Google → se refuerza GRATIS con
+      // la YouTube Data API (multi-idioma, ordenada por vistas, 0 créditos SerpApi).
+      if (plat === 'youtube' && b.length < 15 && process.env.YOUTUBE_API_KEY) {
+        try {
+          const extra = (await searchYouTube(tema, process.env.YOUTUBE_API_KEY)) as VideoCandidate[];
+          const ya = new Set(b.map(v => v.url));
+          for (const v of extra) {
+            if (!v?.url || ya.has(v.url)) continue;
+            ya.add(v.url);
+            b.push(v);
+          }
+          b.sort((a, z) => (z.viewsRaw || 0) - (a.viewsRaw || 0));
+          b = b.slice(0, 40);
+        } catch { /* refuerzo best-effort */ }
+      }
       buckets[plat] = b;
-      void writeCache(tema, plat, b, 'g4'); // calienta cache (motor Google) → otras pestañas gratis
+      void writeCache(tema, plat, b, 'g5'); // calienta cache (motor Google) → otras pestañas gratis
     }
     return buckets;
   })();
@@ -2237,7 +2337,7 @@ export async function POST(req: NextRequest) {
   const googleMode = !!process.env.SERPAPI_KEY
     && process.env.SEARCH_ENGINE !== 'off'
     && engine !== 'off';
-  const engTag = googleMode ? 'g4' : ''; // g4: bump tras subir a ~60 resultados (más páginas + filtro suave)
+  const engTag = googleMode ? 'g5' : ''; // g5: bump por el barrido multi-idioma (6 idiomas, 1 página c/u)
 
   // Identificar usuario (no bloqueante)
   let userEmail: string | null = null;
