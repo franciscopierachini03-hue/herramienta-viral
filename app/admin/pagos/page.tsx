@@ -39,6 +39,35 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   const { tipo } = await searchParams;
   const svc = createServiceClient();
 
+  // ── Cobros EN VIVO desde Stripe (la cuenta que usa producción = 2CLICKS) ──
+  // Independiente del libro: sirve para ver quién pagó y cuánto aunque la
+  // tabla todavía no exista o el webhook sea nuevo.
+  type Cobro = { fecha: string; email: string; monto: number; estado: string; refunded: boolean };
+  let cobros: Cobro[] = [];
+  let stripeError = '';
+  try {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) stripeError = 'Sin STRIPE_SECRET_KEY en este entorno.';
+    else {
+      const r = await fetch('https://api.stripe.com/v1/charges?limit=25', {
+        headers: { Authorization: `Bearer ${key}` }, cache: 'no-store',
+      });
+      const d = await r.json();
+      if (!r.ok) stripeError = d?.error?.message || `Stripe HTTP ${r.status}`;
+      else {
+        cobros = ((d.data || []) as Array<Record<string, unknown>>).map(c => ({
+          fecha: new Date(Number(c.created) * 1000).toISOString().slice(0, 10),
+          email: String((c.billing_details as { email?: string })?.email || c.receipt_email || '—'),
+          monto: Number(c.amount || 0) / 100,
+          estado: String(c.status || ''),
+          refunded: !!c.refunded,
+        }));
+      }
+    }
+  } catch (e) { stripeError = (e as Error).message.slice(0, 120); }
+  const cobradoOk = cobros.filter(c => c.estado === 'succeeded' && !c.refunded);
+  const totalCobrado = cobradoOk.reduce((n, c) => n + c.monto, 0);
+
   let filas: Pago[] = [];
   let tablaFalta = false;
   {
@@ -169,9 +198,52 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
         </div>
 
         <p className="text-[11px] mt-3" style={{ color: '#555' }}>
-          Solo movimientos de esta cuenta de Stripe (ViralADN/TOPCUT/Legacy). Los avisos 🚨 de reembolso, disputa y
+          El libro se llena solo con cada evento nuevo del webhook. Los avisos 🚨 de reembolso, disputa y
           fallo de cobro llegan a {`franciscopierachini03@gmail.com`} al instante.
         </p>
+
+        {/* Cobros en vivo desde Stripe (cuenta de producción) */}
+        <div className="flex items-baseline justify-between mt-10 mb-3">
+          <h2 className="text-sm font-bold" style={{ color: '#d4d4dc' }}>🏦 Últimos cobros en Stripe — cuenta de producción (en vivo)</h2>
+          <span className="text-xs" style={{ color: '#666' }}>
+            {cobradoOk.length} exitosos vigentes · <b style={{ color: '#86efac' }}>${totalCobrado.toFixed(0)}</b>
+          </span>
+        </div>
+        {stripeError ? (
+          <div className="rounded-2xl p-4 text-sm" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d55', color: '#fca5a5' }}>
+            No se pudo leer Stripe: {stripeError}
+          </div>
+        ) : (
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1f1f1f' }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: '#101010', color: '#888' }}>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Fecha</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Cliente</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">Monto</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cobros.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-xs" style={{ color: '#666' }}>
+                    Sin cobros todavía en esta cuenta.
+                  </td></tr>
+                )}
+                {cobros.map((c, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid #161616' }}>
+                    <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#888' }}>{c.fecha}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.email}</td>
+                    <td className="px-4 py-2.5 text-xs text-right font-bold">${c.monto.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: c.refunded ? '#fda4af' : c.estado === 'succeeded' ? '#86efac' : '#fcd34d' }}>
+                      {c.refunded ? 'reembolsado' : c.estado}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </main>
   );
