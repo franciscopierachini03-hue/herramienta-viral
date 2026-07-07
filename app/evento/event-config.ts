@@ -11,7 +11,7 @@ export const EVENT_DURATION_MIN = 90; // duración estimada (para el evento de c
 
 // Próximos pasos (página de gracias):
 export const TELEGRAM_URL = 'https://t.me/+69M7e37DIgEwYTEx';
-export const ZOOM_URL = ''; // ← cuando tengas el enlace de Zoom, pégalo aquí (vacío = "te lo enviamos")
+export const ZOOM_URL = 'https://us02web.zoom.us/j/82701665842?pwd=2MijtfGb0f5NjtB6HTwxL9TccJDxFH.1';
 
 // Fecha/hora formateadas SIN depender de la zona horaria ni del locale del
 // runtime. Usamos solo getters UTC (idénticos en server y navegador) + nombres
