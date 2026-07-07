@@ -43,7 +43,10 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   // Lee la cuenta de producción (2CLICKS) y, si existe STRIPE_SECRET_KEY_LEGACY,
   // también la cuenta vieja (fundadores $47). Clasifica por PRODUCT_IDS y por
   // monto (47/470 = legacy fundadores aunque el producto se llame ViralADN).
-  type GrupoSub = { producto: string; ciclo: 'mensual' | 'anual'; n: number; mrr: number; porCancelar: number };
+  // n/mrr = SOLO los que pagan de verdad (última factura > $0, o sea el ingreso
+  // REAL con descuentos ya aplicados). bono = suscripciones activas cuya última
+  // factura fue $0 (cupón 100% / mes de prueba).
+  type GrupoSub = { producto: string; ciclo: 'mensual' | 'anual'; n: number; mrr: number; porCancelar: number; bono: number };
   const NOMBRE_PROD: Record<string, string> = {
     viraladn: '🧬 ViralADN $27', topcut: '✂️ TOPCUT $57', combo: '🔗 Combo $67', legacy47: '⭐ Fundadores $47', otro: '❓ Otro',
   };
@@ -69,7 +72,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
       const grupos = new Map<string, GrupoSub>();
       let otros = 0;
       let truncado = false;
-      let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100';
+      let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100&expand[]=data.latest_invoice';
       for (let page = 0; page < 20 && url; page++) {
         const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
         if (!r.ok) return null;
@@ -78,22 +81,26 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           const it = sub.items?.data?.[0];
           const price = it?.price;
           if (!price) continue;
-          const qty = Number(it.quantity) || 1;
           const producto = clasificaSub(
             typeof price.product === 'string' ? price.product : price.product?.id,
             price.unit_amount, estricto,
           );
           if (producto === 'otro') { otros += 1; continue; } // otros negocios: fuera de esta vista
           const ciclo: 'mensual' | 'anual' = price.recurring?.interval === 'year' ? 'anual' : 'mensual';
-          const usd = (Number(price.unit_amount) || 0) / 100 * qty;
-          const mrr = ciclo === 'anual' ? usd / 12 : usd;
           const k = `${producto}:${ciclo}`;
-          const g = grupos.get(k) || { producto, ciclo, n: 0, mrr: 0, porCancelar: 0 };
-          g.n += 1; g.mrr += mrr;
-          if (sub.cancel_at_period_end) g.porCancelar += 1;
+          const g = grupos.get(k) || { producto, ciclo, n: 0, mrr: 0, porCancelar: 0, bono: 0 };
+          // ¿Pagó de verdad? La última factura cobrada > $0 (descuentos ya aplicados).
+          const pagadoUsd = (Number(sub.latest_invoice?.amount_paid) || 0) / 100;
+          if (pagadoUsd > 0) {
+            g.n += 1;
+            g.mrr += ciclo === 'anual' ? pagadoUsd / 12 : pagadoUsd;
+            if (sub.cancel_at_period_end) g.porCancelar += 1;
+          } else {
+            g.bono += 1; // activo con última factura $0: cupón 100% / mes de prueba
+          }
           grupos.set(k, g);
         }
-        const next = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&starting_after=${d.data[d.data.length - 1].id}` : '';
+        const next = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&expand[]=data.latest_invoice&starting_after=${d.data[d.data.length - 1].id}` : '';
         if (d.has_more && !next) truncado = true;
         if (page === 19 && d.has_more) truncado = true;
         url = next;
@@ -113,8 +120,8 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   for (const res of [subsProd, subsLegacy]) {
     if (!res) continue;
     for (const [k, g] of res.grupos) {
-      const acc = gruposAll.get(k) || { ...g, n: 0, mrr: 0, porCancelar: 0 };
-      acc.n += g.n; acc.mrr += g.mrr; acc.porCancelar += g.porCancelar;
+      const acc = gruposAll.get(k) || { ...g, n: 0, mrr: 0, porCancelar: 0, bono: 0 };
+      acc.n += g.n; acc.mrr += g.mrr; acc.porCancelar += g.porCancelar; acc.bono += g.bono;
       gruposAll.set(k, acc);
     }
   }
@@ -122,6 +129,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   const mrrTotal = filasSubs.reduce((n, g) => n + g.mrr, 0);
   const subsTotal = filasSubs.reduce((n, g) => n + g.n, 0);
   const porCancelarTotal = filasSubs.reduce((n, g) => n + g.porCancelar, 0);
+  const bonoTotal = filasSubs.reduce((n, g) => n + g.bono, 0);
   const otrosNegocios = (subsProd?.otros || 0) + (subsLegacy?.otros || 0);
   const subsTruncado = !!(subsProd?.truncado || subsLegacy?.truncado);
 
@@ -239,7 +247,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-sm font-bold" style={{ color: '#c4b5fd' }}>📈 Suscripciones activas — en vivo desde Stripe</h2>
           <span className="text-xs" style={{ color: '#666' }}>
-            {subsTotal} activas{porCancelarTotal ? ` · ${porCancelarTotal} por cancelar` : ''} · MRR <b style={{ color: '#86efac' }}>${mrrTotal.toFixed(0)}/mes</b>
+            💰 {subsTotal} pagando · 🎁 {bonoTotal} en bono{porCancelarTotal ? ` · ⚠️ ${porCancelarTotal} por cancelar` : ''} · ingreso real <b style={{ color: '#86efac' }}>${mrrTotal.toFixed(0)}/mes</b>
           </span>
         </div>
         {filasSubs.length === 0 ? (
@@ -253,9 +261,10 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
                 <tr style={{ background: '#101019', color: '#888' }}>
                   <th className="text-left px-4 py-2.5 text-xs font-bold">Producto</th>
                   <th className="text-left px-4 py-2.5 text-xs font-bold">Ciclo</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-bold">Activos</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">💰 Pagando</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">🎁 En bono ($0)</th>
                   <th className="text-right px-4 py-2.5 text-xs font-bold">Por cancelar</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-bold">Ingreso equiv./mes</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">Ingreso real/mes</th>
                 </tr>
               </thead>
               <tbody>
@@ -266,6 +275,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
                       {g.ciclo === 'anual' ? '📅 Anual' : '🔄 Mensual'}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-right font-bold">{g.n}</td>
+                    <td className="px-4 py-2.5 text-xs text-right" style={{ color: g.bono ? '#fcd34d' : '#555' }}>{g.bono || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-right" style={{ color: g.porCancelar ? '#fcd34d' : '#555' }}>{g.porCancelar || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-right font-bold" style={{ color: '#86efac' }}>${g.mrr.toFixed(0)}</td>
                   </tr>
@@ -273,6 +283,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
                 <tr style={{ borderTop: '1px solid #2a2a3a', background: '#0e0e16' }}>
                   <td className="px-4 py-2.5 text-xs font-extrabold" colSpan={2}>TOTAL</td>
                   <td className="px-4 py-2.5 text-xs text-right font-extrabold">{subsTotal}</td>
+                  <td className="px-4 py-2.5 text-xs text-right font-extrabold" style={{ color: bonoTotal ? '#fcd34d' : '#555' }}>{bonoTotal || '—'}</td>
                   <td className="px-4 py-2.5 text-xs text-right" style={{ color: porCancelarTotal ? '#fcd34d' : '#555' }}>{porCancelarTotal || '—'}</td>
                   <td className="px-4 py-2.5 text-xs text-right font-extrabold" style={{ color: '#86efac' }}>${mrrTotal.toFixed(0)}/mes</td>
                 </tr>
@@ -283,7 +294,8 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
         <p className="text-[11px] mb-8" style={{ color: '#555' }}>
           Solo ViralADN · TOPCUT · Combo · Fundadores (clasificación estricta por ID de producto).
           {otrosNegocios > 0 && ` Se excluyeron ${otrosNegocios} suscripciones de otros negocios que comparten la cuenta de Stripe.`}
-          {' '}Los anuales entran prorrateados (÷12). El MRR es nominal por precio de lista (cupones no descontados).
+          {' '}💰 Pagando = su última factura cobró más de $0 (el ingreso es REAL, con descuentos aplicados; anuales ÷12).
+          {' '}🎁 En bono = activos cuya última factura fue $0 (cupón 100% / mes de prueba).
           {subsTruncado && ' ⚠️ Hay más de 2.000 suscripciones: la lectura quedó parcial.'}
           {!keyLegacy && ' Para incluir a los fundadores $47: agregá STRIPE_SECRET_KEY_LEGACY en Vercel (la key de la cuenta vieja, la tenés en .env.local).'}
         </p>
