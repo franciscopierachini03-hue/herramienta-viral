@@ -39,6 +39,80 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   const { tipo } = await searchParams;
   const svc = createServiceClient();
 
+  // ── Suscripciones ACTIVAS en vivo (por producto × ciclo, con MRR) ──────────
+  // Lee la cuenta de producción (2CLICKS) y, si existe STRIPE_SECRET_KEY_LEGACY,
+  // también la cuenta vieja (fundadores $47). Clasifica por PRODUCT_IDS y por
+  // monto (47/470 = legacy fundadores aunque el producto se llame ViralADN).
+  type GrupoSub = { producto: string; ciclo: 'mensual' | 'anual'; n: number; mrr: number; porCancelar: number };
+  const NOMBRE_PROD: Record<string, string> = {
+    viraladn: '🧬 ViralADN $27', topcut: '✂️ TOPCUT $57', combo: '🔗 Combo $67', legacy47: '⭐ Fundadores $47', otro: '❓ Otro',
+  };
+  const { PRODUCT_IDS } = await import('@/lib/products');
+
+  function clasificaSub(productId: string | null, amount: number | null): string {
+    const usd = Math.round((amount || 0) / 100);
+    if (usd === 47 || usd === 470) return 'legacy47';
+    if (productId === PRODUCT_IDS.viraladn) return 'viraladn';
+    if (productId === PRODUCT_IDS.topcut) return 'topcut';
+    if (productId === PRODUCT_IDS.combo) return 'combo';
+    if (usd === 27 || usd === 270) return 'viraladn';
+    if (usd === 57 || usd === 570) return 'topcut';
+    if (usd === 67 || usd === 670) return 'combo';
+    return 'otro';
+  }
+
+  async function resumenSubs(key: string): Promise<{ grupos: Map<string, GrupoSub>; total: number } | null> {
+    try {
+      const grupos = new Map<string, GrupoSub>();
+      let total = 0;
+      let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100';
+      for (let page = 0; page < 5 && url; page++) {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
+        if (!r.ok) return null;
+        const d = await r.json();
+        for (const sub of d.data || []) {
+          const it = sub.items?.data?.[0];
+          const price = it?.price;
+          if (!price) continue;
+          const qty = Number(it.quantity) || 1;
+          const producto = clasificaSub(typeof price.product === 'string' ? price.product : price.product?.id, price.unit_amount);
+          const ciclo: 'mensual' | 'anual' = price.recurring?.interval === 'year' ? 'anual' : 'mensual';
+          const usd = (Number(price.unit_amount) || 0) / 100 * qty;
+          const mrr = ciclo === 'anual' ? usd / 12 : usd;
+          const k = `${producto}:${ciclo}`;
+          const g = grupos.get(k) || { producto, ciclo, n: 0, mrr: 0, porCancelar: 0 };
+          g.n += 1; g.mrr += mrr;
+          if (sub.cancel_at_period_end) g.porCancelar += 1;
+          grupos.set(k, g);
+          total += 1;
+        }
+        url = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&starting_after=${d.data[d.data.length - 1].id}` : '';
+      }
+      return { grupos, total };
+    } catch { return null; }
+  }
+
+  const keyProd = process.env.STRIPE_SECRET_KEY || '';
+  const keyLegacy = process.env.STRIPE_SECRET_KEY_LEGACY || '';
+  const [subsProd, subsLegacy] = await Promise.all([
+    keyProd ? resumenSubs(keyProd) : Promise.resolve(null),
+    keyLegacy && keyLegacy !== keyProd ? resumenSubs(keyLegacy) : Promise.resolve(null),
+  ]);
+  // Fusionar ambas cuentas en una sola vista.
+  const gruposAll = new Map<string, GrupoSub>();
+  for (const res of [subsProd, subsLegacy]) {
+    if (!res) continue;
+    for (const [k, g] of res.grupos) {
+      const acc = gruposAll.get(k) || { ...g, n: 0, mrr: 0, porCancelar: 0 };
+      acc.n += g.n; acc.mrr += g.mrr; acc.porCancelar += g.porCancelar;
+      gruposAll.set(k, acc);
+    }
+  }
+  const filasSubs = [...gruposAll.values()].sort((a, b) => b.mrr - a.mrr);
+  const mrrTotal = filasSubs.reduce((n, g) => n + g.mrr, 0);
+  const subsTotal = filasSubs.reduce((n, g) => n + g.n, 0);
+  const porCancelarTotal = filasSubs.reduce((n, g) => n + g.porCancelar, 0);
+
   // ── Cobros EN VIVO desde Stripe (la cuenta que usa producción = 2CLICKS) ──
   // Independiente del libro: sirve para ver quién pagó y cuánto aunque la
   // tabla todavía no exista o el webhook sea nuevo.
@@ -148,6 +222,56 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
             <div className="text-[11px] mt-1" style={{ color: '#666' }}>Stripe reintenta solo</div>
           </div>
         </div>
+
+        {/* Suscripciones activas por producto × ciclo (en vivo de Stripe) */}
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-bold" style={{ color: '#c4b5fd' }}>📈 Suscripciones activas — en vivo desde Stripe</h2>
+          <span className="text-xs" style={{ color: '#666' }}>
+            {subsTotal} activas{porCancelarTotal ? ` · ${porCancelarTotal} por cancelar` : ''} · MRR <b style={{ color: '#86efac' }}>${mrrTotal.toFixed(0)}/mes</b>
+          </span>
+        </div>
+        {filasSubs.length === 0 ? (
+          <div className="rounded-2xl p-4 mb-8 text-sm" style={{ background: '#141414', border: '1px solid #1f1f1f', color: '#888' }}>
+            No se pudieron leer las suscripciones (¿falta STRIPE_SECRET_KEY?).
+          </div>
+        ) : (
+          <div className="rounded-2xl overflow-hidden mb-2" style={{ border: '1px solid #7c3aed33' }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: '#101019', color: '#888' }}>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Producto</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Ciclo</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">Activos</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">Por cancelar</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-bold">Ingreso equiv./mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filasSubs.map((g, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid #161620' }}>
+                    <td className="px-4 py-2.5 text-xs font-bold">{NOMBRE_PROD[g.producto] || g.producto}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: g.ciclo === 'anual' ? '#7dd3fc' : '#aaa' }}>
+                      {g.ciclo === 'anual' ? '📅 Anual' : '🔄 Mensual'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-right font-bold">{g.n}</td>
+                    <td className="px-4 py-2.5 text-xs text-right" style={{ color: g.porCancelar ? '#fcd34d' : '#555' }}>{g.porCancelar || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-right font-bold" style={{ color: '#86efac' }}>${g.mrr.toFixed(0)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '1px solid #2a2a3a', background: '#0e0e16' }}>
+                  <td className="px-4 py-2.5 text-xs font-extrabold" colSpan={2}>TOTAL</td>
+                  <td className="px-4 py-2.5 text-xs text-right font-extrabold">{subsTotal}</td>
+                  <td className="px-4 py-2.5 text-xs text-right" style={{ color: porCancelarTotal ? '#fcd34d' : '#555' }}>{porCancelarTotal || '—'}</td>
+                  <td className="px-4 py-2.5 text-xs text-right font-extrabold" style={{ color: '#86efac' }}>${mrrTotal.toFixed(0)}/mes</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-[11px] mb-8" style={{ color: '#555' }}>
+          Los anuales entran prorrateados (÷12) en el ingreso mensual equivalente.
+          {!keyLegacy && ' Para incluir a los fundadores $47: agregá STRIPE_SECRET_KEY_LEGACY en Vercel (la key de la cuenta vieja, la tenés en .env.local).'}
+        </p>
 
         {/* Filtros */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
