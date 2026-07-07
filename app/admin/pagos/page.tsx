@@ -49,24 +49,28 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   };
   const { PRODUCT_IDS } = await import('@/lib/products');
 
-  function clasificaSub(productId: string | null, amount: number | null): string {
-    const usd = Math.round((amount || 0) / 100);
-    if (usd === 47 || usd === 470) return 'legacy47';
+  // 2CLICKS comparte la cuenta con OTROS negocios → ahí clasificamos SOLO por
+  // ID de producto (estricto: nada de adivinar por monto, para que otro negocio
+  // a $27 no se cuele como ViralADN). En la cuenta legacy (solo tiene "VIRAL
+  // ADN") sí vale clasificar por monto $47/$470.
+  function clasificaSub(productId: string | null, amount: number | null, estricto: boolean): string {
     if (productId === PRODUCT_IDS.viraladn) return 'viraladn';
     if (productId === PRODUCT_IDS.topcut) return 'topcut';
     if (productId === PRODUCT_IDS.combo) return 'combo';
-    if (usd === 27 || usd === 270) return 'viraladn';
-    if (usd === 57 || usd === 570) return 'topcut';
-    if (usd === 67 || usd === 670) return 'combo';
+    if (!estricto) {
+      const usd = Math.round((amount || 0) / 100);
+      if (usd === 47 || usd === 470) return 'legacy47';
+    }
     return 'otro';
   }
 
-  async function resumenSubs(key: string): Promise<{ grupos: Map<string, GrupoSub>; total: number } | null> {
+  async function resumenSubs(key: string, estricto: boolean): Promise<{ grupos: Map<string, GrupoSub>; otros: number; truncado: boolean } | null> {
     try {
       const grupos = new Map<string, GrupoSub>();
-      let total = 0;
+      let otros = 0;
+      let truncado = false;
       let url = 'https://api.stripe.com/v1/subscriptions?status=active&limit=100';
-      for (let page = 0; page < 5 && url; page++) {
+      for (let page = 0; page < 20 && url; page++) {
         const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
         if (!r.ok) return null;
         const d = await r.json();
@@ -75,7 +79,11 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           const price = it?.price;
           if (!price) continue;
           const qty = Number(it.quantity) || 1;
-          const producto = clasificaSub(typeof price.product === 'string' ? price.product : price.product?.id, price.unit_amount);
+          const producto = clasificaSub(
+            typeof price.product === 'string' ? price.product : price.product?.id,
+            price.unit_amount, estricto,
+          );
+          if (producto === 'otro') { otros += 1; continue; } // otros negocios: fuera de esta vista
           const ciclo: 'mensual' | 'anual' = price.recurring?.interval === 'year' ? 'anual' : 'mensual';
           const usd = (Number(price.unit_amount) || 0) / 100 * qty;
           const mrr = ciclo === 'anual' ? usd / 12 : usd;
@@ -84,19 +92,21 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           g.n += 1; g.mrr += mrr;
           if (sub.cancel_at_period_end) g.porCancelar += 1;
           grupos.set(k, g);
-          total += 1;
         }
-        url = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&starting_after=${d.data[d.data.length - 1].id}` : '';
+        const next = d.has_more && d.data?.length ? `https://api.stripe.com/v1/subscriptions?status=active&limit=100&starting_after=${d.data[d.data.length - 1].id}` : '';
+        if (d.has_more && !next) truncado = true;
+        if (page === 19 && d.has_more) truncado = true;
+        url = next;
       }
-      return { grupos, total };
+      return { grupos, otros, truncado };
     } catch { return null; }
   }
 
   const keyProd = process.env.STRIPE_SECRET_KEY || '';
   const keyLegacy = process.env.STRIPE_SECRET_KEY_LEGACY || '';
   const [subsProd, subsLegacy] = await Promise.all([
-    keyProd ? resumenSubs(keyProd) : Promise.resolve(null),
-    keyLegacy && keyLegacy !== keyProd ? resumenSubs(keyLegacy) : Promise.resolve(null),
+    keyProd ? resumenSubs(keyProd, true) : Promise.resolve(null),   // 2CLICKS: estricto por ID
+    keyLegacy && keyLegacy !== keyProd ? resumenSubs(keyLegacy, false) : Promise.resolve(null), // legacy: por monto
   ]);
   // Fusionar ambas cuentas en una sola vista.
   const gruposAll = new Map<string, GrupoSub>();
@@ -112,6 +122,8 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   const mrrTotal = filasSubs.reduce((n, g) => n + g.mrr, 0);
   const subsTotal = filasSubs.reduce((n, g) => n + g.n, 0);
   const porCancelarTotal = filasSubs.reduce((n, g) => n + g.porCancelar, 0);
+  const otrosNegocios = (subsProd?.otros || 0) + (subsLegacy?.otros || 0);
+  const subsTruncado = !!(subsProd?.truncado || subsLegacy?.truncado);
 
   // ── Cobros EN VIVO desde Stripe (la cuenta que usa producción = 2CLICKS) ──
   // Independiente del libro: sirve para ver quién pagó y cuánto aunque la
@@ -269,7 +281,10 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           </div>
         )}
         <p className="text-[11px] mb-8" style={{ color: '#555' }}>
-          Los anuales entran prorrateados (÷12) en el ingreso mensual equivalente.
+          Solo ViralADN · TOPCUT · Combo · Fundadores (clasificación estricta por ID de producto).
+          {otrosNegocios > 0 && ` Se excluyeron ${otrosNegocios} suscripciones de otros negocios que comparten la cuenta de Stripe.`}
+          {' '}Los anuales entran prorrateados (÷12). El MRR es nominal por precio de lista (cupones no descontados).
+          {subsTruncado && ' ⚠️ Hay más de 2.000 suscripciones: la lectura quedó parcial.'}
           {!keyLegacy && ' Para incluir a los fundadores $47: agregá STRIPE_SECRET_KEY_LEGACY en Vercel (la key de la cuenta vieja, la tenés en .env.local).'}
         </p>
 
