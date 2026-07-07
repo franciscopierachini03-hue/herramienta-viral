@@ -47,8 +47,8 @@ type GastoTarjeta = {
 const GASTOS_TARJETA: GastoTarjeta[] = [
   // ViralADN (contratado para la plataforma):
   {
-    key: 'apify', icono: '🕷️', nombre: 'Apify — scraping (legado del buscador)', grupo: 'viraladn', costoMes: 33.09,
-    nota: '⚠️ El buscador ya NO usa Apify (lo reemplazó SerpApi). Si nada más lo usa, cancelalo: ahorro directo de $33/mes.',
+    key: 'apify', icono: '🕷️', nombre: 'Apify — respaldo de transcripción IG', grupo: 'viraladn', costoMes: 0,
+    nota: 'Plan FREE ($5/mes de créditos gratis, no cobra tarjeta). Solo actúa como último respaldo cuando los 3 proveedores de IG fallan en un reel. El cargo de $33.09 (29-jun) era del plan pago anterior — no se repite. Si Mercury vuelve a mostrar un cargo de Apify, es de OTRA cuenta: avisar.',
   },
   // Resto del negocio (no son costos de ViralADN):
   { key: 'hetzner', icono: '🖥️', nombre: 'Hetzner Online — servidor', grupo: 'otros', costoMes: 17.09 },
