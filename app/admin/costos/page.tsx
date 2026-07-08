@@ -57,10 +57,14 @@ const ESTADO: Record<Servicio['estado'], { label: string; color: string; bg: str
   'sin-dato': { label: 'Sin dato', color: '#9ca3af', bg: '#6b728022' },
 };
 
+type Salud = { servicio: string; estado: 'ok' | 'alerta' | 'roto'; detalle: string };
+
 export default function CostosPage() {
   const [data, setData] = useState<Data | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [salud, setSalud] = useState<Salud[] | null>(null);
+  const [saludBusy, setSaludBusy] = useState(false);
 
   const cargar = useCallback(async (modo: 'normal' | 'fresh' | 'deep' = 'normal') => {
     setBusy(true); setError('');
@@ -74,12 +78,25 @@ export default function CostosPage() {
     setBusy(false);
   }, []);
 
+  // Vigilante de salud: prueba las 4 plataformas + cuotas (noalert=1 → no manda
+  // email en el chequeo manual; el cron sí alerta cuando corre solo).
+  const chequearSalud = useCallback(async () => {
+    setSaludBusy(true);
+    try {
+      const res = await fetch('/api/cron/health?noalert=1', { cache: 'no-store' });
+      const d = await res.json();
+      if (res.ok || d.checks) setSalud(d.checks as Salud[]);
+    } catch { /* ignore */ }
+    setSaludBusy(false);
+  }, []);
+
   // Carga inicial + auto-refresco cada 5 min (usa la caché del server).
   useEffect(() => {
     void cargar();
+    void chequearSalud();
     const t = setInterval(() => void cargar(), 5 * 60_000);
     return () => clearInterval(t);
-  }, [cargar]);
+  }, [cargar, chequearSalud]);
 
   const hora = data ? new Date(data.actualizado).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -111,6 +128,39 @@ export default function CostosPage() {
             </button>
             <Link href="/admin" className="text-sm ml-1" style={{ color: '#888' }}>← Panel</Link>
           </div>
+        </div>
+
+        {/* Vigilante de salud — prueba las herramientas en vivo + alerta por email (cron 2×/día) */}
+        <div className="rounded-2xl p-4 mb-6" style={{ background: 'linear-gradient(145deg, #0c130f, #0a0d0b)', border: '1px solid #1d3b34' }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+            <div className="text-sm font-bold" style={{ color: '#86efac' }}>
+              🩺 Salud de las herramientas
+              {salud && (salud.every(s => s.estado === 'ok')
+                ? <span className="ml-2 text-xs font-normal" style={{ color: '#86efac' }}>· todo OK</span>
+                : <span className="ml-2 text-xs font-normal" style={{ color: '#fca5a5' }}>· {salud.filter(s => s.estado !== 'ok').length} con problemas</span>)}
+            </div>
+            <button onClick={() => void chequearSalud()} disabled={saludBusy}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+              style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
+              {saludBusy ? 'Probando…' : '🩺 Chequear ahora'}
+            </button>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {(salud || []).map(s => {
+              const c = s.estado === 'ok' ? '#86efac' : s.estado === 'alerta' ? '#fcd34d' : '#fca5a5';
+              const icon = s.estado === 'ok' ? '✅' : s.estado === 'alerta' ? '⚠️' : '🚨';
+              return (
+                <div key={s.servicio} className="rounded-xl px-3 py-2" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+                  <div className="text-xs font-bold" style={{ color: '#e6e6ee' }}>{icon} {s.servicio}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: c }}>{s.detalle}</div>
+                </div>
+              );
+            })}
+            {!salud && <div className="text-xs" style={{ color: '#666' }}>Probando las herramientas…</div>}
+          </div>
+          <p className="text-[11px] mt-2" style={{ color: '#555' }}>
+            Corre solo 2× al día y te manda un email a {`franciscopierachini03@gmail.com`} si algo se cae o está por agotarse — antes que lo note un usuario.
+          </p>
         </div>
 
         {/* Totales — ViralADN separado del resto del negocio */}
