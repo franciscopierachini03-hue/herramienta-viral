@@ -129,6 +129,22 @@ function extractInstagramCode(url: string): string | null {
   return match ? match[1] : null;
 }
 
+// Límite de tamaño de archivo de Groq Whisper (~25MB). Un reel largo en 1080p
+// supera esto y Groq responde 413 → antes eso caía a los fallbacks y mostraba
+// "cuota agotada" (mensaje equivocado). Para evitarlo, cuando el post trae un
+// DASH manifest preferimos el STREAM DE AUDIO solo (≈1MB vs 25MB del video).
+const GROQ_MAX_BYTES = 24 * 1024 * 1024;
+
+// Extrae la URL del stream de audio de un manifest DASH (MPD XML) de Instagram.
+// El audio solo pesa una fracción del video → siempre entra en Groq.
+function audioUrlFromDash(mpd: unknown): string | null {
+  if (typeof mpd !== 'string' || !mpd.includes('AdaptationSet')) return null;
+  const audioSet = mpd.split(/<AdaptationSet/).find(s => /contentType="audio"|mimeType="audio/i.test(s));
+  if (!audioSet) return null;
+  const m = audioSet.match(/<BaseURL>([^<]+)<\/BaseURL>/);
+  return m ? m[1].replace(/&amp;/g, '&') : null;
+}
+
 // ── Transcribir con Groq Whisper (18x más barato, mucho más rápido) ──────────
 async function transcribeWithGroq(audioUrl: string): Promise<string> {
   const groqKey = process.env.GROQ_API_KEY;
@@ -138,6 +154,11 @@ async function transcribeWithGroq(audioUrl: string): Promise<string> {
   const audioRes = await fetch(audioUrl);
   if (!audioRes.ok) throw new Error('No se pudo descargar el audio del video');
   const audioBuffer = await audioRes.arrayBuffer();
+  if (audioBuffer.byteLength > GROQ_MAX_BYTES) {
+    // El caller debería haber pasado el audio del DASH; si aún así es enorme,
+    // avisamos claro (no es cuota, es tamaño).
+    throw new Error(`archivo muy grande para Groq (${Math.round(audioBuffer.byteLength / 1024 / 1024)}MB)`);
+  }
   const audioBlob   = new Blob([audioBuffer], { type: 'audio/mp4' });
 
   // Enviar a Groq Whisper Large V3 (sin forzar idioma → auto-detecta)
@@ -429,7 +450,10 @@ export async function POST(req: NextRequest) {
         if (msg.match(/exceeded|quota|plan|limit/)) { quotaCount++; debug.push('looter2: cupo agotado'); }
         else if (res.ok) {
           const item = Array.isArray(data) ? data[0] : data;
-          const videoUrl = item?.url || item?.video_url || item?.media?.[0]?.url || item?.video_versions?.[0]?.url;
+          // Preferir el audio-only del DASH (≈1MB) para no pasar el límite de Groq;
+          // si no hay manifest, usar el video directo (reels chicos entran igual).
+          const audioUrl = audioUrlFromDash(item?.video_dash_manifest);
+          const videoUrl = audioUrl || item?.url || item?.video_url || item?.media?.[0]?.url || item?.video_versions?.[0]?.url;
           if (videoUrl) {
             try {
               const texto = await transcribeWithGroq(videoUrl);
@@ -530,25 +554,23 @@ export async function POST(req: NextRequest) {
       } catch (e) { debug.push(`apify: ${(e as Error).message.slice(0, 60)}`); }
     }
 
-    // Detectar si TODOS los proveedores fallaron por cupo agotado para dar
-    // un mensaje específico (en vez de "prueba con otro reel" que confunde
-    // cuando el problema es facturación, no el reel).
-    const allQuotaExhausted = quotaCount >= 2 ||
-      debug.some(d => d.includes('hard limit') || d.includes('cupo agotado'));
-
-    // Tambien detectar si Apify devolvió monthly hard limit
-    const apifyExhausted = debug.some(d => d.toLowerCase().includes('hard limit'));
-
     console.warn('[transcribir/instagram] todos los proveedores fallaron:', debug.join(' · '));
 
-    if (allQuotaExhausted || apifyExhausted) {
+    // "Cuota agotada" SOLO cuando el proveedor PAGADO (looter2) está sin cupo, o
+    // Apify pegó su hard limit. Los fallbacks gratis (fast-reliable/scraper-api2)
+    // están permanentemente sin cupo → NO deben disparar el mensaje de facturación
+    // (ese era el bug: decía "cuota agotada" aunque looter2 tuviera 13k requests).
+    const looter2SinCupo = debug.some(d => d.startsWith('looter2: cupo agotado'));
+    const apifyExhausted = debug.some(d => d.toLowerCase().includes('hard limit'));
+
+    if (looter2SinCupo || apifyExhausted) {
       return Response.json({
         error: 'Los servicios de transcripción de Instagram agotaron su cuota mensual. Avisa al admin para renovar el plan.'
       }, { status: 503 });
     }
     if (debug.some(d => d.includes('groq'))) {
       return Response.json({
-        error: 'No pudimos transcribir este reel ahora. Puede que el audio sea muy corto o no tenga voz. Prueba con otro.'
+        error: 'No pudimos procesar el audio de este reel. Prueba con otro (puede ser muy largo, sin voz, o el audio no se pudo extraer).'
       }, { status: 502 });
     }
     return Response.json({
