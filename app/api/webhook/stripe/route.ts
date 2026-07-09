@@ -244,9 +244,15 @@ export async function POST(req: NextRequest) {
         producto, monto, moneda: session.currency || 'usd', estado: 'pagado',
         detalle: info.origin ? `cupón: ${info.origin}` : '',
       });
+      // Link directo al cliente en Stripe → verificás la venta en 1 clic.
+      const verLink = session.customer
+        ? `https://dashboard.stripe.com/customers/${session.customer}`
+        : 'https://dashboard.stripe.com/payments';
       void avisar(
         `✅ Venta ViralADN — $${monto} (${producto}) — ${email}`,
-        `Nueva venta confirmada.\n\nCliente: ${name || '—'} <${email}>\nProducto: ${producto}\nMonto: $${monto}\nCupón: ${info.origin || '—'}\n\nLibro: viraladn.com/admin/pagos`,
+        `Nueva venta — VERIFICADA con la firma de Stripe, así que es legítima (no un correo falso).\n\n` +
+        `Cliente: ${name || '—'} <${email}>\nProducto: ${producto}\nMonto: $${monto}\nCupón: ${info.origin || '—'}\n\n` +
+        `🔗 Ver el pago en Stripe: ${verLink}\n📋 Libro: viraladn.com/admin/pagos\nID del evento: ${evId}`,
       );
 
       console.log(`[stripe-webhook] pago activado: ${email} (cuenta ${authUser ? 'existente' : 'pendiente de crear'})`);
