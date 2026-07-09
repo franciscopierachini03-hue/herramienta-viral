@@ -2,9 +2,9 @@
 //  CONFIG DEL EVENTO — una sola fuente para la landing (/evento) y la
 //  página de gracias (/evento/gracias). Edita aquí fecha, título y enlaces.
 // ──────────────────────────────────────────────────────────────────────────
-export const EVENT_DATE = new Date('2026-07-10T19:00:00-05:00'); // ← fecha y hora del evento
-export const EVENT_TZ_OFFSET = -5; // hora del evento en GMT-5 (Colombia/Perú). Cambialo si tu evento es en otra zona.
-export const EVENT_TZ_LABEL = 'hora Colombia'; // etiqueta que se muestra junto a la hora
+export const EVENT_DATE = new Date('2026-07-10T10:00:00-06:00'); // ← fecha y hora del evento (10am CDMX)
+export const EVENT_TZ_OFFSET = -6; // hora del evento en GMT-6 (Ciudad de México). Cambialo si tu evento es en otra zona.
+export const EVENT_TZ_LABEL = 'hora Ciudad de México'; // etiqueta que se muestra junto a la hora
 export const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan con inteligencia artificial';
 export const EVENT_SLUG = 'masterclass-viraladn'; // identifica estos registros en tu mail/tabla
 export const EVENT_DURATION_MIN = 90; // duración estimada (para el evento de calendario)
