@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
-import { EVENT_DATE, EVENT_TITLE, EVENT_DATE_LABEL, EVENT_TIME_LABEL } from './event-config';
+import { EVENT_DATE, EVENT_TITLE, EVENT_DATE_LABEL } from './event-config';
+
+// Horarios por país (el evento es a las 10:00 AM Ciudad de México).
+const HORARIOS: { z: string; h: string; p: string }[] = [
+  { z: '🇲🇽', h: '10:00 AM', p: 'CDMX' },
+  { z: '🇺🇸', h: '9:00 AM', p: 'Los Ángeles / Tijuana' },
+  { z: '🇨🇴🇵🇪', h: '11:00 AM', p: 'Colombia / Perú / Texas' },
+  { z: '🇺🇸🇨🇱🇻🇪', h: '12:00 PM', p: 'Miami / Chile / Venezuela' },
+  { z: '🇦🇷🇧🇷', h: '1:00 PM', p: 'Argentina / Brasil' },
+];
 
 // TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
@@ -55,7 +64,6 @@ function TestimonialVideo({ url }: { url: string }) {
 export default function EventoLanding() {
   const { days, hours, minutes, seconds } = useCountdown(EVENT_DATE);
   const dateLabel = EVENT_DATE_LABEL;
-  const timeLabel = EVENT_TIME_LABEL;
 
   return (
     <main className="min-h-screen text-white" style={{ background: 'radial-gradient(ellipse 100% 50% at 50% 0%, #1a0a2e 0%, transparent 55%), radial-gradient(ellipse 70% 40% at 85% 10%, #06243a 0%, transparent 55%), #070710' }}>
@@ -108,7 +116,15 @@ export default function EventoLanding() {
             {/* Fecha + countdown */}
             <div className="rounded-2xl p-5 mt-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
               <div className="text-sm mb-3" style={{ color: '#e5e5ea' }}>
-                📅 <b className="capitalize">{dateLabel}</b> · 🕖 {timeLabel} hs
+                📅 <b className="capitalize">{dateLabel}</b>
+              </div>
+              <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: '#0b0b14', border: '1px solid #23232f' }}>
+                <div className="text-xs font-bold mb-1.5" style={{ color: '#34d399' }}>🕙 Horarios</div>
+                <div className="flex flex-col gap-1 text-xs" style={{ color: '#c9c9d2' }}>
+                  {HORARIOS.map(({ z, h, p }) => (
+                    <div key={p}><span className="mr-1">{z}</span><b style={{ color: '#fff' }}>{h}</b> {p}</div>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-3">
                 {[['Días', days], ['Hs', hours], ['Min', minutes], ['Seg', seconds]].map(([l, v]) => (
