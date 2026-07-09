@@ -559,11 +559,16 @@ export default function Home() {
     score: number; veredicto: string;
     detectado: { nombre: string; usuario: string; bio: string; seguidores: string };
     fortalezas: string[];
+    bioAnalisis: { queComunicaHoy: string; queDeberia: string; estructura: string };
     mejoras: { elemento: string; problema: string; solucion: string }[];
-    bios: string[]; recomendaciones: string[];
+    bios: { texto: string; angulo: string; porque: string }[];
+    recomendaciones: string[];
   };
   const [perfilImg, setPerfilImg] = useState('');
-  const [perfilContexto, setPerfilContexto] = useState('');
+  const [pOferta, setPOferta] = useState('');
+  const [pAudiencia, setPAudiencia] = useState('');
+  const [pObjetivo, setPObjetivo] = useState('');
+  const [pTono, setPTono] = useState('');
   const [perfilResult, setPerfilResult] = useState<AnalisisPerfil | null>(null);
   const [perfilBusy, setPerfilBusy] = useState(false);
   const [perfilError, setPerfilError] = useState('');
@@ -590,7 +595,7 @@ export default function Home() {
     if (!perfilImg || perfilBusy) return;
     setPerfilBusy(true); setPerfilError(''); setPerfilResult(null);
     try {
-      const res = await fetch('/api/analizar-perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagenes: [perfilImg], contexto: perfilContexto }) });
+      const res = await fetch('/api/analizar-perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagenes: [perfilImg], contexto: { oferta: pOferta, audiencia: pAudiencia, objetivo: pObjetivo, tono: pTono } }) });
       const d = await res.json();
       if (!res.ok) setPerfilError(d.error || 'No se pudo analizar.');
       else setPerfilResult(d.analisis as AnalisisPerfil);
@@ -1669,13 +1674,17 @@ export default function Home() {
               )}
             </div>
             <div>
-              <label className="block mb-2">
-                <span className="text-xs" style={{ color: '#8b8b96' }}>Opcional: tu nicho / qué vendés / objetivo</span>
-                <input value={perfilContexto} onChange={e => setPerfilContexto(e.target.value)}
-                  placeholder="Ej: coach de finanzas, quiero más clientes de asesoría"
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none mt-1"
-                  style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
-              </label>
+              <p className="text-xs mb-2" style={{ color: '#8b8b96' }}>Contame lo más que puedas — mientras más des, más a medida sale tu bio <span style={{ color: '#6b6b78' }}>(todo opcional)</span>:</p>
+              <div className="flex flex-col gap-2 mb-3">
+                <input value={pOferta} onChange={e => setPOferta(e.target.value)} placeholder="¿Qué hacés / vendés? (ej: asesorías de finanzas)"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
+                <input value={pAudiencia} onChange={e => setPAudiencia(e.target.value)} placeholder="¿A quién ayudás? (ej: mujeres que quieren ahorrar)"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
+                <input value={pObjetivo} onChange={e => setPObjetivo(e.target.value)} placeholder="¿Qué querés que hagan? (ej: agendar una asesoría)"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
+                <input value={pTono} onChange={e => setPTono(e.target.value)} placeholder="¿Qué tono querés? (ej: cercano y motivador)"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
+              </div>
               <button onClick={() => void analizarMiPerfil()} disabled={!perfilImg || perfilBusy}
                 className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
@@ -1711,6 +1720,31 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Análisis de la descripción (bio) — el foco */}
+              {(perfilResult.bioAnalisis.queComunicaHoy || perfilResult.bioAnalisis.queDeberia || perfilResult.bioAnalisis.estructura) && (
+                <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>📝 Tu descripción, en claro</h3>
+                  {perfilResult.bioAnalisis.queComunicaHoy && (
+                    <div className="rounded-xl p-3 mb-2" style={{ background: '#1a1410', border: '1px solid #4a3a20' }}>
+                      <p className="text-xs font-bold mb-0.5" style={{ color: '#fcd34d' }}>⚠️ Qué comunica hoy</p>
+                      <p className="text-xs" style={{ color: '#d6d6de' }}>{perfilResult.bioAnalisis.queComunicaHoy}</p>
+                    </div>
+                  )}
+                  {perfilResult.bioAnalisis.queDeberia && (
+                    <div className="rounded-xl p-3 mb-2" style={{ background: '#0c1614', border: '1px solid #1d3b34' }}>
+                      <p className="text-xs font-bold mb-0.5" style={{ color: '#86efac' }}>✅ Qué debería comunicar</p>
+                      <p className="text-xs" style={{ color: '#d6d6de' }}>{perfilResult.bioAnalisis.queDeberia}</p>
+                    </div>
+                  )}
+                  {perfilResult.bioAnalisis.estructura && (
+                    <div className="rounded-xl p-3" style={{ background: '#0e0a17', border: '1px solid #2a2140' }}>
+                      <p className="text-xs font-bold mb-0.5" style={{ color: '#a78bfa' }}>🧩 La fórmula para tu caso</p>
+                      <p className="text-xs whitespace-pre-wrap" style={{ color: '#d6d6de' }}>{perfilResult.bioAnalisis.estructura}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Mejoras por elemento */}
               {perfilResult.mejoras.length > 0 && (
                 <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
@@ -1733,11 +1767,13 @@ export default function Home() {
                   <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>✍️ 3 bios nuevas <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(tocá para copiar)</span></h3>
                   <div className="flex flex-col gap-2">
                     {perfilResult.bios.map((b, i) => (
-                      <button key={i} onClick={() => void copiarBio(b, i)}
+                      <button key={i} onClick={() => void copiarBio(b.texto, i)}
                         className="text-left rounded-xl p-3 transition-all"
                         style={{ background: '#0e0a17', border: '1px solid #2a2140', color: '#e6e0f0' }}>
-                        <div className="text-xs whitespace-pre-wrap">{b}</div>
-                        <div className="text-[10px] mt-1 font-bold" style={{ color: perfilCopiado === 'bio' + i ? '#86efac' : '#a78bfa' }}>
+                        {b.angulo && <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: '#a78bfa' }}>{b.angulo}</div>}
+                        <div className="text-xs whitespace-pre-wrap">{b.texto}</div>
+                        {b.porque && <div className="text-[11px] mt-1.5" style={{ color: '#8b8b96' }}>💡 {b.porque}</div>}
+                        <div className="text-[10px] mt-1.5 font-bold" style={{ color: perfilCopiado === 'bio' + i ? '#86efac' : '#a78bfa' }}>
                           {perfilCopiado === 'bio' + i ? '✓ Copiada' : 'Copiar bio →'}
                         </div>
                       </button>
