@@ -554,6 +554,53 @@ export default function Home() {
     setLoadingA(false);
   }
 
+  // Analista de perfil (screenshot de bio → feedback)
+  type AnalisisPerfil = {
+    score: number; veredicto: string;
+    detectado: { nombre: string; usuario: string; bio: string; seguidores: string };
+    fortalezas: string[];
+    mejoras: { elemento: string; problema: string; solucion: string }[];
+    bios: string[]; recomendaciones: string[];
+  };
+  const [perfilImg, setPerfilImg] = useState('');
+  const [perfilContexto, setPerfilContexto] = useState('');
+  const [perfilResult, setPerfilResult] = useState<AnalisisPerfil | null>(null);
+  const [perfilBusy, setPerfilBusy] = useState(false);
+  const [perfilError, setPerfilError] = useState('');
+  const [perfilCopiado, setPerfilCopiado] = useState('');
+
+  async function comprimirImagen(file: File): Promise<string | null> {
+    if (!file.type.startsWith('image/')) return null;
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((ok, err) => { const i = new window.Image(); i.onload = () => ok(i); i.onerror = () => err(new Error('x')); i.src = url; });
+      const k = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d'); if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, w, h);
+      return c.toDataURL('image/jpeg', 0.85);
+    } catch { return null; } finally { URL.revokeObjectURL(url); }
+  }
+  async function subirPerfilImg(file: File) {
+    const d = await comprimirImagen(file);
+    if (d) { setPerfilImg(d); setPerfilResult(null); setPerfilError(''); }
+  }
+  async function analizarMiPerfil() {
+    if (!perfilImg || perfilBusy) return;
+    setPerfilBusy(true); setPerfilError(''); setPerfilResult(null);
+    try {
+      const res = await fetch('/api/analizar-perfil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagenes: [perfilImg], contexto: perfilContexto }) });
+      const d = await res.json();
+      if (!res.ok) setPerfilError(d.error || 'No se pudo analizar.');
+      else setPerfilResult(d.analisis as AnalisisPerfil);
+    } catch { setPerfilError('Error de conexión.'); }
+    setPerfilBusy(false);
+  }
+  async function copiarBio(texto: string, i: number) {
+    try { await navigator.clipboard.writeText(texto); setPerfilCopiado('bio' + i); setTimeout(() => setPerfilCopiado(''), 1500); } catch { /* ignore */ }
+  }
+
   // Traducir
   const [translateModal, setTranslateModal] = useState<{ text: string } | null>(null);
   const [translateLang, setTranslateLang] = useState('ingles');
@@ -930,6 +977,7 @@ export default function Home() {
           { id: 'transcribir', label: '⚡ Transcribir' },
           { id: 'virales',     label: '🔥 Virales' },
           { id: 'analizar',    label: '🔍 Analizar' },
+          { id: 'perfil',      label: '📸 Mi perfil' },
           { id: 'biblioteca',  label: `📚 Guiones${guiones.length > 0 ? ` · ${guiones.length}` : ''}` },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -1590,6 +1638,127 @@ export default function Home() {
       })()}
 
       </div>
+
+      {/* ══ MI PERFIL — feedback de bio por screenshot ══════════ */}
+      {tab === 'perfil' && (
+        <div className="max-w-3xl mx-auto px-6 pb-20">
+          <p className="text-sm mb-4" style={{ color: '#a1a1aa' }}>
+            📸 Subí una captura de tu perfil (foto, nombre, bio) y te digo <b style={{ color: '#c9c9d2' }}>exactamente qué cambiar</b> para que convierta visitas en seguidores — con 3 bios nuevas listas para copiar.
+          </p>
+
+          {/* Subida */}
+          <div className="grid sm:grid-cols-[200px_1fr] gap-4 items-start">
+            <div>
+              <label className="block rounded-2xl overflow-hidden cursor-pointer text-center"
+                style={{ border: '2px dashed #3a2a4a', background: '#120f1a' }}>
+                {perfilImg ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={perfilImg} alt="tu perfil" className="w-full" style={{ display: 'block' }} />
+                ) : (
+                  <div className="py-10 px-4" style={{ color: '#a78bfa' }}>
+                    <div className="text-3xl mb-1">📸</div>
+                    <div className="text-xs font-bold">Tocá para subir</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: '#6b6b78' }}>captura de tu bio</div>
+                  </div>
+                )}
+                <input type="file" accept="image/*" hidden
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void subirPerfilImg(f); e.currentTarget.value = ''; }} />
+              </label>
+              {perfilImg && (
+                <button onClick={() => { setPerfilImg(''); setPerfilResult(null); }} className="text-xs mt-2" style={{ color: '#8b8b96' }}>✕ Cambiar captura</button>
+              )}
+            </div>
+            <div>
+              <label className="block mb-2">
+                <span className="text-xs" style={{ color: '#8b8b96' }}>Opcional: tu nicho / qué vendés / objetivo</span>
+                <input value={perfilContexto} onChange={e => setPerfilContexto(e.target.value)}
+                  placeholder="Ej: coach de finanzas, quiero más clientes de asesoría"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none mt-1"
+                  style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
+              </label>
+              <button onClick={() => void analizarMiPerfil()} disabled={!perfilImg || perfilBusy}
+                className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
+                {perfilBusy ? '🔍 Analizando tu perfil…' : '🔍 Analizar mi perfil'}
+              </button>
+              <p className="text-[11px] mt-2" style={{ color: '#6b6b78' }}>Tu captura se procesa en el momento y no se guarda.</p>
+            </div>
+          </div>
+
+          {perfilError && (
+            <div className="mt-5 rounded-2xl p-4 text-sm" style={{ background: '#7f1d1d22', border: '1px solid #7f1d1d55', color: '#fca5a5' }}>{perfilError}</div>
+          )}
+
+          {/* Resultado */}
+          {perfilResult && (
+            <div className="mt-6 flex flex-col gap-4">
+              {/* Score + veredicto */}
+              <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14101f,#0d0d16)', border: '1px solid #7c3aed44' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold" style={{ color: '#c4b5fd' }}>🧬 Tu perfil hoy</h3>
+                  <span className="text-3xl font-extrabold" style={{ color: perfilResult.score >= 70 ? '#86efac' : perfilResult.score >= 40 ? '#fcd34d' : '#fca5a5' }}>
+                    {perfilResult.score}<span className="text-sm" style={{ color: '#6b6b78' }}>/100</span>
+                  </span>
+                </div>
+                {perfilResult.veredicto && <p className="text-sm" style={{ color: '#d6d6de' }}>{perfilResult.veredicto}</p>}
+                {perfilResult.fortalezas.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-bold mb-1" style={{ color: '#86efac' }}>✅ Lo que ya funciona</p>
+                    <ul className="text-xs space-y-0.5" style={{ color: '#b4b4c0' }}>
+                      {perfilResult.fortalezas.map((f, i) => <li key={i}>• {f}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Mejoras por elemento */}
+              {perfilResult.mejoras.length > 0 && (
+                <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>🛠 Qué cambiar</h3>
+                  <div className="flex flex-col gap-3">
+                    {perfilResult.mejoras.map((m, i) => (
+                      <div key={i} className="rounded-xl p-3" style={{ background: '#0a0a12', border: '1px solid #1d1d28' }}>
+                        <div className="text-xs font-bold mb-1" style={{ color: '#c4b5fd' }}>{m.elemento}</div>
+                        {m.problema && <p className="text-xs mb-1" style={{ color: '#9a9aa6' }}>⚠️ {m.problema}</p>}
+                        {m.solucion && <p className="text-xs" style={{ color: '#d6d6de' }}>✅ {m.solucion}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bios nuevas */}
+              {perfilResult.bios.length > 0 && (
+                <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>✍️ 3 bios nuevas <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(tocá para copiar)</span></h3>
+                  <div className="flex flex-col gap-2">
+                    {perfilResult.bios.map((b, i) => (
+                      <button key={i} onClick={() => void copiarBio(b, i)}
+                        className="text-left rounded-xl p-3 transition-all"
+                        style={{ background: '#0e0a17', border: '1px solid #2a2140', color: '#e6e0f0' }}>
+                        <div className="text-xs whitespace-pre-wrap">{b}</div>
+                        <div className="text-[10px] mt-1 font-bold" style={{ color: perfilCopiado === 'bio' + i ? '#86efac' : '#a78bfa' }}>
+                          {perfilCopiado === 'bio' + i ? '✓ Copiada' : 'Copiar bio →'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recomendaciones extra */}
+              {perfilResult.recomendaciones.length > 0 && (
+                <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
+                  <h3 className="text-sm font-bold mb-2" style={{ color: '#d4d4dc' }}>🚀 Además</h3>
+                  <ul className="text-xs space-y-1" style={{ color: '#b4b4c0' }}>
+                    {perfilResult.recomendaciones.map((r, i) => <li key={i}>• {r}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══ ANALIZAR PERFIL ══════════════════════════════════ */}
       {tab === 'analizar' && (
