@@ -86,8 +86,8 @@ const FAQ = [
     a: 'ViralADN encuentra y transcribe el contenido que está funcionando en tu nicho (búsqueda viral, analizador de perfiles, guiones). TOPCUT edita tus videos solo con IA: recortes, subtítulos animados, B-roll y música. Juntas cubren todo el flujo: encontrar → grabar → editar → publicar.',
   },
   {
-    q: '¿Qué incluye el combo de $67?',
-    a: 'Todo ViralADN (búsqueda viral + guiones + ideas) y todo TOPCUT (editor con IA, hasta 40 videos por mes). Más barato que pagar las dos por separado ($84) y con acceso a todo lo nuevo de ambas plataformas.',
+    q: '¿Qué incluye el combo de $97?',
+    a: 'Todo ViralADN (búsqueda viral + guiones + ideas) y todo TOPCUT (editor con IA, hasta 40 videos por mes). Más barato que pagar las dos por separado ($114) y con acceso a todo lo nuevo de ambas plataformas.',
   },
   {
     q: '¿Cuántos videos puedo editar en TOPCUT?',
@@ -98,7 +98,7 @@ const FAQ = [
     a: 'Sí. La suscripción es mensual (o anual con −20%), pagas seguro con Stripe y cancelas cuando quieras, sin penalidades.',
   },
   {
-    q: '¿Y si ya pagaba el plan de $47?',
+    q: '¿Y si era miembro fundador del plan original?',
     a: 'Eres miembro fundador: mantienes el acceso a las dos plataformas sin pagar de más.',
   },
 ];
@@ -446,7 +446,7 @@ export default function Landing() {
                 <strong>ViralADN</strong> encuentra y transcribe los videos que están funcionando en tu nicho. <strong>TOPCUT</strong> edita los tuyos solo: subtítulos, B-roll y música. Tú solo grabas — el resto es automático.
               </p>
               <div className="hero-ctas lf" style={{ animationDelay: '.74s' }}>
-                <a className="btn btn-mix mag" href="#precios">Empezar · desde $27/mes <span className="arr">→</span></a>
+                <a className="btn btn-mix mag" href="#precios">Empezar · desde $47/mes <span className="arr">→</span></a>
                 <a className="btn btn-ghost mag" href="#flujo">Ver el flujo completo</a>
               </div>
               <p className="microcopy lf" style={{ animationDelay: '.86s' }}>Acceso inmediato · Pago seguro con Stripe · Cancela cuando quieras</p>
@@ -570,7 +570,7 @@ export default function Landing() {
                   <li key={i}><span className="ck adn">✓</span><span><strong>{f.strong}</strong>{f.rest}</span></li>
                 ))}
               </ul>
-              <a className="btn btn-adn mag" href="#precios">Empezar con ViralADN · $27/mes <span className="arr">→</span></a>
+              <a className="btn btn-adn mag" href="#precios">Empezar con ViralADN · $47/mes <span className="arr">→</span></a>
             </div>
             <div className="pvisual reveal">
               <div className="glow-bg" style={{ background: 'radial-gradient(circle, rgba(124,58,237,.55), transparent 70%)' }} />
@@ -698,7 +698,7 @@ export default function Landing() {
                 <div className="fcard spot" key={i}><span className="ck cut">✓</span><span><strong>{f.strong}</strong>{f.rest}</span></div>
               ))}
             </div>
-            <p className="center reveal"><a className="btn btn-cut mag" href="#precios">Empezar con TOPCUT · $57/mes <span className="arr">→</span></a></p>
+            <p className="center reveal"><a className="btn btn-cut mag" href="#precios">Empezar con TOPCUT · $67/mes <span className="arr">→</span></a></p>
           </div>
         </section>
 
@@ -742,14 +742,14 @@ export default function Landing() {
                 <span className="picon adn" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><path d="M7 3c0 6 10 6 10 9s-10 3-10 9" /><path d="M17 3c0 6-10 6-10 9s10 3 10 9" /></svg></span>
                 <h3>ViralADN</h3>
                 <p className="pdesc">Encuentra el contenido que explota.</p>
-                <p className="price">$27 <small>/mes</small></p>
+                <p className="price">$47 <small>/mes</small></p>
                 <ul>
                   <li><span className="ck adn">✓</span>Búsqueda viral en 3 plataformas</li>
                   <li><span className="ck adn">✓</span>Transcripción Whisper Large V3</li>
                   <li><span className="ck adn">✓</span>Analizador de perfiles</li>
                   <li><span className="ck adn">✓</span>Biblioteca ilimitada</li>
                 </ul>
-                <Link className="btn btn-ghost" href="/precios">Empezar · $27/mes</Link>
+                <Link className="btn btn-ghost" href="/precios">Empezar · $47/mes</Link>
                 <p className="stripe-note">Pago seguro con Stripe</p>
               </div>
 
@@ -758,15 +758,15 @@ export default function Landing() {
                 <span className="picon mix" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg></span>
                 <h3>ViralADN ✕ TOPCUT</h3>
                 <p className="pdesc">Las dos plataformas, un solo plan.</p>
-                <p className="price">$67 <small>/mes</small></p>
-                <p className="annual">$84 por separado → $67 en pack</p>
+                <p className="price">$97 <small>/mes</small></p>
+                <p className="annual">$114 por separado → $97 en pack</p>
                 <ul>
                   <li><span className="ck adn">✓</span>TODO ViralADN: búsqueda + guiones + ideas</li>
                   <li><span className="ck cut">✓</span>TODO TOPCUT: editor IA, 40 videos/mes</li>
                   <li><span className="ck adn">✓</span>Encuentra y edita en un solo lugar</li>
                   <li><span className="ck cut">✓</span>Acceso a todo lo nuevo de las dos</li>
                 </ul>
-                <Link className="btn btn-mix mag" href="/precios">Empezar con el pack · $67/mes <span className="arr">→</span></Link>
+                <Link className="btn btn-mix mag" href="/precios">Empezar con el pack · $97/mes <span className="arr">→</span></Link>
                 <p className="stripe-note">Pago seguro con Stripe</p>
               </div>
 
@@ -774,18 +774,18 @@ export default function Landing() {
                 <span className="picon cut" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg></span>
                 <h3>TOPCUT</h3>
                 <p className="pdesc">Tus videos se editan solos con IA.</p>
-                <p className="price">$57 <small>/mes</small></p>
+                <p className="price">$67 <small>/mes</small></p>
                 <ul>
                   <li><span className="ck cut">✓</span>Edición automática completa</li>
                   <li><span className="ck cut">✓</span>Subtítulos animados + B-roll</li>
                   <li><span className="ck cut">✓</span>Música elegida por IA</li>
                   <li><span className="ck cut">✓</span>Hasta 40 videos por mes</li>
                 </ul>
-                <Link className="btn btn-ghost" href="/precios">Empezar · $57/mes</Link>
+                <Link className="btn btn-ghost" href="/precios">Empezar · $67/mes</Link>
                 <p className="stripe-note">Pago seguro con Stripe</p>
               </div>
             </div>
-            <p className="founder reveal">¿Ya pagabas el plan de $47? <strong>Eres miembro fundador</strong> — mantienes acceso a las dos plataformas sin pagar de más.</p>
+            <p className="founder reveal">¿Eras <strong>miembro fundador</strong> del plan original? Mantienes acceso a las dos plataformas sin pagar de más.</p>
           </div>
         </section>
 
@@ -813,7 +813,7 @@ export default function Landing() {
               <h2>¿Listo para crear contenido<br /><span className="grad-adn-text">que explota</span>?</h2>
               <p>Súmate a los 200+ creadores que encuentran, editan y publican con la suite completa.</p>
               <div className="hero-ctas">
-                <a className="btn btn-mix mag" href="#precios">Empezar ahora · desde $27/mes <span className="arr">→</span></a>
+                <a className="btn btn-mix mag" href="#precios">Empezar ahora · desde $47/mes <span className="arr">→</span></a>
               </div>
               <p className="microcopy">Acceso inmediato · Pago seguro con Stripe · Cancela cuando quieras</p>
             </div>
