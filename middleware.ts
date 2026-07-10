@@ -143,6 +143,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Dueño / admin: acceso total, NUNCA bloqueado por suscripción (igual que en
+  // modo cerrado, línea 101). Su acceso es por lista de emails, no por Stripe —
+  // así cancelar el cobro propio no lo deja afuera de su propia plataforma.
+  if (isAdminEmail(user.email)) return response;
+
   if (isWelcome || isCuenta) return response;
 
   const email = user.email;
