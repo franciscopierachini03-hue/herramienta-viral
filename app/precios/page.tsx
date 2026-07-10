@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 type Producto = 'viraladn' | 'topcut' | 'combo';
-type Ciclo = 'monthly' | 'yearly';
+type Ciclo = 'monthly' | 'quarterly' | 'yearly';
 
 const FEATURES: Record<Producto, string[]> = {
   viraladn: [
@@ -129,28 +129,36 @@ function PricingInner() {
   const cards: {
     key: Producto; icon: string; name: string; tagline: string;
     grad: string; ring: string;
-    monthly: { price: string; period: string };
-    yearly?: { price: string; period: string; note: string; was: string };
+    prices: Record<Ciclo, { price: string; period: string; was?: string; note?: string }>;
     badge?: string; badgeBg?: string; badgeColor?: string;
   }[] = [
     {
       key: 'viraladn', icon: '🧬', name: 'ViralADN', tagline: 'Encuentra el contenido que explota.',
       grad: 'linear-gradient(135deg, #7c3aed, #c13584)', ring: '#7c3aed',
-      monthly: { price: '$27', period: '/mes' },
-      yearly: { price: '$270', period: '/año', was: '$324', note: '🎉 ahorras $54/año' },
+      prices: {
+        monthly:   { price: '$47', period: '/mes' },
+        quarterly: { price: '$127', period: '/3 meses', was: '$141', note: '🎉 ahorras $14 · $42/mes' },
+        yearly:    { price: '$451', period: '/año', was: '$564', note: '🎉 ahorras $113 · $38/mes' },
+      },
     },
     {
       key: 'topcut', icon: '✂️', name: 'TOPCUT', tagline: 'Edita tus videos solo con IA.',
       grad: 'linear-gradient(135deg, #a855f7, #ec4899)', ring: '#a855f7',
-      monthly: { price: '$57', period: '/mes' },
-      yearly: { price: '$570', period: '/año', was: '$684', note: '🎉 ahorras $114/año' },
+      prices: {
+        monthly:   { price: '$67', period: '/mes' },
+        quarterly: { price: '$181', period: '/3 meses', was: '$201', note: '🎉 ahorras $20 · $60/mes' },
+        yearly:    { price: '$643', period: '/año', was: '$804', note: '🎉 ahorras $161 · $54/mes' },
+      },
     },
     {
       key: 'combo', icon: '⚡', name: 'ViralADN ✕ TOPCUT', tagline: 'Las dos plataformas, un solo plan.',
       grad: 'linear-gradient(135deg, #7c3aed, #a855f7, #ec4899)', ring: '#a855f7',
-      monthly: { price: '$67', period: '/mes' },
-      yearly: { price: '$670', period: '/año', was: '$804', note: '🎉 ahorras $134/año' },
-      badge: '✨ Mejor valor', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
+      prices: {
+        monthly:   { price: '$97', period: '/mes' },
+        quarterly: { price: '$262', period: '/3 meses', was: '$291', note: '🎉 ahorras $29 · $87/mes' },
+        yearly:    { price: '$931', period: '/año', was: '$1164', note: '🎉 ahorras $233 · $78/mes' },
+      },
+      badge: '✨ Más elegido', badgeBg: 'linear-gradient(135deg, #a855f7, #ec4899)', badgeColor: '#fff',
     },
   ];
 
@@ -177,19 +185,30 @@ function PricingInner() {
         <p className="text-base" style={{ color: '#888' }}>Busca lo viral, edita con IA, o llévate las dos. Cancelas cuando quieras.</p>
       </section>
 
-      {/* TOGGLE GLOBAL Mensual / Anual — cambia las 3 tarjetas a la vez */}
-      <div className="flex items-center justify-center gap-3 mb-9 px-6">
-        <span className="text-sm font-semibold transition-colors" style={{ color: ciclo === 'monthly' ? '#fff' : '#777' }}>Mensual</span>
-        <button role="switch" aria-checked={ciclo === 'yearly'} aria-label="Cambiar entre pago mensual y anual"
-          onClick={() => setCiclo(prev => (prev === 'monthly' ? 'yearly' : 'monthly'))}
-          className="relative w-[52px] h-7 rounded-full transition-all shrink-0"
-          style={{ background: ciclo === 'yearly' ? 'linear-gradient(135deg, #a855f7, #ec4899)' : '#2b2b2b' }}>
-          <span className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"
-            style={{ transform: ciclo === 'yearly' ? 'translateX(24px)' : 'translateX(0)' }} />
-        </button>
-        <span className="text-sm font-semibold transition-colors" style={{ color: ciclo === 'yearly' ? '#fff' : '#777' }}>Anual</span>
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide"
-          style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>−20%</span>
+      {/* TOGGLE GLOBAL Mensual / Trimestral / Anual — cambia las 3 tarjetas a la vez */}
+      <div className="flex justify-center mb-9 px-6">
+        <div className="inline-flex rounded-full p-1 gap-1" style={{ background: '#141414', border: '1px solid #2b2b2b' }}>
+          {([
+            ['monthly', 'Mensual', ''],
+            ['quarterly', 'Trimestral', '−10%'],
+            ['yearly', 'Anual', '−20%'],
+          ] as const).map(([val, label, badge]) => {
+            const on = ciclo === val;
+            return (
+              <button key={val} onClick={() => setCiclo(val)} aria-pressed={on}
+                className="px-4 sm:px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                style={on
+                  ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }
+                  : { background: 'transparent', color: '#888' }}>
+                {label}
+                {badge && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={on ? { background: '#ffffff33', color: '#fff' } : { background: '#a855f722', color: '#c4b5fd' }}>{badge}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 3 CARDS */}
@@ -198,7 +217,7 @@ function PricingInner() {
           {cards.map(c => {
             const focused = focus === c.key;
             const isCombo = c.key === 'combo';
-            const plan = c.yearly && ciclo === 'yearly' ? c.yearly : c.monthly;
+            const plan = c.prices[ciclo];
             const loadKey = `${c.key}-${ciclo}`;
             // ¿Qué tiene el usuario? 'current' = es su plan · 'included' = lo tiene
             // incluido (el combo incluye ViralADN y TOPCUT) · 'available' = puede comprarlo.
@@ -231,18 +250,18 @@ function PricingInner() {
                 <h2 className="text-xl font-bold mb-0.5">{c.name}</h2>
                 <p className="text-sm mb-4" style={{ color: '#999' }}>{c.tagline}</p>
 
-                {ciclo === 'yearly' && c.yearly && (
+                {plan.was && (
                   <div className="flex items-baseline gap-1 mb-0.5" style={{ color: '#555' }}>
-                    <span className="text-lg line-through">{c.yearly.was}</span>
-                    <span className="text-xs">/año</span>
+                    <span className="text-lg line-through">{plan.was}</span>
+                    <span className="text-xs">{plan.period}</span>
                   </div>
                 )}
                 <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-5xl font-bold">{plan.price}</span>
                   <span className="text-sm" style={{ color: '#888' }}>{plan.period}</span>
                 </div>
-                {c.yearly && ciclo === 'yearly'
-                  ? <p className="text-xs mb-5" style={{ color: '#22c55e' }}>{c.yearly.note}</p>
+                {plan.note
+                  ? <p className="text-xs mb-5" style={{ color: '#22c55e' }}>{plan.note}</p>
                   : <p className="text-xs mb-5" style={{ color: '#666' }}>cancelas cuando quieras</p>}
 
                 <ul className="flex flex-col gap-2.5 mb-6 flex-1">
@@ -290,7 +309,7 @@ function PricingInner() {
 
         {/* Nota fundadores */}
         <p className="text-center text-xs mt-8" style={{ color: '#666' }}>
-          ¿Ya pagabas el plan de $47? Eres <b style={{ color: '#c4b5fd' }}>miembro fundador</b> — mantienes acceso a las dos plataformas sin pagar de más.
+          ¿Eras <b style={{ color: '#c4b5fd' }}>miembro fundador</b> del plan original? Mantienes acceso a las dos plataformas sin pagar de más.
         </p>
 
         {/* FAQ */}
@@ -299,7 +318,7 @@ function PricingInner() {
             { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. Cancelas desde tu cuenta en un click. El acceso sigue activo hasta el final del período pagado.' },
             { q: '¿Qué incluye el combo?', a: 'Las dos plataformas completas: ViralADN (búsqueda viral + guiones) y TOPCUT (editor con IA, 40 videos/mes). Sale más barato que pagar los dos por separado.' },
             { q: '¿Cuántos videos puedo editar en TOPCUT?', a: 'Hasta 40 videos por mes. De sobra para publicar todos los días.' },
-            { q: '¿Y si ya pagaba el plan de $47?', a: 'Quedas como miembro fundador: mantienes acceso a ViralADN y a TOPCUT sin cambiar nada.' },
+            { q: '¿Y si era miembro fundador del plan original?', a: 'Mantienes acceso a ViralADN y a TOPCUT sin cambiar nada.' },
           ].map((f, i) => (
             <details key={i} className="rounded-2xl p-4 cursor-pointer" style={{ background: '#0f0f0f', border: '1px solid #1a1a1a' }}>
               <summary className="text-sm font-semibold list-none flex justify-between items-center">{f.q}<span style={{ color: '#666' }}>+</span></summary>

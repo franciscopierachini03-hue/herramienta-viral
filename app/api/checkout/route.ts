@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   // ── Resolver producto + ciclo + price id ──────────────────────────────────
   const producto: ProductKey | null = PRODUCTOS.includes(body?.producto) ? body.producto : null;
-  let ciclo: Ciclo = body?.ciclo === 'yearly' ? 'yearly' : 'monthly';
+  let ciclo: Ciclo = body?.ciclo === 'yearly' ? 'yearly' : body?.ciclo === 'quarterly' ? 'quarterly' : 'monthly';
   let priceId: string | null;
   let metaProduct: string;
   let metaPlan: string;

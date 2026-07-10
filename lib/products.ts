@@ -7,7 +7,7 @@
 // de PRODUCTO y los MONTOS los conocemos con certeza, así que con eso alcanza.
 
 export type ProductKey = 'viraladn' | 'topcut' | 'combo';
-export type Ciclo = 'monthly' | 'yearly';
+export type Ciclo = 'monthly' | 'quarterly' | 'yearly';
 export type Entitlement = { viraladn: boolean; topcut: boolean };
 
 // IDs de PRODUCTO en Stripe (LIVE) — verificados desde el dashboard.
@@ -95,7 +95,32 @@ export function priceEnvName(producto: ProductKey, ciclo: Ciclo): string {
 const _cache = new Map<string, { id: string; t: number }>();
 const CACHE_MS = 5 * 60 * 1000;
 
+// Checkout del EVENTO (10-jul-26): price id NUEVO directo por producto+ciclo.
+// Va primero en resolvePriceId → la página cobra estos precios exactos sin
+// depender del match por monto (que buscaba en el producto viejo).
+export const EVENT_CHECKOUT_PRICE: Record<ProductKey, Partial<Record<Ciclo, string>>> = {
+  viraladn: {
+    monthly:   'price_1TrgNwBrwYizao1Ogz3hesBl', // $47/mes
+    quarterly: 'price_1TrgOUBrwYizao1OhEiFZzRA', // $127/3m
+    yearly:    'price_1TrgOtBrwYizao1Olm1t2Bl1', // $451/año
+  },
+  topcut: {
+    monthly:   'price_1TrgQWBrwYizao1Oz8hQaRUf', // $67/mes
+    quarterly: 'price_1TrgQpBrwYizao1OByH7Vqwr', // $181/3m
+    yearly:    'price_1TrgRDBrwYizao1OOT8W9gPf', // $643/año
+  },
+  combo: {
+    monthly:   'price_1TrgRyBrwYizao1O8H1ANmMd', // $97/mes
+    quarterly: 'price_1TrgSlBrwYizao1O0yBJEtKu', // $262/3m
+    yearly:    'price_1TrgSUBrwYizao1OseJagoxo', // $931/año
+  },
+};
+
 export async function resolvePriceId(producto: ProductKey, ciclo: Ciclo): Promise<string | null> {
+  // Evento: price id nuevo directo, manda sobre env override y match por monto.
+  const ev = EVENT_CHECKOUT_PRICE[producto]?.[ciclo];
+  if (ev) return ev;
+
   const envId = (process.env[priceEnvName(producto, ciclo)] || '').trim();
   if (envId) return envId;
 
