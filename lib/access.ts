@@ -16,6 +16,10 @@ import { entitlementForCustomer, type Entitlement } from '@/lib/entitlement';
 
 export const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
 
+// Códigos de cortesía (redeemed_code) que desbloquean LAS DOS plataformas
+// (ViralADN + TOPCUT), no solo ViralADN. Para accesos de cortesía "full".
+export const CORTESIA_FULL = new Set(['CORTESIA-FULL']);
+
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.toLowerCase().trim();
@@ -70,6 +74,8 @@ export async function getAccess(): Promise<Access> {
     (trialActive || !trialEndsAt)
   ) {
     ent.viraladn = true;
+    // Cortesías "full" (redeemed_code marcado) → también TOPCUT = acceso completo.
+    if (CORTESIA_FULL.has(profile.redeemed_code.trim().toUpperCase())) ent.topcut = true;
   }
 
   return { email, name, admin: false, ent };
