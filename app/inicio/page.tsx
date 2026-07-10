@@ -62,6 +62,14 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
               style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)', color: '#fff' }}>
               🛠 Panel admin
             </Link>
+            <Link href="/admin/ventas" className="text-xs font-bold px-3 py-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
+              style={{ background: '#0a1a12', border: '1px solid #22c55e55', color: '#86efac' }}>
+              📊 Ventas
+            </Link>
+            <Link href="/admin/pagos" className="text-xs font-bold px-3 py-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
+              style={{ background: '#0a1420', border: '1px solid #2563eb55', color: '#93c5fd' }}>
+              💳 Pagos
+            </Link>
             <Link href="/admin/costos" className="text-xs font-bold px-3 py-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
               style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>
               💸 Costos
