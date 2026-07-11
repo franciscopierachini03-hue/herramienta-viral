@@ -52,14 +52,34 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   };
   const { PRODUCT_IDS } = await import('@/lib/products');
 
-  // 2CLICKS comparte la cuenta con OTROS negocios → ahí clasificamos SOLO por
-  // ID de producto (estricto: nada de adivinar por monto, para que otro negocio
-  // a $27 no se cuele como ViralADN). En la cuenta legacy (solo tiene "VIRAL
-  // ADN") sí vale clasificar por monto $47/$470.
+  // Mapa PRODUCTO → plataforma de ViralADN: los VIEJOS (PRODUCT_IDS) + los
+  // NUEVOS del evento, descubiertos desde precios ancla verificados (uno por
+  // plataforma). Sin esto, las ventas nuevas del evento caían como "otro".
+  const ANCHORS: Array<[string, 'viraladn' | 'topcut' | 'combo']> = [
+    ['price_1TrgNwBrwYizao1Ogz3hesBl', 'viraladn'],
+    ['price_1TrgQWBrwYizao1Oz8hQaRUf', 'topcut'],
+    ['price_1TrgRyBrwYizao1O8H1ANmMd', 'combo'],
+  ];
+  const platformOf = new Map<string, 'viraladn' | 'topcut' | 'combo'>();
+  platformOf.set(PRODUCT_IDS.viraladn, 'viraladn');
+  platformOf.set(PRODUCT_IDS.topcut, 'topcut');
+  platformOf.set(PRODUCT_IDS.combo, 'combo');
+  {
+    const k = process.env.STRIPE_SECRET_KEY;
+    if (k) await Promise.all(ANCHORS.map(async ([anchor, plat]) => {
+      try {
+        const r = await fetch(`https://api.stripe.com/v1/prices/${anchor}`, { headers: { Authorization: `Bearer ${k}` }, cache: 'no-store' });
+        if (r.ok) { const p = await r.json(); if (p?.product) platformOf.set(p.product as string, plat); }
+      } catch { /* noop */ }
+    }));
+  }
+
+  // 2CLICKS comparte la cuenta con OTROS negocios → clasificamos por ID de
+  // producto (viejos + nuevos del evento). Lo que no es producto de ViralADN es
+  // "otro" (otro negocio) y se excluye. La cuenta legacy (solo "VIRAL ADN") vale
+  // además por monto $47/$470.
   function clasificaSub(productId: string | null, amount: number | null, estricto: boolean): string {
-    if (productId === PRODUCT_IDS.viraladn) return 'viraladn';
-    if (productId === PRODUCT_IDS.topcut) return 'topcut';
-    if (productId === PRODUCT_IDS.combo) return 'combo';
+    if (productId && platformOf.has(productId)) return platformOf.get(productId)!;
     if (!estricto) {
       const usd = Math.round((amount || 0) / 100);
       if (usd === 47 || usd === 470) return 'legacy47';
@@ -147,31 +167,46 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
   // ── Cobros EN VIVO desde Stripe (la cuenta que usa producción = 2CLICKS) ──
   // Independiente del libro: sirve para ver quién pagó y cuánto aunque la
   // tabla todavía no exista o el webhook sea nuevo.
-  type Cobro = { fecha: string; email: string; monto: number; estado: string; refunded: boolean };
+  type Cobro = { fecha: string; email: string; monto: number; estado: string; refunded: boolean; viralAdn: boolean; negocio: string };
   let cobros: Cobro[] = [];
   let stripeError = '';
   try {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) stripeError = 'Sin STRIPE_SECRET_KEY en este entorno.';
     else {
-      const r = await fetch('https://api.stripe.com/v1/charges?limit=25', {
+      const r = await fetch('https://api.stripe.com/v1/charges?limit=25&expand[]=data.invoice', {
         headers: { Authorization: `Bearer ${key}` }, cache: 'no-store',
       });
       const d = await r.json();
       if (!r.ok) stripeError = d?.error?.message || `Stripe HTTP ${r.status}`;
       else {
-        cobros = ((d.data || []) as Array<Record<string, unknown>>).map(c => ({
-          fecha: new Date(Number(c.created) * 1000).toISOString().slice(0, 10),
-          email: String((c.billing_details as { email?: string })?.email || c.receipt_email || '—'),
-          monto: Number(c.amount || 0) / 100,
-          estado: String(c.status || ''),
-          refunded: !!c.refunded,
-        }));
+        cobros = ((d.data || []) as Array<Record<string, unknown>>).map(c => {
+          // Producto del cobro: su factura → líneas → precio → producto. Elige
+          // una línea de ViralADN si la hay (evita que una proración despiste).
+          const inv = c.invoice as { lines?: { data?: Array<{ price?: { product?: string } }> } } | null;
+          let plat: 'viraladn' | 'topcut' | 'combo' | undefined;
+          for (const l of inv?.lines?.data || []) {
+            const pid = l.price?.product;
+            if (pid) { const pf = platformOf.get(pid); if (pf) { plat = pf; break; } }
+          }
+          return {
+            fecha: new Date(Number(c.created) * 1000).toISOString().slice(0, 10),
+            email: String((c.billing_details as { email?: string })?.email || c.receipt_email || '—'),
+            monto: Number(c.amount || 0) / 100,
+            estado: String(c.status || ''),
+            refunded: !!c.refunded,
+            viralAdn: !!plat,
+            negocio: plat === 'viraladn' ? '🧬 ViralADN' : plat === 'topcut' ? '✂️ TOPCUT' : plat === 'combo' ? '🔗 Combo' : '🏢 otro negocio',
+          };
+        });
       }
     }
   } catch (e) { stripeError = (e as Error).message.slice(0, 120); }
   const cobradoOk = cobros.filter(c => c.estado === 'succeeded' && !c.refunded);
-  const totalCobrado = cobradoOk.reduce((n, c) => n + c.monto, 0);
+  const tuyos = cobradoOk.filter(c => c.viralAdn);
+  const otrosOk = cobradoOk.filter(c => !c.viralAdn);
+  const totalTuyo = tuyos.reduce((n, c) => n + c.monto, 0);
+  const totalOtros = otrosOk.reduce((n, c) => n + c.monto, 0);
 
   let filas: Pago[] = [];
   let tablaFalta = false;
@@ -303,7 +338,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
           </div>
         )}
         <p className="text-[11px] mb-8" style={{ color: '#555' }}>
-          Solo ViralADN · TOPCUT · Combo · Fundadores (clasificación estricta por ID de producto).
+          Solo ViralADN · TOPCUT · Combo · Fundadores (por ID de producto, incluye los productos nuevos del evento).
           {otrosNegocios > 0 && ` Se excluyeron ${otrosNegocios} suscripciones de otros negocios que comparten la cuenta de Stripe.`}
           {' '}💰 Pagando = precio del plan − descuento activo &gt; $0 (ingreso recurrente NETO, anuales ÷12; sin prorrateos ni impuestos).
           {' '}🎁 En bono = descuento 100% activo → este ciclo paga $0.
@@ -365,10 +400,15 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
         </p>
 
         {/* Cobros en vivo desde Stripe (cuenta de producción) */}
-        <div className="flex items-baseline justify-between mt-10 mb-3">
-          <h2 className="text-sm font-bold" style={{ color: '#d4d4dc' }}>🏦 Últimos cobros en Stripe — cuenta de producción (en vivo)</h2>
-          <span className="text-xs" style={{ color: '#666' }}>
-            {cobradoOk.length} exitosos vigentes · <b style={{ color: '#86efac' }}>${totalCobrado.toFixed(0)}</b>
+        <div className="mt-10 mb-1">
+          <h2 className="text-sm font-bold" style={{ color: '#d4d4dc' }}>🏦 Últimos 25 cobros en Stripe — cuenta 2CLICKS (compartida con otros negocios)</h2>
+        </div>
+        <div className="flex items-center gap-2.5 mb-3 flex-wrap text-xs">
+          <span className="px-3 py-1.5 rounded-xl font-bold" style={{ background: '#0a1a12', border: '1px solid #22c55e55', color: '#86efac' }}>
+            🧬 TUYO (ViralADN): {tuyos.length} cobros · ${totalTuyo.toFixed(0)}
+          </span>
+          <span className="px-3 py-1.5 rounded-xl" style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888' }}>
+            🏢 Otros negocios: {otrosOk.length} · ${totalOtros.toFixed(0)} <span style={{ color: '#555' }}>(no es tuyo)</span>
           </span>
         </div>
         {stripeError ? (
@@ -381,6 +421,7 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
               <thead>
                 <tr style={{ background: '#101010', color: '#888' }}>
                   <th className="text-left px-4 py-2.5 text-xs font-bold">Fecha</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold">Negocio</th>
                   <th className="text-left px-4 py-2.5 text-xs font-bold">Cliente</th>
                   <th className="text-right px-4 py-2.5 text-xs font-bold">Monto</th>
                   <th className="text-left px-4 py-2.5 text-xs font-bold">Estado</th>
@@ -388,13 +429,14 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
               </thead>
               <tbody>
                 {cobros.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-xs" style={{ color: '#666' }}>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-xs" style={{ color: '#666' }}>
                     Sin cobros todavía en esta cuenta.
                   </td></tr>
                 )}
                 {cobros.map((c, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid #161616' }}>
+                  <tr key={i} style={{ borderTop: '1px solid #161616', opacity: c.viralAdn ? 1 : 0.45 }}>
                     <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#888' }}>{c.fecha}</td>
+                    <td className="px-4 py-2.5 text-xs font-bold" style={{ color: c.viralAdn ? '#86efac' : '#777' }}>{c.negocio}</td>
                     <td className="px-4 py-2.5 text-xs">{c.email}</td>
                     <td className="px-4 py-2.5 text-xs text-right font-bold">${c.monto.toFixed(2)}</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: c.refunded ? '#fda4af' : c.estado === 'succeeded' ? '#86efac' : '#fcd34d' }}>
