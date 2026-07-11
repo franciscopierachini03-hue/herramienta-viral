@@ -27,6 +27,15 @@ export async function POST(req: NextRequest) {
   // ── Resolver producto + ciclo + price id ──────────────────────────────────
   const producto: ProductKey | null = PRODUCTOS.includes(body?.producto) ? body.producto : null;
   let ciclo: Ciclo = body?.ciclo === 'yearly' ? 'yearly' : body?.ciclo === 'quarterly' ? 'quarterly' : 'monthly';
+
+  // Página paralela (/unete): venta con PRUEBA GRATIS + etiqueta de comunidad.
+  //   trial:true → 7 días gratis (tarjeta hoy, $0; Stripe cobra solo al día 8).
+  //   canal → va en metadata: sabés de qué comunidad vino cada venta.
+  const TRIAL_DAYS_PARALELO = 7;
+  const canal = typeof body?.canal === 'string'
+    ? body.canal.trim().toLowerCase().slice(0, 40).replace(/[^a-z0-9_-]/g, '')
+    : '';
+  const conTrial = body?.trial === true;
   let priceId: string | null;
   let metaProduct: string;
   let metaPlan: string;
@@ -81,9 +90,14 @@ export async function POST(req: NextRequest) {
 
   // Tags: ingreso nuestro + por qué producto entró (respaldo / lectura).
   const meta: Record<string, string> = { app: 'viraladn', product: metaProduct, plan: metaPlan };
+  if (canal) meta.canal = canal;
   for (const [k, v] of Object.entries(meta)) params.append(`metadata[${k}]`, v);
   const subOrPay = mode === 'subscription' ? 'subscription_data' : 'payment_intent_data';
   for (const [k, v] of Object.entries(meta)) params.append(`${subOrPay}[metadata][${k}]`, v);
+  // Prueba gratis: solo aplica a suscripciones (un pago único no tiene trial).
+  if (mode === 'subscription' && conTrial) {
+    params.append('subscription_data[trial_period_days]', String(TRIAL_DAYS_PARALELO));
+  }
 
   // Tras pagar, /app/welcome verifica el pago y guarda el stripe_customer_id;
   // después el hub /inicio desbloquea el producto pagado.
