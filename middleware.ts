@@ -64,6 +64,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(base + req.nextUrl.search, 307);
   }
 
+  // /ADAMA (o cualquier mezcla de mayúsculas) → /adama. Las rutas de Next son
+  // case-sensitive y la comunidad comparte el link escrito en mayúsculas.
+  if (pathname.toLowerCase() === '/adama' && pathname !== '/adama') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/adama';
+    return NextResponse.redirect(url, 308);
+  }
+
   // Formulario de registro: URL limpia /registro → sirve el HTML estático.
   if (pathname === '/registro') {
     const url = req.nextUrl.clone();
