@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
   // Solutions (la página paralela /unete para comunidades); por defecto la
   // principal (2CLICKS). Cada cuenta tiene su key y sus propios precios.
   const cuenta: 'principal' | 'elevation' = body?.cuenta === 'elevation' ? 'elevation' : 'principal';
-  const stripeKey = (cuenta === 'elevation'
+  const stripeKey = ((cuenta === 'elevation'
     ? process.env.STRIPE_SECRET_KEY_ELEVATION
-    : process.env.STRIPE_SECRET_KEY || '').toString().trim();
+    : process.env.STRIPE_SECRET_KEY) || '').trim();
 
   if (!stripeKey) {
     return Response.json({
