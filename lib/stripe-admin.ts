@@ -65,6 +65,10 @@ export type StripeInvoice = {
   customer: string | null;
   customer_email: string | null;
   subscription?: string | null;
+  // Charge expandido (expand[]=data.charge) → acá vive el REEMBOLSO. La factura
+  // sigue "paid" aunque se devuelva la plata; sin mirar el charge se contaba
+  // como cobro un pago devuelto.
+  charge?: string | { id?: string; refunded?: boolean; amount_refunded?: number } | null;
   parent?: { subscription_details?: { subscription?: string | null } | null } | null;
 };
 
@@ -100,13 +104,19 @@ export type BillingOverview = {
 };
 
 const STRIPE_API = 'https://api.stripe.com/v1';
+// Versión de API pineada para las facturas: garantiza que invoice.charge exista
+// y sea expandible (en versiones nuevas de Stripe ese campo cambió de lugar).
+const INVOICE_API_VERSION = '2024-06-20';
 
-async function stripeGet<T = unknown>(path: string, params: Record<string, string | number> = {}): Promise<T | null> {
+async function stripeGet<T = unknown>(path: string, params: Record<string, string | number> = {}, version?: string): Promise<T | null> {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])));
   const url = `${STRIPE_API}/${path}${qs.toString() ? '?' + qs : ''}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${key}`, ...(version ? { 'Stripe-Version': version } : {}) },
+    cache: 'no-store',
+  });
   if (!res.ok) {
     console.error(`[stripe] ${path} → ${res.status}`, await res.text().catch(() => ''));
     return null;
@@ -175,9 +185,9 @@ async function paidInvoicesForSub(subId: string, maxPages = 5): Promise<StripeIn
   const out: StripeInvoice[] = [];
   let starting_after: string | undefined;
   for (let i = 0; i < maxPages; i++) {
-    const params: Record<string, string | number> = { subscription: subId, status: 'paid', limit: 100 };
+    const params: Record<string, string | number> = { subscription: subId, status: 'paid', limit: 100, 'expand[]': 'data.charge' };
     if (starting_after) params.starting_after = starting_after;
-    const page = await stripeGet<{ data: StripeInvoice[]; has_more: boolean }>('invoices', params);
+    const page = await stripeGet<{ data: StripeInvoice[]; has_more: boolean }>('invoices', params, INVOICE_API_VERSION);
     if (!page?.data?.length) break;
     out.push(...page.data);
     if (!page.has_more) break;
@@ -247,11 +257,23 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     // para poder responder "¿este dinero de qué producto es?" sin abrir Stripe.
     const productBySub = new Map<string, string>();
     for (const s of ourSubs) productBySub.set(s.id, productLabel(s.items?.data?.[0]?.price?.product, prodMap));
-    const allPaid: Array<StripeInvoice & { productLabel?: string }> = [];
+    // Reembolso de una factura: vive en su CHARGE (amount_refunded); la factura
+    // queda "paid" igual. netPaid = pagado − devuelto; fullRefund = devuelto todo.
+    const refundedCents = (inv: StripeInvoice): number => {
+      const ch = inv.charge;
+      return ch && typeof ch === 'object' ? (ch.amount_refunded || 0) : 0;
+    };
+    const allPaid: Array<StripeInvoice & { productLabel?: string; netPaid?: number; fullRefund?: boolean }> = [];
     for (const { subId, invs } of perSub) {
       let sum = 0;
       const prodDeSub = productBySub.get(subId) || '—';
-      for (const inv of invs) { const a = inv.amount_paid || 0; if (a > 0) { allPaid.push(Object.assign(inv, { productLabel: prodDeSub })); sum += a; } }
+      for (const inv of invs) {
+        const a = inv.amount_paid || 0;
+        if (a <= 0) continue;
+        const net = Math.max(0, a - refundedCents(inv));
+        allPaid.push(Object.assign(inv, { productLabel: prodDeSub, netPaid: net, fullRefund: net === 0 }));
+        sum += net; // total pagado NETO de reembolsos
+      }
       paidBySub.set(subId, sum);
       // "lo que paga este ciclo" = monto de la factura más reciente. Si el cupón
       // "$47 off una vez" la cubrió, esa factura es $0 → así detectamos el mes
@@ -261,13 +283,13 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     }
 
     const usd = (cents: number) => Math.max(0, cents / 100);
-    const totalRevenueAllTime = allPaid.reduce((s, i) => s + usd(i.amount_paid), 0);
+    const totalRevenueAllTime = allPaid.reduce((s, i) => s + usd(i.netPaid ?? i.amount_paid), 0);
 
     const now = new Date();
     const startThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-    const totalRevenueThisMonth = allPaid.filter(i => i.created * 1000 >= startThisMonth).reduce((s, i) => s + usd(i.amount_paid), 0);
-    const totalRevenueLastMonth = allPaid.filter(i => { const t = i.created * 1000; return t >= startLastMonth && t < startThisMonth; }).reduce((s, i) => s + usd(i.amount_paid), 0);
+    const totalRevenueThisMonth = allPaid.filter(i => i.created * 1000 >= startThisMonth).reduce((s, i) => s + usd(i.netPaid ?? i.amount_paid), 0);
+    const totalRevenueLastMonth = allPaid.filter(i => { const t = i.created * 1000; return t >= startLastMonth && t < startThisMonth; }).reduce((s, i) => s + usd(i.netPaid ?? i.amount_paid), 0);
 
     // 3) MRR + activas.
     const activeSubs = ourSubs.filter(s => s.status === 'active');
@@ -311,14 +333,16 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     for (const i of allPaid) {
       const key = new Date(i.created * 1000).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
       const slot = monthlyMap.get(key);
-      if (slot) { slot.revenue += usd(i.amount_paid); slot.count += 1; }
+      if (slot) { const n = usd(i.netPaid ?? i.amount_paid); slot.revenue += n; if (n > 0) slot.count += 1; }
     }
     const monthlyRevenue = Array.from(monthlyMap.entries()).map(([month, v]) => ({ month, revenue: v.revenue, count: v.count }));
 
     const recentPayments = allPaid.sort((a, b) => b.created - a.created).slice(0, 50).map(i => ({
-      id: i.id, amount: usd(i.amount_paid), currency: (i.currency || 'usd').toUpperCase(),
+      // Reembolso total → mostramos el monto original + badge "Reembolsado";
+      // parcial → mostramos lo que QUEDÓ cobrado.
+      id: i.id, amount: usd(i.fullRefund ? i.amount_paid : (i.netPaid ?? i.amount_paid)), currency: (i.currency || 'usd').toUpperCase(),
       customer: i.customer || '', email: i.customer_email || '',
-      date: new Date(i.created * 1000).toISOString(), description: `Suscripción ${i.productLabel || 'ViralADN'}`, refunded: false,
+      date: new Date(i.created * 1000).toISOString(), description: `Suscripción ${i.productLabel || 'ViralADN'}`, refunded: !!i.fullRefund,
       product: i.productLabel || '—',
     }));
 
@@ -326,7 +350,9 @@ export async function getBillingOverview(): Promise<BillingOverview> {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
       recentPayments, monthlyRevenue,
-      payments: allPaid.map(i => ({ id: i.id, customer: i.customer || '', email: i.customer_email || '', date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid), product: i.productLabel || '—' })),
+      // Solo dinero que QUEDÓ cobrado (neto de reembolsos) → alimenta Cobrado
+      // HOY, el gráfico diario y el export de ventas.
+      payments: allPaid.filter(i => (i.netPaid ?? i.amount_paid) > 0).map(i => ({ id: i.id, customer: i.customer || '', email: i.customer_email || '', date: new Date(i.created * 1000).toISOString(), amount: usd(i.netPaid ?? i.amount_paid), product: i.productLabel || '—' })),
       trialCustomerIds, subscribers, configured: true,
     };
   } catch (e) {
