@@ -271,6 +271,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // 2Clicks ni otros productos de la misma cuenta. Ver lib/stripe-admin.ts.
   const billing = await getBillingOverview();
 
+  // Cobrado HOY (para verlo apenas entrás — clave en día de evento).
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  const pagosHoy = billing.payments.filter(p => (p.date || '').slice(0, 10) === hoyStr);
+  const cobradoHoy = pagosHoy.reduce((a, p) => a + p.amount, 0);
+
   // customer Stripe → email (de profiles), para completar el detalle de
   // suscriptores cuando la factura no trae email (ej. los que están en trial).
   const custToEmail = new Map<string, string>();
@@ -440,6 +445,11 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/admin/ventas"
+              className="px-4 py-2 rounded-xl text-xs font-bold"
+              style={{ background: '#0a1a12', border: '1px solid #22c55e55', color: '#86efac' }}>
+              📊 Ventas por día
+            </Link>
             <Link href="/admin/pagos"
               className="px-4 py-2 rounded-xl text-xs font-bold"
               style={{ background: '#10141f', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
@@ -525,7 +535,13 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             )}
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+            <div className="rounded-2xl p-4"
+              style={{ background: 'linear-gradient(145deg, #0a1a12, #0d0d0d)', border: '1px solid #22c55e88' }}>
+              <div className="text-xs mb-1 font-bold" style={{ color: '#86efac' }}>💚 Cobrado HOY</div>
+              <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(cobradoHoy)}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#666' }}>{pagosHoy.length} pago{pagosHoy.length === 1 ? '' : 's'} hoy</div>
+            </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #1a1030, #0d0d0d)', border: '1px solid #7c3aed66' }}>
               <div className="text-xs mb-1 flex items-center gap-1" style={{ color: '#a78bfa' }}>MRR comprometido</div>

@@ -18,7 +18,31 @@ import { PRODUCT_IDS } from '@/lib/products';
 // compartida con 2Clicks (LEGACY USA, etc.) → al buscar pagos por email
 // validamos el PRODUCTO de la sesión (definitivo), NO el monto: un producto
 // ajeno que cueste lo mismo que uno nuestro ($47/$67/etc.) ya no se cuela.
-const OUR_PRODUCTS = new Set<string>(Object.values(PRODUCT_IDS));
+// Precios ancla VERIFICADOS → para descubrir los productos NUEVOS del evento
+// (uno por plataforma). Sin esto, las ventas nuevas caían fuera del panel.
+const ANCHORS: Array<[string, 'viraladn' | 'topcut' | 'combo']> = [
+  ['price_1TrgNwBrwYizao1Ogz3hesBl', 'viraladn'],
+  ['price_1TrgQWBrwYizao1Oz8hQaRUf', 'topcut'],
+  ['price_1TrgRyBrwYizao1O8H1ANmMd', 'combo'],
+];
+
+// Mapa PRODUCTO → plataforma: los VIEJOS (PRODUCT_IDS) + los NUEVOS del evento.
+// Es la fuente de "qué es ViralADN". Cacheado (los IDs no cambian).
+let _prodMap: Map<string, 'viraladn' | 'topcut' | 'combo'> | null = null;
+async function ourProductMap(): Promise<Map<string, 'viraladn' | 'topcut' | 'combo'>> {
+  if (_prodMap) return _prodMap;
+  const m = new Map<string, 'viraladn' | 'topcut' | 'combo'>([
+    [PRODUCT_IDS.viraladn, 'viraladn'],
+    [PRODUCT_IDS.topcut, 'topcut'],
+    [PRODUCT_IDS.combo, 'combo'],
+  ]);
+  await Promise.all(ANCHORS.map(async ([anchor, plat]) => {
+    const pr = await stripeGet<{ product?: string }>(`prices/${encodeURIComponent(anchor)}`);
+    if (pr?.product) m.set(pr.product, plat);
+  }));
+  _prodMap = m;
+  return m;
+}
 
 export type StripeSubscription = {
   id: string;
@@ -90,21 +114,21 @@ async function stripeGet<T = unknown>(path: string, params: Record<string, strin
   return res.json() as Promise<T>;
 }
 
-// Todos los price ids de NUESTROS 3 productos (ViralADN, TOPCUT, Combo), sin
-// importar el monto — para contar TODAS nuestras suscripciones, no solo el viejo
-// $47/$470. Los productos ajenos de la cuenta (2Clicks, etc.) quedan afuera.
+// Todos los price ids de NUESTROS productos (ViralADN, TOPCUT, Combo — viejos Y
+// nuevos del evento), sin importar el monto → para contar TODAS nuestras
+// suscripciones. Los productos ajenos de la cuenta (2Clicks, etc.) quedan afuera.
 async function ourPriceIds(): Promise<string[]> {
+  const map = await ourProductMap();
   const ids = new Set<string>();
   // Respaldo: price ids legacy por env (por si el producto fue archivado).
-  // VALIDADO: solo se suman si el precio pertenece a un producto NUESTRO, para
-  // no contaminar con un precio ajeno (2Clicks) si la env quedó mal seteada.
+  // VALIDADO: solo se suman si el precio pertenece a un producto NUESTRO.
   for (const e of [process.env.STRIPE_PRICE_MONTHLY, process.env.STRIPE_PRICE_YEARLY]) {
     const v = (e || '').trim(); if (!v) continue;
     const pr = await stripeGet<{ product?: string }>(`prices/${encodeURIComponent(v)}`);
-    if (pr?.product && OUR_PRODUCTS.has(pr.product)) ids.add(v);
+    if (pr?.product && map.has(pr.product)) ids.add(v);
   }
-  // Todos los precios de cada uno de nuestros productos.
-  for (const product of Object.values(PRODUCT_IDS)) {
+  // Todos los precios de cada uno de nuestros productos (viejos + nuevos).
+  for (const product of map.keys()) {
     const page = await stripeGet<{ data: Array<{ id: string }> }>('prices', { product, limit: 100 });
     for (const p of page?.data || []) if (p.id) ids.add(p.id);
   }
@@ -112,11 +136,9 @@ async function ourPriceIds(): Promise<string[]> {
 }
 
 // Nombre del producto a partir del id de producto del precio de la suscripción.
-function productLabel(productId?: string): string {
-  if (productId === PRODUCT_IDS.viraladn) return 'ViralADN';
-  if (productId === PRODUCT_IDS.topcut) return 'TOPCUT';
-  if (productId === PRODUCT_IDS.combo) return 'Combo';
-  return '—';
+function productLabel(productId: string | undefined, map: Map<string, 'viraladn' | 'topcut' | 'combo'>): string {
+  const p = productId ? map.get(productId) : undefined;
+  return p === 'viraladn' ? 'ViralADN' : p === 'topcut' ? 'TOPCUT' : p === 'combo' ? 'Combo' : '—';
 }
 
 // Corre fn sobre items con concurrencia limitada (no saturar Stripe).
@@ -200,6 +222,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
   if (!process.env.STRIPE_SECRET_KEY) return zero(false, 'STRIPE_SECRET_KEY no configurado');
 
   try {
+    const prodMap = await ourProductMap();
     const prices = await ourPriceIds();
 
     // 1) Suscripciones ViralADN (por price id; respaldo metadata).
@@ -266,7 +289,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
         email: emailByCustomer.get(s.customer) || '',
         status: s.status,
         plan: plan.label,
-        product: productLabel(s.items?.data?.[0]?.price?.product),
+        product: productLabel(s.items?.data?.[0]?.price?.product, prodMap),
         amountThisCycle,
         totalPaid: usd(paidBySub.get(s.id) || 0),
         renewal: s.current_period_end ? new Date(s.current_period_end * 1000).toISOString() : null,
@@ -322,10 +345,11 @@ type SessLite = {
 // price.product) y lo compara con OUR_PRODUCTS. Definitivo: descarta 2Clicks
 // aunque el monto coincida. Solo se llama para sesiones cuyo email es huérfano.
 async function checkoutIsOurs(sessionId: string): Promise<boolean> {
+  const map = await ourProductMap();
   const li = await stripeGet<{ data: Array<{ price?: { product?: string } | null }> }>(
     `checkout/sessions/${encodeURIComponent(sessionId)}/line_items`, { limit: 10 },
   );
-  return (li?.data || []).some(it => !!it.price?.product && OUR_PRODUCTS.has(it.price.product));
+  return (li?.data || []).some(it => !!it.price?.product && map.has(it.price.product));
 }
 
 export async function findPaidByEmail(emails: string[], sinceUnix?: number): Promise<Map<string, { amount: number; date: string }>> {
