@@ -271,10 +271,24 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   // 2Clicks ni otros productos de la misma cuenta. Ver lib/stripe-admin.ts.
   const billing = await getBillingOverview();
 
-  // Cobrado HOY (para verlo apenas entrás — clave en día de evento).
-  const hoyStr = new Date().toISOString().slice(0, 10);
-  const pagosHoy = billing.payments.filter(p => (p.date || '').slice(0, 10) === hoyStr);
+  // Cobrado HOY en hora CDMX — ¡no UTC! De noche, en UTC ya es "mañana" y el
+  // contador marcaba $0 aunque hubiera ventas (bug visto el día del evento).
+  const diaMx = (d: Date) => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  const hoyStr = diaMx(new Date());
+  const pagosHoy = billing.payments.filter(p => diaMx(new Date(p.date)) === hoyStr);
   const cobradoHoy = pagosHoy.reduce((a, p) => a + p.amount, 0);
+  // Desglose por producto (hoy + mes en curso): responde "¿esto es ViralADN,
+  // TOPCUT o Combo?" sin abrir Stripe.
+  const pagosMesMx = billing.payments.filter(p => diaMx(new Date(p.date)).slice(0, 7) === hoyStr.slice(0, 7));
+  const porProducto = (arr: typeof billing.payments) => {
+    const m = new Map<string, number>();
+    for (const p of arr) m.set(p.product || '—', (m.get(p.product || '—') || 0) + p.amount);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const prodHoy = porProducto(pagosHoy);
+  const prodMes = porProducto(pagosMesMx);
 
   // customer Stripe → email (de profiles), para completar el detalle de
   // suscriptores cuando la factura no trae email (ej. los que están en trial).
@@ -298,9 +312,10 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   const selM = Number(selMonth.slice(5, 7)); // 1..12
   const daysInMonth = new Date(selY, selM, 0).getDate();
   const daily = Array.from({ length: daysInMonth }, () => 0);
+  const selPrefix = `${selY}-${String(selM).padStart(2, '0')}`;
   for (const p of billing.payments) {
-    const d = new Date(p.date);
-    if (d.getFullYear() === selY && d.getMonth() + 1 === selM) daily[d.getDate() - 1] += p.amount;
+    const dm = diaMx(new Date(p.date)); // día en CDMX (no UTC) — mismo criterio que "HOY"
+    if (dm.slice(0, 7) === selPrefix) daily[Number(dm.slice(8, 10)) - 1] += p.amount;
   }
   const dailyTotal = daily.reduce((a, b) => a + b, 0);
   const dailyCount = daily.filter(v => v > 0).length;
@@ -540,7 +555,10 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               style={{ background: 'linear-gradient(145deg, #0a1a12, #0d0d0d)', border: '1px solid #22c55e88' }}>
               <div className="text-xs mb-1 font-bold" style={{ color: '#86efac' }}>💚 Cobrado HOY</div>
               <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(cobradoHoy)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#666' }}>{pagosHoy.length} pago{pagosHoy.length === 1 ? '' : 's'} hoy</div>
+              <div className="text-[11px] mt-1" style={{ color: '#666' }}>
+                {pagosHoy.length} pago{pagosHoy.length === 1 ? '' : 's'} hoy (CDMX)
+                {prodHoy.length > 0 && <span style={{ color: '#86efac' }}> · {prodHoy.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ')}</span>}
+              </div>
             </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #1a1030, #0d0d0d)', border: '1px solid #7c3aed66' }}>
@@ -551,6 +569,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e44' }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>Cobrado este mes</div>
               <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(billing.totalRevenueThisMonth)}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#888' }}>
+                {prodMes.length ? prodMes.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ') : '—'}
+              </div>
             </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
@@ -649,6 +670,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                     <tr className="text-left text-xs" style={{ color: '#666', borderBottom: '1px solid #1a1a1a' }}>
                       <th className="px-4 py-3 font-semibold">Fecha</th>
                       <th className="px-4 py-3 font-semibold">Email</th>
+                      <th className="px-4 py-3 font-semibold">Producto</th>
                       <th className="px-4 py-3 font-semibold">Monto</th>
                       <th className="px-4 py-3 font-semibold">Estado</th>
                     </tr>
@@ -663,6 +685,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                             {d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="px-4 py-3" style={{ color: '#eee' }}>{p.email || '—'}</td>
+                          <td className="px-4 py-3 text-xs font-semibold" style={{ color: '#a78bfa' }}>{p.product}</td>
                           <td className="px-4 py-3 font-bold" style={{ color: '#86efac' }}>
                             {fmtUSD(p.amount)} {p.currency}
                           </td>

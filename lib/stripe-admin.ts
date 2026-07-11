@@ -89,10 +89,10 @@ export type BillingOverview = {
   committedMrr: number;            // MRR comprometido (subs activas, normalizado a mensual)
   recentPayments: Array<{
     id: string; amount: number; currency: string; customer: string;
-    email: string; date: string; description: string; refunded: boolean;
+    email: string; date: string; description: string; refunded: boolean; product: string;
   }>;
   monthlyRevenue: Array<{ month: string; revenue: number; count: number }>;
-  payments: Array<{ id: string; customer: string; email: string; date: string; amount: number }>; // TODAS las pagadas (gráfico diario + reporte de ventas)
+  payments: Array<{ id: string; customer: string; email: string; date: string; amount: number; product: string }>; // TODAS las pagadas (gráfico diario + reporte de ventas)
   trialCustomerIds: string[];
   subscribers: SubscriberRow[];    // detalle por suscriptor (reconciliación)
   configured: boolean;
@@ -243,10 +243,15 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     }));
     const paidBySub = new Map<string, number>();
     const lastAmtBySub = new Map<string, number>(); // monto de la ÚLTIMA factura
-    const allPaid: StripeInvoice[] = [];
+    // Producto de cada sub → cada pago queda etiquetado (ViralADN/TOPCUT/Combo),
+    // para poder responder "¿este dinero de qué producto es?" sin abrir Stripe.
+    const productBySub = new Map<string, string>();
+    for (const s of ourSubs) productBySub.set(s.id, productLabel(s.items?.data?.[0]?.price?.product, prodMap));
+    const allPaid: Array<StripeInvoice & { productLabel?: string }> = [];
     for (const { subId, invs } of perSub) {
       let sum = 0;
-      for (const inv of invs) { const a = inv.amount_paid || 0; if (a > 0) { allPaid.push(inv); sum += a; } }
+      const prodDeSub = productBySub.get(subId) || '—';
+      for (const inv of invs) { const a = inv.amount_paid || 0; if (a > 0) { allPaid.push(Object.assign(inv, { productLabel: prodDeSub })); sum += a; } }
       paidBySub.set(subId, sum);
       // "lo que paga este ciclo" = monto de la factura más reciente. Si el cupón
       // "$47 off una vez" la cubrió, esa factura es $0 → así detectamos el mes
@@ -313,14 +318,15 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     const recentPayments = allPaid.sort((a, b) => b.created - a.created).slice(0, 50).map(i => ({
       id: i.id, amount: usd(i.amount_paid), currency: (i.currency || 'usd').toUpperCase(),
       customer: i.customer || '', email: i.customer_email || '',
-      date: new Date(i.created * 1000).toISOString(), description: 'Suscripción ViralADN', refunded: false,
+      date: new Date(i.created * 1000).toISOString(), description: `Suscripción ${i.productLabel || 'ViralADN'}`, refunded: false,
+      product: i.productLabel || '—',
     }));
 
     return {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
       recentPayments, monthlyRevenue,
-      payments: allPaid.map(i => ({ id: i.id, customer: i.customer || '', email: i.customer_email || '', date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid) })),
+      payments: allPaid.map(i => ({ id: i.id, customer: i.customer || '', email: i.customer_email || '', date: new Date(i.created * 1000).toISOString(), amount: usd(i.amount_paid), product: i.productLabel || '—' })),
       trialCustomerIds, subscribers, configured: true,
     };
   } catch (e) {
