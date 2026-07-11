@@ -69,7 +69,9 @@ export default function Unete() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ producto, ciclo, trial: true, canal: canalActual(), origen: 'unete' }),
+        // cuenta:'elevation' → esta venta se cobra en Elevation Sales Solutions
+        // (no en la cuenta principal), con prueba de 7 días y canal etiquetado.
+        body: JSON.stringify({ producto, ciclo, trial: true, canal: canalActual(), origen: 'unete', cuenta: 'elevation' }),
       });
       const data = await res.json();
       if (data.url) { window.location.assign(data.url); return; }

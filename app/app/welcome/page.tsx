@@ -22,14 +22,14 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ session_id?: string }>;
+type SearchParams = Promise<{ session_id?: string; cuenta?: string }>;
 
 export default async function Welcome({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { session_id } = await searchParams;
+  const { session_id, cuenta } = await searchParams;
 
   if (!session_id) {
     redirect('/precios');
@@ -39,7 +39,11 @@ export default async function Welcome({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const secret = process.env.STRIPE_SECRET_KEY;
+  // Las sesiones de Stripe viven en la cuenta que las creó: las ventas de la
+  // página paralela (/unete, comunidades) se cobran en Elevation → esa key.
+  const secret = cuenta === 'elevation'
+    ? process.env.STRIPE_SECRET_KEY_ELEVATION
+    : process.env.STRIPE_SECRET_KEY;
   if (!secret) {
     return (
       <main className="min-h-screen flex items-center justify-center text-white p-8 text-center"

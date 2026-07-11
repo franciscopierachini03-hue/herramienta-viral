@@ -116,6 +116,15 @@ export const EVENT_CHECKOUT_PRICE: Record<ProductKey, Partial<Record<Ciclo, stri
   },
 };
 
+// Montos del EVENTO en centavos (USD) — sirven para resolver precios en OTRAS
+// cuentas de Stripe (p. ej. Elevation) por monto+intervalo, sin pegar ids:
+// en una cuenta nueva alcanza con crear el precio con el monto correcto.
+export const EVENT_AMOUNTS: Record<ProductKey, Record<Ciclo, number>> = {
+  viraladn: { monthly: 4700, quarterly: 12700, yearly: 45100 },
+  topcut:   { monthly: 6700, quarterly: 18100, yearly: 64300 },
+  combo:    { monthly: 9700, quarterly: 26200, yearly: 93100 },
+};
+
 export async function resolvePriceId(producto: ProductKey, ciclo: Ciclo): Promise<string | null> {
   // Evento: price id nuevo directo, manda sobre env override y match por monto.
   const ev = EVENT_CHECKOUT_PRICE[producto]?.[ciclo];
