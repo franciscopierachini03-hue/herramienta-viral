@@ -33,7 +33,7 @@ const fmtLindo = (dia: string) => {
 };
 const usd = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 
-type Dia = { dia: string; ventas: number; pagando: number; bono: number; ingreso: number; porProd: Record<string, number> };
+type Dia = { dia: string; ventas: number; pagando: number; bono: number; prueba: number; ingreso: number; porProd: Record<string, number> };
 
 async function sGet(path: string, key: string) {
   const r = await fetch(`https://api.stripe.com/v1/${path}`, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
@@ -89,10 +89,13 @@ export default async function VentasDiarias() {
           else if (cup?.amount_off) neto = Math.max(0, base - cup.amount_off / 100);
           neto = Math.round(neto * 100) / 100;
 
-          const row = dias.get(dia) || { dia, ventas: 0, pagando: 0, bono: 0, ingreso: 0, porProd: {} };
+          const row = dias.get(dia) || { dia, ventas: 0, pagando: 0, bono: 0, prueba: 0, ingreso: 0, porProd: {} };
           row.ventas += 1;
           row.porProd[plat] = (row.porProd[plat] || 0) + 1;
-          if (neto > 0) { row.pagando += 1; row.ingreso += neto; } else { row.bono += 1; }
+          // En prueba gratis (trialing): cuenta como venta pero NO suma ingreso
+          // todavía — el dinero aparece cuando Stripe cobra al terminar el trial.
+          if (st === 'trialing') { row.prueba += 1; }
+          else if (neto > 0) { row.pagando += 1; row.ingreso += neto; } else { row.bono += 1; }
           dias.set(dia, row);
         }
         if (!s?.has_more || !data.length) break;
@@ -106,7 +109,7 @@ export default async function VentasDiarias() {
   const hoy = fmtDia(Math.floor(Date.now() / 1000));
   const mes = hoy.slice(0, 7);
   const lista = [...dias.values()].sort((a, b) => (a.dia < b.dia ? 1 : -1)); // reciente primero
-  const filaHoy = dias.get(hoy) || { dia: hoy, ventas: 0, pagando: 0, bono: 0, ingreso: 0, porProd: {} };
+  const filaHoy = dias.get(hoy) || { dia: hoy, ventas: 0, pagando: 0, bono: 0, prueba: 0, ingreso: 0, porProd: {} };
   const delMes = lista.filter(d => d.dia.startsWith(mes));
   const totMesVentas = delMes.reduce((a, d) => a + d.ventas, 0);
   const totMesIngreso = delMes.reduce((a, d) => a + d.ingreso, 0);
@@ -154,6 +157,7 @@ export default async function VentasDiarias() {
             </div>
             <div style={{ fontSize: 13, color: '#9a9aa6', marginTop: 8 }}>
               {filaHoy.pagando} pagando · {filaHoy.bono} con código (bono)
+              {filaHoy.prueba > 0 && ` · 🕐 ${filaHoy.prueba} en prueba gratis`}
               {Object.keys(filaHoy.porProd).length > 0 && ' · ' + Object.entries(filaHoy.porProd).map(([k, v]) => `${emoji[k] || ''}${v}`).join('  ')}
             </div>
           </div>
@@ -185,7 +189,7 @@ export default async function VentasDiarias() {
                     </div>
                   </div>
                   <div style={{ width: 130, fontSize: 12, color: '#888', textAlign: 'right' }}>
-                    {d.pagando > 0 && `💰${d.pagando}`}{d.bono > 0 && `  🎁${d.bono}`}
+                    {d.pagando > 0 && `💰${d.pagando}`}{d.bono > 0 && `  🎁${d.bono}`}{d.prueba > 0 && `  🕐${d.prueba}`}
                     {'  '}{Object.entries(d.porProd).map(([k, v]) => `${emoji[k] || ''}${v}`).join(' ')}
                   </div>
                 </div>
@@ -195,7 +199,7 @@ export default async function VentasDiarias() {
         )}
 
         <p style={{ color: '#666', fontSize: 12, marginTop: 22, lineHeight: 1.6 }}>
-          💰 pagando · 🎁 código (bono, $0) · 🧬 ViralADN · ✂️ TOPCUT · 🔗 Combo. El dinero es lo que pagó cada venta nueva ese día (monto del período − descuento). No incluye renovaciones de meses anteriores. Ventana: últimos 30 días.
+          💰 pagando · 🎁 código (bono, $0) · 🕐 en prueba gratis (7 días — el dinero suma cuando Stripe cobra al terminar) · 🧬 ViralADN · ✂️ TOPCUT · 🔗 Combo. El dinero es lo que pagó cada venta nueva ese día (monto del período − descuento). No incluye renovaciones de meses anteriores. Ventana: últimos 30 días.
         </p>
       </div>
     </main>

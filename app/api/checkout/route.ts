@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
   // Tras pagar, /app/welcome verifica el pago y guarda el stripe_customer_id;
   // después el hub /inicio desbloquea el producto pagado.
   params.append('success_url', `${appUrl}/app/welcome?session_id={CHECKOUT_SESSION_ID}`);
-  params.append('cancel_url', `${appUrl}/precios?cancelled=1&producto=${metaProduct}`);
+  // Si vino de la página paralela (/unete), al cancelar vuelve ahí.
+  const origen = body?.origen === 'unete' ? '/unete' : '/precios';
+  params.append('cancel_url', `${appUrl}${origen}?cancelled=1&producto=${metaProduct}`);
   params.append('allow_promotion_codes', 'true');
   params.append('billing_address_collection', 'auto');
   params.append('phone_number_collection[enabled]', 'true');
