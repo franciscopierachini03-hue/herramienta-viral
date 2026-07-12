@@ -52,6 +52,30 @@ function codeBlock(code: string): string {
 
 // ── API pública ────────────────────────────────────────────────────────
 
+// Código para VINCULAR un pago hecho con este correo a otra cuenta de la app.
+// Va al correo DE PAGO (no al de login): probar que lo controla = probar que
+// el pago es suyo.
+export async function sendVincularCode(email: string, code: string) {
+  const body = `
+    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Vincula tu pago</h1>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0 0 8px;">Alguien (probablemente tú) quiere conectar el pago hecho con este correo a su cuenta de ViralADN.</p>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Si fuiste tú, usa este código:</p>
+    ${codeBlock(code)}
+    <p style="font-size:13px;color:#888;line-height:1.6;margin:0;">Si no fuiste tú, ignora este correo — nadie puede tocar tu pago sin este código.</p>
+  `;
+  const html = shellEmail({
+    title: 'Vincula tu pago — ViralADN',
+    preheader: `Tu código es ${code}. Vence en 15 minutos.`,
+    body,
+  });
+  return client().emails.send({
+    from: from(),
+    to: email,
+    subject: `Vincula tu pago de ViralADN: ${code}`,
+    html,
+  });
+}
+
 export async function sendVerificationCode(email: string, code: string, name?: string) {
   const greet = name ? `Hola ${name},` : 'Hola,';
   const body = `

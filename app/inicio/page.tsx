@@ -15,9 +15,9 @@ import { TOOLS } from '@/lib/tools';
 export const dynamic = 'force-dynamic';
 
 const VISTAS = {
-  '27': { label: 'Plan $27 · ViralADN', ent: { viraladn: true, topcut: false } },
-  '57': { label: 'Plan $57 · TOPCUT', ent: { viraladn: false, topcut: true } },
-  '67': { label: 'Plan $67 · Combo', ent: { viraladn: true, topcut: true } },
+  '27': { label: 'Plan $47 · ViralADN', ent: { viraladn: true, topcut: false } },
+  '57': { label: 'Plan $67 · TOPCUT', ent: { viraladn: false, topcut: true } },
+  '67': { label: 'Plan $97 · Combo', ent: { viraladn: true, topcut: true } },
   gratis: { label: 'Sin plan (todo bloqueado)', ent: { viraladn: false, topcut: false } },
 } as const;
 type VistaKey = keyof typeof VISTAS;
@@ -77,9 +77,9 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
             <span className="mx-1 text-xs" style={{ color: '#3f3f4d' }}>|</span>
             <span className="text-xs font-bold" style={{ color: '#8b8b96' }}>👁 Ver como:</span>
             <Link href="/inicio" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(!vista)}>🛡 Admin</Link>
-            <Link href="/inicio?ver=27" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '27')}>$27 ViralADN</Link>
-            <Link href="/inicio?ver=57" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '57')}>$57 TOPCUT</Link>
-            <Link href="/inicio?ver=67" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '67')}>$67 Combo</Link>
+            <Link href="/inicio?ver=27" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '27')}>$47 ViralADN</Link>
+            <Link href="/inicio?ver=57" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '57')}>$67 TOPCUT</Link>
+            <Link href="/inicio?ver=67" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === '67')}>$97 Combo</Link>
             <Link href="/inicio?ver=gratis" className="text-xs font-bold px-3 py-1.5 rounded-xl" style={chip(ver === 'gratis')}>Sin plan</Link>
           </div>
         )}
@@ -139,13 +139,14 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
         {!(entUI.viraladn && entUI.topcut) && (
           <div className="mt-5 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap"
             style={{ background: 'linear-gradient(145deg, #14101f, #0d1018)', border: '1px solid #7c3aed44' }}>
-            <span className="text-sm" style={{ color: '#c4b5fd' }}>✨ Llévate <b>las dos</b> (ViralADN + TOPCUT) por <b>$67/mes</b> en vez de $84.</span>
+            <span className="text-sm" style={{ color: '#c4b5fd' }}>✨ Llévate <b>las dos</b> (ViralADN + TOPCUT) por <b>$97/mes</b> en vez de $114.</span>
             <Link href="/precios?producto=combo" className="text-xs font-bold px-4 py-2 rounded-xl transition-transform hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584 45%, #2563eb)', color: '#fff' }}>Ver combo</Link>
           </div>
         )}
 
         <div className="text-center mt-10">
           <Link href="/cuenta" className="text-xs transition-colors hover:text-white" style={{ color: '#8b8b96' }}>👤 Mi cuenta</Link>
+          <Link href="/vincular-pago" className="text-xs transition-colors hover:text-white" style={{ color: '#8b8b96' }}>🔗 ¿Ya pagaste? Vincula tu pago</Link>
         </div>
       </div>
     </main>

@@ -38,12 +38,12 @@ export const TOOLS: Tool[] = [
   {
     key: 'viraladn', name: 'ViralADN', href: '/app', icon: '🧬',
     desc: 'Descifra el ADN del contenido viral. Busca los videos que explotan y analiza perfiles.',
-    needs: 'viraladn', producto: 'viraladn', price: '$27/mes', ...VIOLET,
+    needs: 'viraladn', producto: 'viraladn', price: '$47/mes', ...VIOLET,
   },
   {
     key: 'topcut', name: 'TOPCUT', href: '/editor', icon: '✂️',
     desc: 'Sube tu video y la IA lo edita solo: recorte, subtítulos, B-roll y música.',
-    needs: 'topcut', producto: 'topcut', price: '$57/mes',
+    needs: 'topcut', producto: 'topcut', price: '$67/mes',
     grad: 'linear-gradient(135deg, #0e7490, #2563eb)',
     border: '#22d3ee44', glow: '#22d3ee14', iconGlow: '#22d3ee33',
     unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
