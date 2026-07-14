@@ -26,9 +26,28 @@ const HORARIOS: Array<[string, string, string]> = [
   ['🇦🇷🇧🇷', '1:00 PM', 'Argentina / Brasil'],
 ];
 
+// Próximo miércoles 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
+// horario de verano desde 2022) → miércoles 16:00 UTC. Calcular en UTC hace que
+// el timer sea correcto para cualquier persona, esté en la zona que esté.
+const CLASS_UTC_HOUR = 16; // 10:00 CDMX
+const DURACION_MS = 90 * 60 * 1000; // la clase dura ~90 min (ventana EN VIVO)
+
+function proximaClaseUTC(ahora: Date): Date {
+  const t = new Date(ahora);
+  const add = (CLASE.diaSemana - ahora.getUTCDay() + 7) % 7;
+  t.setUTCDate(ahora.getUTCDate() + add);
+  t.setUTCHours(CLASS_UTC_HOUR, 0, 0, 0);
+  if (t.getTime() <= ahora.getTime()) t.setUTCDate(t.getUTCDate() + 7);
+  return t;
+}
+
+type Restante = { d: number; h: number; m: number; s: number };
+
 export default function Comunidad() {
   const [proxima, setProxima] = useState('');
   const [esHoy, setEsHoy] = useState(false);
+  const [restante, setRestante] = useState<Restante | null>(null);
+  const [enVivo, setEnVivo] = useState(false);
   const [copiado, setCopiado] = useState<'id' | 'codigo' | null>(null);
 
   useEffect(() => {
@@ -44,6 +63,30 @@ export default function Comunidad() {
       setEsHoy(faltan === 0);
       setProxima(objetivo.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
     } catch { setProxima('todos los miércoles'); }
+  }, []);
+
+  // ⏳ Timer semanal: cuenta regresiva al próximo miércoles 10:00 AM CDMX.
+  // Se resetea solo: al terminar la ventana EN VIVO apunta a la semana siguiente.
+  useEffect(() => {
+    const tick = () => {
+      const ahora = new Date();
+      const prox = proximaClaseUTC(ahora);
+      const falta = prox.getTime() - ahora.getTime();
+      // Si la próxima quedó a casi 7 días es porque la de HOY arrancó hace
+      // menos de 90 min → estamos EN VIVO.
+      const vivo = falta > 7 * 86_400_000 - DURACION_MS;
+      setEnVivo(vivo);
+      const ms = Math.max(0, falta);
+      setRestante({
+        d: Math.floor(ms / 86_400_000),
+        h: Math.floor(ms / 3_600_000) % 24,
+        m: Math.floor(ms / 60_000) % 60,
+        s: Math.floor(ms / 1_000) % 60,
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, []);
 
   function copiar(texto: string, cual: 'id' | 'codigo') {
@@ -63,7 +106,7 @@ export default function Comunidad() {
 
         {/* La clase semanal */}
         <div className="rounded-3xl p-7 mb-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #1a1206, #0d0d16)', border: '1px solid #f59e0b55', boxShadow: '0 0 50px #f59e0b22' }}>
-          {esHoy && (
+          {esHoy && !enVivo && (
             <span className="absolute top-5 right-5 text-[11px] font-extrabold tracking-wider px-3 py-1.5 rounded-full animate-pulse"
               style={{ background: '#ef4444', color: '#fff' }}>🔴 LA CLASE ES HOY</span>
           )}
@@ -73,6 +116,37 @@ export default function Comunidad() {
             Nos sentamos con tu cuenta a revisar qué está funcionando, qué ajustar y qué publicar esta semana.
             {proxima && <> Próxima clase: <b style={{ color: '#fcd34d', textTransform: 'capitalize' }}>{proxima}</b>.</>}
           </p>
+
+          {/* ⏳ Cuenta regresiva — se resetea sola cada semana */}
+          {restante && (enVivo ? (
+            <div className="rounded-2xl px-5 py-4 mb-5 flex items-center justify-between gap-3 flex-wrap"
+              style={{ background: '#2a0a0e', border: '1px solid #ef4444aa', boxShadow: '0 0 30px #ef444433' }}>
+              <span className="text-base font-extrabold animate-pulse" style={{ color: '#fca5a5' }}>
+                🔴 LA CLASE ESTÁ EN VIVO AHORA
+              </span>
+              <a href={CLASE.zoomUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-extrabold px-4 py-2 rounded-xl"
+                style={{ background: '#ef4444', color: '#fff' }}>
+                Entrar ya →
+              </a>
+            </div>
+          ) : (
+            <div className="mb-5">
+              <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#8b8b96' }}>⏳ Faltan para la próxima clase</p>
+              <div className="flex gap-2 flex-wrap">
+                {([['Días', restante.d], ['Horas', restante.h], ['Min', restante.m], ['Seg', restante.s]] as const).map(([label, val]) => (
+                  <div key={label} className="rounded-2xl px-4 py-3 text-center min-w-[72px]"
+                    style={{ background: '#0a0a12', border: '1px solid #f59e0b44' }}>
+                    <div className="text-2xl md:text-3xl font-extrabold tabular-nums" style={{ color: '#fcd34d' }}>
+                      {String(val).padStart(2, '0')}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
           <div className="flex flex-wrap gap-2">
             {HORARIOS.map(([bandera, hora, lugar]) => (
               <span key={lugar} className="text-xs px-3 py-1.5 rounded-full" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#c9c9d4' }}>
