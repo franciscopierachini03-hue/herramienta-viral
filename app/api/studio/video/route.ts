@@ -24,9 +24,12 @@ export async function POST(req: NextRequest) {
   if (!imageUrl) return Response.json({ error: 'Falta la imagen para animar.' }, { status: 400 });
   const prompt = body?.prompt ? String(body.prompt) : undefined;
   const duration = Number(body?.duration) || 5;
+  // Nivel de calidad/costo: 'fast' (LTX, 3 créditos) por defecto — lo barato
+  // primero; 'pro' (Kling, 10 créditos) es opt-in desde la UI.
+  const tier: 'fast' | 'pro' = body?.tier === 'pro' ? 'pro' : 'fast';
 
   const grant = monthlyGrantFor(ent, admin);
-  const cost = CREDIT_COST.video;
+  const cost = tier === 'pro' ? CREDIT_COST.video : CREDIT_COST.videoFast;
   const spent = await spendCredits(email, cost, grant);
   if (!spent.configured) {
     return Response.json({ error: 'Avatares IA todavía no está configurado (falta la tabla de créditos).' }, { status: 503 });
@@ -36,8 +39,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { requestId } = await falVideoSubmit({ imageUrl, prompt, duration });
-    return Response.json({ ok: true, jobId: requestId, balance: spent.balance });
+    const { requestId } = await falVideoSubmit({ imageUrl, prompt, duration, tier });
+    return Response.json({ ok: true, jobId: requestId, tier, balance: spent.balance });
   } catch (e) {
     await refundCredits(email, cost);
     return Response.json({ error: (e as Error).message }, { status: 502 });
@@ -48,12 +51,15 @@ export async function GET(req: NextRequest) {
   const { email, admin } = await getAccess();
   if (!email) return Response.json({ error: 'No autorizado' }, { status: 401 });
   if (!admin) return Response.json({ error: 'Solo administradores.' }, { status: 403 });
-  const id = new URL(req.url).searchParams.get('id');
+  const url = new URL(req.url);
+  const id = url.searchParams.get('id');
   if (!id) return Response.json({ error: 'Falta el id del job.' }, { status: 400 });
+  // El polling va a la cola del MISMO modelo del submit → el tier viaja en la URL.
+  const tier: 'fast' | 'pro' = url.searchParams.get('tier') === 'pro' ? 'pro' : 'fast';
 
-  const st = await falVideoStatus(id);
+  const st = await falVideoStatus(id, tier);
   // Si el render falló, devolvemos los créditos (el cliente deja de pollear al
   // ver el error, así que no hay doble reembolso en la práctica).
-  if (st.status === 'error') await refundCredits(email, CREDIT_COST.video);
+  if (st.status === 'error') await refundCredits(email, tier === 'pro' ? CREDIT_COST.video : CREDIT_COST.videoFast);
   return Response.json(st);
 }

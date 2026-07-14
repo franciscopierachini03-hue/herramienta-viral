@@ -14,8 +14,9 @@ import type { Entitlement } from '@/lib/products';
 // Créditos mensuales por plan (ajustable). 1 imagen = 1 crédito, 1 video = 10.
 export const PLAN_CREDITS = { viraladn: 50, topcut: 50, combo: 150 } as const;
 
-// Costo en créditos por tipo de generación.
-export const CREDIT_COST = { image: 1, video: 10 } as const;
+// Costo en créditos por tipo de generación. El video tiene dos niveles:
+// videoFast (LTX, ≈$0.10/clip) y video pro (Kling, ≈$0.28/clip).
+export const CREDIT_COST = { image: 1, video: 10, videoFast: 3 } as const;
 
 // Cuántos créditos/mes le tocan a este usuario según su plan.
 export function monthlyGrantFor(ent: Entitlement, admin: boolean): number {

@@ -89,20 +89,30 @@ export async function generateAvatarImage(opts: {
 // ── fal.ai — foto → video (cola async) ───────────────────────────────────────
 const FAL_QUEUE = 'https://queue.fal.run';
 
-function falModel(): string {
+// Dos niveles de calidad/costo (precios fal verificados 14-jul-26):
+//   fast → LTX 13B distilled: $0.02/s ≈ $0.10 el clip de 5s (económico, DEFAULT)
+//   pro  → Kling v2.1 standard: ≈ $0.28 el clip de 5s (más cine, más caro)
+// Override por env: FAL_VIDEO_MODEL_FAST / FAL_VIDEO_MODEL.
+export type VideoTier = 'fast' | 'pro';
+
+export function falModel(tier: VideoTier = 'pro'): string {
+  if (tier === 'fast') {
+    return process.env.FAL_VIDEO_MODEL_FAST || 'fal-ai/ltxv-13b-098-distilled/image-to-video';
+  }
   return process.env.FAL_VIDEO_MODEL || 'fal-ai/kling-video/v2.1/standard/image-to-video';
 }
 
 // Encola un job de video. imageUrl puede ser un data URL (base64) o una URL
-// pública. Devuelve el request_id para hacer polling.
+// pública. Devuelve el request_id para hacer polling (con el MISMO tier).
 export async function falVideoSubmit(opts: {
   imageUrl: string;
   prompt?: string;
   duration?: number;
+  tier?: VideoTier;
 }): Promise<{ requestId: string }> {
   const key = process.env.FAL_KEY;
   if (!key) throw new Error('FAL_KEY no configurada (foto→video).');
-  const model = falModel();
+  const model = falModel(opts.tier);
 
   const res = await fetch(`${FAL_QUEUE}/${model}`, {
     method: 'POST',
@@ -125,11 +135,12 @@ export async function falVideoSubmit(opts: {
 
 export type FalStatus = { status: 'pending' | 'done' | 'error'; url?: string; error?: string };
 
-// Consulta el estado de un job de fal. Cuando está listo, devuelve la URL del video.
-export async function falVideoStatus(requestId: string): Promise<FalStatus> {
+// Consulta el estado de un job de fal. Cuando está listo, devuelve la URL del
+// video. El tier tiene que ser el MISMO del submit (la cola es por modelo).
+export async function falVideoStatus(requestId: string, tier: VideoTier = 'pro'): Promise<FalStatus> {
   const key = process.env.FAL_KEY;
   if (!key) return { status: 'error', error: 'FAL_KEY no configurada.' };
-  const model = falModel();
+  const model = falModel(tier);
   const headers = { Authorization: `Key ${key}` };
 
   const st = await fetch(`${FAL_QUEUE}/${model}/requests/${requestId}/status`, { headers, cache: 'no-store' });

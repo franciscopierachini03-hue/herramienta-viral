@@ -44,6 +44,7 @@ export default function StudioPage() {
   const [credits, setCredits] = useState<Credits | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [formato, setFormato] = useState<Formato>('9:16'); // vertical por defecto: es para reels
+  const [tierVid, setTierVid] = useState<'fast' | 'pro'>('fast'); // económico por defecto
   const [prompt, setPrompt] = useState('');
   const [photo, setPhoto] = useState<{ dataUrl: string; base64: string; mime: string } | null>(null);
   const [image, setImage] = useState<string | null>(null);      // avatar generado (dataUrl)
@@ -105,15 +106,16 @@ export default function StudioPage() {
     try {
       const res = await fetch('/api/studio/video', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: source, prompt: prompt.trim() || undefined, duration: 5 }),
+        body: JSON.stringify({ imageUrl: source, prompt: prompt.trim() || undefined, duration: 5, tier: tierVid }),
       });
       const d = await res.json();
       if (!res.ok) { setError(d.error || 'No se pudo encolar.'); setBusyVid(false); setNote(''); return; }
       if (typeof d.balance === 'number') setCredits(c => c ? { ...c, balance: d.balance } : c);
+      const jobTier = d.tier === 'pro' ? 'pro' : 'fast'; // el polling va a la cola del mismo modelo
       // Polling del estado.
       pollRef.current = setInterval(async () => {
         try {
-          const s = await fetch(`/api/studio/video?id=${encodeURIComponent(d.jobId)}`, { cache: 'no-store' });
+          const s = await fetch(`/api/studio/video?id=${encodeURIComponent(d.jobId)}&tier=${jobTier}`, { cache: 'no-store' });
           const sj = await s.json();
           if (sj.status === 'done') { stopPoll(); setVideo(sj.url); setNote(''); setBusyVid(false); }
           else if (sj.status === 'error') { stopPoll(); setError(sj.error || 'El render falló (te devolvimos los créditos).'); setNote(''); setBusyVid(false); refreshCredits(); }
@@ -222,7 +224,22 @@ export default function StudioPage() {
           {/* ── Columna derecha: animar a video ── */}
           <div className="rounded-3xl p-6" style={card}>
             <h2 className="text-lg font-bold mb-1">2 · Foto → video</h2>
-            <p className="text-sm mb-4" style={{ color: '#9a9aa6' }}>Anima el avatar (o tu foto) a un clip de 5s. 10 créditos por video.</p>
+            <p className="text-sm mb-4" style={{ color: '#9a9aa6' }}>
+              Anima el avatar (o tu foto) a un clip de 5s. {tierVid === 'pro' ? '10' : '3'} créditos por video.
+            </p>
+
+            {/* Nivel de calidad/costo — económico por defecto */}
+            <div className="flex gap-1.5 mb-3 flex-wrap">
+              {([['fast', '⚡ Económico · 3 créditos'], ['pro', '💎 Pro (Kling) · 10 créditos']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setTierVid(v)}
+                  className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
+                  style={tierVid === v
+                    ? { background: `linear-gradient(135deg, ${AMBER}, ${PINK})`, color: '#fff' }
+                    : { background: '#0a0a12', border: '1px solid #2a2a36', color: '#8b8b96' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
 
             <button onClick={animate} disabled={busyVid || (!image && !photo)}
               className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"

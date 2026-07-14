@@ -42,13 +42,15 @@ export async function GET() {
 
   // 3) fal.ai (video) — presencia + validez: pedir el estado de un request
   //    inexistente responde 404/422 con key buena y 401/403 con key mala.
-  const fModel = process.env.FAL_VIDEO_MODEL || 'fal-ai/kling-video/v2.1/standard/image-to-video';
+  const fModelPro = process.env.FAL_VIDEO_MODEL || 'fal-ai/kling-video/v2.1/standard/image-to-video';
+  const fModelFast = process.env.FAL_VIDEO_MODEL_FAST || 'fal-ai/ltxv-13b-098-distilled/image-to-video';
+  const fModel = `${fModelFast} (económico) · ${fModelPro} (pro)`;
   const fKey = process.env.FAL_KEY;
   let fal = 'falta la env FAL_KEY';
   if (fKey) {
     try {
       const r = await fetch(
-        `https://queue.fal.run/${fModel}/requests/00000000-0000-0000-0000-000000000000/status`,
+        `https://queue.fal.run/${fModelPro}/requests/00000000-0000-0000-0000-000000000000/status`,
         { headers: { Authorization: `Key ${fKey}` }, cache: 'no-store' },
       );
       fal = (r.status === 401 || r.status === 403) ? 'la key es inválida' : 'ok';
