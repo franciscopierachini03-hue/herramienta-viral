@@ -1,10 +1,9 @@
 import { EVENT_DATE_LABEL, RECORDING_URL } from '../event-config';
 
-// GRABACIÓN del evento + oferta de ViralADN.
+// GRABACIÓN del evento + la OFERTA de la clase (planes de ViralADN con los
+// bonos del evento, sacados de ViralADN_Planes_Evento.pptx).
 // Vive en evento.franpierachini.com/grabacion (rewrite en middleware).
-// Arriba: el video de la clase (YouTube oculto/Vimeo, config en event-config).
-// Abajo: qué hace ViralADN + CTA de compra → viraladn.com/precios (absoluto,
-// porque esta página se sirve desde el dominio del evento).
+// CTAs absolutos → viraladn.com/precios con producto y ciclo preseleccionados.
 
 export const metadata = {
   title: 'La grabación — De 0 a 100K seguidores',
@@ -23,12 +22,34 @@ function toEmbed(url: string): string {
 }
 
 const BENEFICIOS = [
-  ['🔥', 'Búsqueda viral en YouTube + TikTok + Instagram', 'Encuentra los videos que están explotando en tu nicho, en segundos.'],
+  ['🔥', 'Búsqueda viral en 3 plataformas', 'Encuentra los videos que explotan en YouTube, TikTok e Instagram.'],
   ['🧠', 'Chat de ideas', 'Responde 3 preguntas y te da las palabras exactas para buscar.'],
-  ['🔍', 'Analizador de perfiles', 'Te dice qué cambiar en tu perfil y tu bio para convertir visitas en seguidores.'],
+  ['🔍', 'Analizador de perfiles', 'Qué cambiar en tu perfil y tu bio para convertir visitas en seguidores.'],
   ['⚡', 'Transcripción con IA', 'Cualquier video viral → su guion, listo para adaptar con tu voz.'],
   ['🌍', 'Traducción automática', 'Los guiones que funcionan, en 4 idiomas.'],
-  ['📚', 'Biblioteca ilimitada', 'Guarda todos tus guiones e ideas en un solo lugar.'],
+  ['📚', 'Biblioteca ilimitada', 'Todos tus guiones e ideas en un solo lugar.'],
+] as const;
+
+// Planes de ViralADN con los BONOS del evento (pptx de la clase).
+const PLANES = [
+  {
+    nombre: 'Mensual', precio: '$47', sufijo: '/mes', ahorro: '',
+    nota: 'Empiezas cuando quieras, cancelas cuando quieras.',
+    bonos: ['Sesión semanal en vivo con Francisco', 'Ranking + recompensas mensuales'],
+    ciclo: 'monthly', destacado: false,
+  },
+  {
+    nombre: 'Trimestral', precio: '$127', sufijo: ' /3 meses', ahorro: 'AHORRA 10%',
+    nota: 'Sale $42.3/mes vs. $141 mes a mes.',
+    bonos: ['Todo lo del mensual', '20 guiones validados para tu cuenta', 'Evento Road to 1M (solo suscriptores)', 'Sesión de evaluación de perfil'],
+    ciclo: 'quarterly', destacado: false,
+  },
+  {
+    nombre: 'Anual', precio: '$451', sufijo: '/año', ahorro: 'AHORRA 20%',
+    nota: 'Sale $37.6/mes vs. $564 mes a mes.',
+    bonos: ['Todo lo del mensual y trimestral', 'Plan de acción Road to 10K', 'Plan de acción Road to 100K', 'Plan de acción 100K → 1M', 'Análisis de perfil + evaluación'],
+    ciclo: 'yearly', destacado: true,
+  },
 ] as const;
 
 export default function Grabacion() {
@@ -68,7 +89,7 @@ export default function Grabacion() {
           <div className="rounded-2xl p-12 text-center" style={{ background: '#0f0f17', border: '1px dashed #2a2a3a' }}>
             <div className="text-5xl mb-3">🎬</div>
             <p className="text-lg font-bold mb-1">Estamos subiendo la grabación</p>
-            <p className="text-sm" style={{ color: '#9a9aa6' }}>Vuelve en un rato. Mientras tanto, mira lo que la herramienta hace por ti 👇</p>
+            <p className="text-sm" style={{ color: '#9a9aa6' }}>Vuelve en un rato. Mientras tanto, mira la oferta de la clase 👇</p>
           </div>
         )}
 
@@ -80,23 +101,24 @@ export default function Grabacion() {
         </div>
       </section>
 
-      {/* ── OFERTA VIRALADN ── */}
-      <section className="px-6 py-12 max-w-3xl mx-auto">
-        <div className="text-center mb-8">
+      {/* ── LA OFERTA DE LA CLASE ── */}
+      <section className="px-6 py-12 max-w-5xl mx-auto">
+        <div className="text-center mb-8 max-w-2xl mx-auto">
           <span className="inline-block text-xs font-extrabold tracking-widest uppercase px-4 py-2 rounded-full mb-4"
             style={{ background: '#14101f', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>
-            ⚡ La herramienta de la clase
+            ⚡ La oferta de la clase
           </span>
           <h2 className="text-2xl md:text-4xl font-extrabold mb-3">
-            Todo lo que viste, <span style={{ color: '#34d399' }}>hecho por ViralADN</span>
+            No es más software. <span style={{ color: '#34d399' }}>Es que te acompañe a llegar.</span>
           </h2>
           <p className="text-sm md:text-base" style={{ color: '#9a9aa6' }}>
-            No tienes que adivinar qué publicar nunca más: la herramienta encuentra lo que explota,
-            te da el guion y te dice cómo mejorar tu perfil.
+            ViralADN encuentra lo que explota y te da el guion — y además te sientas cada semana
+            con Francisco a revisar qué está funcionando en TU cuenta. Software + seguimiento.
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3 mb-8">
+        {/* Qué hace ViralADN */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
           {BENEFICIOS.map(([icono, titulo, desc]) => (
             <div key={titulo} className="rounded-2xl p-4 flex gap-3" style={{ background: '#0f0f17', border: '1px solid #1f1f2b' }}>
               <div className="text-2xl">{icono}</div>
@@ -108,24 +130,56 @@ export default function Grabacion() {
           ))}
         </div>
 
-        {/* CTA principal */}
-        <div className="rounded-3xl p-8 text-center" style={{ background: '#0b1512', border: '1px solid #1d3b34' }}>
-          <p className="text-sm mb-1" style={{ color: '#9fc9bb' }}>ViralADN completo</p>
-          <p className="text-5xl font-extrabold mb-1">$47<span className="text-base font-bold" style={{ color: '#9a9aa6' }}>/mes</span></p>
-          <p className="text-xs mb-6" style={{ color: '#9a9aa6' }}>cancelas cuando quieras · garantía de reembolso de 7 días desde tu primer cobro</p>
-          <a href="https://www.viraladn.com/precios?producto=viraladn"
-            className="inline-block px-10 py-4 rounded-2xl text-base font-extrabold transition-transform hover:-translate-y-0.5"
-            style={{ background: '#34d399', color: '#04211c', boxShadow: '0 0 30px #34d39944' }}>
-            Quiero ViralADN →
-          </a>
-          <p className="text-xs mt-4" style={{ color: '#6b6b78' }}>Pago seguro con Stripe · acceso al instante</p>
+        {/* Los 3 planes con los bonos del evento */}
+        <div className="grid md:grid-cols-3 gap-4 items-start mb-4">
+          {PLANES.map(p => (
+            <div key={p.nombre} className="rounded-3xl p-6 flex flex-col relative"
+              style={{
+                background: p.destacado ? '#0b1512' : '#0f0f17',
+                border: `1px solid ${p.destacado ? '#1d3b34' : '#1f1f2b'}`,
+                boxShadow: p.destacado ? '0 0 40px #34d39922' : 'none',
+              }}>
+              {p.ahorro && (
+                <span className="absolute -top-3 right-5 text-[10px] font-extrabold tracking-wider px-3 py-1 rounded-full"
+                  style={{ background: p.destacado ? '#34d399' : '#2a2a3a', color: p.destacado ? '#04211c' : '#c9c9d4' }}>
+                  {p.ahorro}
+                </span>
+              )}
+              <p className="text-xs font-extrabold tracking-widest uppercase mb-1" style={{ color: p.destacado ? '#34d399' : '#8b8b96' }}>
+                ViralADN · {p.nombre}
+              </p>
+              <p className="text-4xl font-extrabold mb-1">{p.precio}<span className="text-sm font-bold" style={{ color: '#9a9aa6' }}>{p.sufijo}</span></p>
+              <p className="text-xs mb-4" style={{ color: '#9a9aa6' }}>{p.nota}</p>
+
+              <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#c4b5fd' }}>🎁 Bonos de la clase</p>
+              <ul className="flex flex-col gap-1.5 mb-5 flex-1">
+                {p.bonos.map(b => (
+                  <li key={b} className="flex items-start gap-2 text-xs" style={{ color: '#d6d6de' }}>
+                    <span style={{ color: '#34d399' }}>✓</span><span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <a href={`https://www.viraladn.com/precios?producto=viraladn&ciclo=${p.ciclo}`}
+                className="block w-full py-3 rounded-2xl text-sm font-extrabold text-center transition-transform hover:-translate-y-0.5"
+                style={p.destacado
+                  ? { background: '#34d399', color: '#04211c', boxShadow: '0 0 24px #34d39944' }
+                  : { background: '#14141f', border: '1px solid #2e2e3e', color: '#fff' }}>
+                Elegir {p.nombre} →
+              </a>
+            </div>
+          ))}
         </div>
 
+        <p className="text-center text-xs mb-8" style={{ color: '#c9b48a' }}>
+          ⏳ El seguimiento semanal, los guiones y los planes de acción son el <b>bono de la clase</b> — cupo limitado, para quien toma acción ahora.
+        </p>
+
         {/* Combo secundario */}
-        <div className="mt-4 rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap"
+        <div className="rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap max-w-3xl mx-auto"
           style={{ background: '#0f0f17', border: '1px solid #2a2a3a' }}>
           <span className="text-sm" style={{ color: '#c4b5fd' }}>
-            ✨ ¿También quieres que tus videos <b>se editen solos</b>? Llévate ViralADN + TOPCUT por <b>$97/mes</b>.
+            ✨ ¿También quieres que tus videos <b>se editen solos</b>? Combo ViralADN + TOPCUT: <b>$97/mes</b> · $262 /3 meses · $931/año.
           </span>
           <a href="https://www.viraladn.com/precios?producto=combo"
             className="text-xs font-bold px-4 py-2 rounded-xl"
@@ -133,6 +187,10 @@ export default function Grabacion() {
             Ver el combo →
           </a>
         </div>
+
+        <p className="text-center text-xs mt-6" style={{ color: '#6b6b78' }}>
+          Pago seguro con Stripe · acceso al instante · garantía de reembolso de 7 días desde tu primer cobro
+        </p>
       </section>
 
       {/* Footer */}

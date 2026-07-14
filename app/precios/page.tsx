@@ -87,7 +87,11 @@ function PricingInner() {
 
   const [loading, setLoading] = useState<string | null>(null);
   // Ciclo global: un solo toggle arriba cambia las 3 tarjetas a la vez.
-  const [ciclo, setCiclo] = useState<Ciclo>('monthly');
+  // ?ciclo=quarterly|yearly lo preselecciona (links del evento /grabacion).
+  const cicloParam = params.get('ciclo');
+  const [ciclo, setCiclo] = useState<Ciclo>(
+    cicloParam === 'quarterly' ? 'quarterly' : cicloParam === 'yearly' ? 'yearly' : 'monthly',
+  );
   // Acceso del usuario logueado → para marcar el plan que YA tiene (no "Empezar").
   const [access, setAccess] = useState<{ ok: boolean; viraladn: boolean; topcut: boolean } | null>(null);
   useEffect(() => {
