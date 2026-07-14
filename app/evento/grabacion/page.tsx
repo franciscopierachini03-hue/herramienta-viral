@@ -1,7 +1,9 @@
 import { EVENT_DATE_LABEL, RECORDING_URL } from '../event-config';
 
-// GRABACIÓN del evento + la OFERTA de la clase (planes de ViralADN con los
-// bonos del evento, sacados de ViralADN_Planes_Evento.pptx).
+// GRABACIÓN del evento + la OFERTA COMPLETA de la clase, tal cual la
+// presentación (ViralADN_Planes_Evento.pptx): 3 ciclos (Mensual / Trimestral
+// −10% / Anual −20%), cada uno con los 3 productos (ViralADN · Combo destacado
+// · TOPCUT), sus beneficios y los BONOS del mes por ciclo.
 // Vive en evento.franpierachini.com/grabacion (rewrite en middleware).
 // CTAs absolutos → viraladn.com/precios con producto y ciclo preseleccionados.
 
@@ -30,27 +32,68 @@ const BENEFICIOS = [
   ['📚', 'Biblioteca ilimitada', 'Todos tus guiones e ideas en un solo lugar.'],
 ] as const;
 
-// Planes de ViralADN con los BONOS del evento (pptx de la clase).
-const PLANES = [
+// Productos (columnas de cada ciclo) — como en la presentación.
+const PRODUCTOS = [
   {
-    nombre: 'Mensual', precio: '$47', sufijo: '/mes', ahorro: '',
-    nota: 'Empiezas cuando quieras, cancelas cuando quieras.',
-    bonos: ['Sesión semanal en vivo con Francisco', 'Ranking + recompensas mensuales'],
-    ciclo: 'monthly', destacado: false,
+    key: 'viraladn', letra: 'V', nombre: 'ViralADN', tag: 'Encuentra el contenido que explota',
+    feats: ['Búsqueda viral en 3 plataformas', 'Transcripción IA', 'Analizador de perfiles', 'Biblioteca ilimitada'],
+    destacado: false,
   },
   {
-    nombre: 'Trimestral', precio: '$127', sufijo: ' /3 meses', ahorro: 'AHORRA 10%',
-    nota: 'Sale $42.3/mes vs. $141 mes a mes.',
-    bonos: ['Todo lo del mensual', '20 guiones validados para tu cuenta', 'Evento Road to 1M (solo suscriptores)', 'Sesión de evaluación de perfil'],
-    ciclo: 'quarterly', destacado: false,
+    key: 'combo', letra: 'C', nombre: 'Combo ViralADN + TOPCUT', tag: 'Las dos plataformas, un solo plan',
+    feats: ['TODO ViralADN + TODO TOPCUT', 'Encuentra y edita en un solo lugar', 'Acceso a todo lo nuevo de las dos'],
+    destacado: true,
   },
   {
-    nombre: 'Anual', precio: '$451', sufijo: '/año', ahorro: 'AHORRA 20%',
-    nota: 'Sale $37.6/mes vs. $564 mes a mes.',
-    bonos: ['Todo lo del mensual y trimestral', 'Plan de acción Road to 10K', 'Plan de acción Road to 100K', 'Plan de acción 100K → 1M', 'Análisis de perfil + evaluación'],
-    ciclo: 'yearly', destacado: true,
+    key: 'topcut', letra: 'T', nombre: 'TOPCUT', tag: 'Tus videos se editan solos con IA',
+    feats: ['Edición automática', 'Subtítulos + B-roll', 'Música por IA', 'Hasta 40 videos/mes'],
+    destacado: false,
   },
 ] as const;
+
+// Ciclos con precios por producto y los BONOS del evento de cada uno.
+const CICLOS: Array<{
+  num: string; nombre: string; sub: string; ahorro: string; ciclo: string;
+  precios: Record<string, [string, string, string]>; // key → [precio, sufijo, nota]
+  bonos: string[]; notaBonos: string;
+}> = [
+  {
+    num: 'PLAN 1', nombre: 'Mensual — sin compromiso',
+    sub: 'Empiezas cuando quieras, cancelas cuando quieras.',
+    ahorro: '', ciclo: 'monthly',
+    precios: {
+      viraladn: ['$47', '/mes', ''],
+      combo: ['$97', '/mes', '$114 por separado → $97 en pack'],
+      topcut: ['$67', '/mes', ''],
+    },
+    bonos: ['Sesión semanal en vivo con Francisco', 'Ranking + recompensas mensuales'],
+    notaBonos: '',
+  },
+  {
+    num: 'PLAN 2', nombre: 'Trimestral — 3 meses',
+    sub: 'Pagas una vez, ahorras y te llevas guiones hechos para tu cuenta.',
+    ahorro: 'AHORRA 10%', ciclo: 'quarterly',
+    precios: {
+      viraladn: ['$127', ' total', '$42.3/mes · vs. $141 mes a mes'],
+      combo: ['$262', ' total', '$87.3/mes · vs. $291 mes a mes'],
+      topcut: ['$181', ' total', '$60.3/mes · vs. $201 mes a mes'],
+    },
+    bonos: ['20 guiones validados para tu cuenta', 'Evento Road to 1M (solo suscriptores)', 'Sesión de evaluación de perfil'],
+    notaBonos: 'Todo lo del plan mensual queda incluido.',
+  },
+  {
+    num: 'PLAN 3', nombre: 'Anual — el camino completo',
+    sub: 'Tu roadmap de 0 a 1M, diseñado etapa por etapa.',
+    ahorro: 'AHORRA 20%', ciclo: 'yearly',
+    precios: {
+      viraladn: ['$451', '/año', '$37.6/mes · vs. $564 mes a mes'],
+      combo: ['$931', '/año', '$77.6/mes · ahorras $233 vs. mes a mes'],
+      topcut: ['$643', '/año', '$53.6/mes · vs. $804 mes a mes'],
+    },
+    bonos: ['Plan de acción Road to 10K', 'Plan de acción Road to 100K', 'Plan de acción 100K → 1M', 'Análisis de perfil + evaluación'],
+    notaBonos: 'Todo lo del plan mensual y trimestral queda incluido — es el paquete completo.',
+  },
+];
 
 export default function Grabacion() {
   const embed = toEmbed(RECORDING_URL);
@@ -112,13 +155,13 @@ export default function Grabacion() {
             No es más software. <span style={{ color: '#34d399' }}>Es que te acompañe a llegar.</span>
           </h2>
           <p className="text-sm md:text-base" style={{ color: '#9a9aa6' }}>
-            ViralADN encuentra lo que explota y te da el guion — y además te sientas cada semana
+            El software encuentra lo que explota y edita por ti — y además te sientas cada semana
             con Francisco a revisar qué está funcionando en TU cuenta. Software + seguimiento.
           </p>
         </div>
 
         {/* Qué hace ViralADN */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-12">
           {BENEFICIOS.map(([icono, titulo, desc]) => (
             <div key={titulo} className="rounded-2xl p-4 flex gap-3" style={{ background: '#0f0f17', border: '1px solid #1f1f2b' }}>
               <div className="text-2xl">{icono}</div>
@@ -130,65 +173,81 @@ export default function Grabacion() {
           ))}
         </div>
 
-        {/* Los 3 planes con los bonos del evento */}
-        <div className="grid md:grid-cols-3 gap-4 items-start mb-4">
-          {PLANES.map(p => (
-            <div key={p.nombre} className="rounded-3xl p-6 flex flex-col relative"
-              style={{
-                background: p.destacado ? '#0b1512' : '#0f0f17',
-                border: `1px solid ${p.destacado ? '#1d3b34' : '#1f1f2b'}`,
-                boxShadow: p.destacado ? '0 0 40px #34d39922' : 'none',
-              }}>
-              {p.ahorro && (
-                <span className="absolute -top-3 right-5 text-[10px] font-extrabold tracking-wider px-3 py-1 rounded-full"
-                  style={{ background: p.destacado ? '#34d399' : '#2a2a3a', color: p.destacado ? '#04211c' : '#c9c9d4' }}>
-                  {p.ahorro}
-                </span>
+        {/* Los 3 ciclos, cada uno con los 3 productos + bonos del mes */}
+        {CICLOS.map(c => (
+          <div key={c.num} className="mb-12">
+            <div className="flex items-end justify-between flex-wrap gap-2 mb-1">
+              <div>
+                <p className="text-[11px] font-extrabold tracking-widest uppercase" style={{ color: '#34d399' }}>{c.num}</p>
+                <h3 className="text-xl md:text-2xl font-extrabold">{c.nombre}</h3>
+              </div>
+              {c.ahorro && (
+                <span className="text-[11px] font-extrabold tracking-wider px-3 py-1.5 rounded-full"
+                  style={{ background: '#34d399', color: '#04211c' }}>{c.ahorro}</span>
               )}
-              <p className="text-xs font-extrabold tracking-widest uppercase mb-1" style={{ color: p.destacado ? '#34d399' : '#8b8b96' }}>
-                ViralADN · {p.nombre}
-              </p>
-              <p className="text-4xl font-extrabold mb-1">{p.precio}<span className="text-sm font-bold" style={{ color: '#9a9aa6' }}>{p.sufijo}</span></p>
-              <p className="text-xs mb-4" style={{ color: '#9a9aa6' }}>{p.nota}</p>
-
-              <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#c4b5fd' }}>🎁 Bonos de la clase</p>
-              <ul className="flex flex-col gap-1.5 mb-5 flex-1">
-                {p.bonos.map(b => (
-                  <li key={b} className="flex items-start gap-2 text-xs" style={{ color: '#d6d6de' }}>
-                    <span style={{ color: '#34d399' }}>✓</span><span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <a href={`https://www.viraladn.com/precios?producto=viraladn&ciclo=${p.ciclo}`}
-                className="block w-full py-3 rounded-2xl text-sm font-extrabold text-center transition-transform hover:-translate-y-0.5"
-                style={p.destacado
-                  ? { background: '#34d399', color: '#04211c', boxShadow: '0 0 24px #34d39944' }
-                  : { background: '#14141f', border: '1px solid #2e2e3e', color: '#fff' }}>
-                Elegir {p.nombre} →
-              </a>
             </div>
-          ))}
-        </div>
+            <p className="text-xs mb-5" style={{ color: '#9a9aa6' }}>{c.sub}</p>
 
-        <p className="text-center text-xs mb-8" style={{ color: '#c9b48a' }}>
+            <div className="grid md:grid-cols-3 gap-4 items-stretch mb-4">
+              {PRODUCTOS.map(p => {
+                const [precio, sufijo, nota] = c.precios[p.key];
+                return (
+                  <div key={p.key} className="rounded-3xl p-6 flex flex-col relative"
+                    style={{
+                      background: p.destacado ? '#0b1512' : '#0f0f17',
+                      border: `1px solid ${p.destacado ? '#1d3b34' : '#1f1f2b'}`,
+                      boxShadow: p.destacado ? '0 0 40px #34d39922' : 'none',
+                    }}>
+                    {p.destacado && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-extrabold tracking-wider px-3 py-1 rounded-full whitespace-nowrap"
+                        style={{ background: '#34d399', color: '#04211c' }}>✨ MÁS ELEGIDO</span>
+                    )}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold"
+                        style={{ background: p.destacado ? '#34d399' : '#2a2a3a', color: p.destacado ? '#04211c' : '#c9c9d4' }}>{p.letra}</span>
+                      <p className="text-sm font-extrabold">{p.nombre}</p>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: '#9a9aa6' }}>{p.tag}</p>
+                    <p className="text-3xl font-extrabold">{precio}<span className="text-xs font-bold" style={{ color: '#9a9aa6' }}>{sufijo}</span></p>
+                    {nota && <p className="text-[11px] mt-0.5" style={{ color: '#34d399' }}>{nota}</p>}
+                    <ul className="flex flex-col gap-1.5 my-4 flex-1">
+                      {p.feats.map(f => (
+                        <li key={f} className="flex items-start gap-2 text-xs" style={{ color: '#d6d6de' }}>
+                          <span style={{ color: '#34d399' }}>✓</span><span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <a href={`https://www.viraladn.com/precios?producto=${p.key}&ciclo=${c.ciclo}`}
+                      className="block w-full py-3 rounded-2xl text-sm font-extrabold text-center transition-transform hover:-translate-y-0.5"
+                      style={p.destacado
+                        ? { background: '#34d399', color: '#04211c', boxShadow: '0 0 24px #34d39944' }
+                        : { background: '#14141f', border: '1px solid #2e2e3e', color: '#fff' }}>
+                      Elegir →
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bonos del ciclo */}
+            <div className="rounded-2xl px-5 py-4" style={{ background: '#0b1512', border: '1px solid #1d3b34' }}>
+              <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#34d399' }}>🎁 Incluye este mes</p>
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                {c.bonos.map(b => (
+                  <span key={b} className="text-xs flex items-center gap-1.5" style={{ color: '#d6d6de' }}>
+                    <span style={{ color: '#34d399' }}>✓</span>{b}
+                  </span>
+                ))}
+              </div>
+              {c.notaBonos && <p className="text-[11px] mt-2 italic" style={{ color: '#9fc9bb' }}>{c.notaBonos}</p>}
+            </div>
+          </div>
+        ))}
+
+        <p className="text-center text-xs mb-2" style={{ color: '#c9b48a' }}>
           ⏳ El seguimiento semanal, los guiones y los planes de acción son el <b>bono de la clase</b> — cupo limitado, para quien toma acción ahora.
         </p>
-
-        {/* Combo secundario */}
-        <div className="rounded-2xl px-5 py-4 flex items-center justify-between gap-3 flex-wrap max-w-3xl mx-auto"
-          style={{ background: '#0f0f17', border: '1px solid #2a2a3a' }}>
-          <span className="text-sm" style={{ color: '#c4b5fd' }}>
-            ✨ ¿También quieres que tus videos <b>se editen solos</b>? Combo ViralADN + TOPCUT: <b>$97/mes</b> · $262 /3 meses · $931/año.
-          </span>
-          <a href="https://www.viraladn.com/precios?producto=combo"
-            className="text-xs font-bold px-4 py-2 rounded-xl"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff' }}>
-            Ver el combo →
-          </a>
-        </div>
-
-        <p className="text-center text-xs mt-6" style={{ color: '#6b6b78' }}>
+        <p className="text-center text-xs" style={{ color: '#6b6b78' }}>
           Pago seguro con Stripe · acceso al instante · garantía de reembolso de 7 días desde tu primer cobro
         </p>
       </section>

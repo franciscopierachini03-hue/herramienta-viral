@@ -16,7 +16,7 @@ export const ZOOM_URL = 'https://us02web.zoom.us/j/82701665842?pwd=2MijtfGb0f5Nj
 // GRABACIÓN del evento (página /grabacion en evento.franpierachini.com):
 // pegá acá el link de YouTube (subilo como "Oculto"/unlisted) o Vimeo.
 // Vacío = la página muestra "estamos subiendo la grabación".
-export const RECORDING_URL = '';
+export const RECORDING_URL = 'https://youtu.be/-aAkP2klTzc';
 
 // Fecha/hora formateadas SIN depender de la zona horaria ni del locale del
 // runtime. Usamos solo getters UTC (idénticos en server y navegador) + nombres
