@@ -54,6 +54,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // La GRABACIÓN del evento con URL limpia: evento.franpierachini.com/grabacion
+  // (la página vive en /evento/grabacion; rewrite, no redirect).
+  if (isEventHost && pathname === '/grabacion') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/evento/grabacion';
+    return NextResponse.rewrite(url);
+  }
+
   // El evento SOLO vive en franpierachini.com. Si alguien llega a /evento por
   // OTRO host (p. ej. viraladn.com/evento), lo redirigimos al dominio del evento
   // → queda desactivado fuera de franpierachini, sin romper enlaces viejos.
