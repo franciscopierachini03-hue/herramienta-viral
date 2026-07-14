@@ -5,11 +5,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ProductNav from '../_components/ProductNav';
+import AdminGate from '../_components/AdminGate';
 
 const PINK = '#ec4899';
 const AMBER = '#f59e0b';
 
 type Credits = { configured: boolean; balance: number; grant: number };
+type Health = { listo: boolean; tabla: string; gemini: string; fal: string; modeloImagen: string; modeloVideo: string; pasos: string[] };
+type Formato = '9:16' | '1:1' | '16:9';
 
 // Reduce una imagen a máx 1024px y devuelve { dataUrl, base64, mime }.
 function fileToDownscaled(file: File): Promise<{ dataUrl: string; base64: string; mime: string }> {
@@ -39,6 +42,8 @@ function fileToDownscaled(file: File): Promise<{ dataUrl: string; base64: string
 
 export default function StudioPage() {
   const [credits, setCredits] = useState<Credits | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [formato, setFormato] = useState<Formato>('9:16'); // vertical por defecto: es para reels
   const [prompt, setPrompt] = useState('');
   const [photo, setPhoto] = useState<{ dataUrl: string; base64: string; mime: string } | null>(null);
   const [image, setImage] = useState<string | null>(null);      // avatar generado (dataUrl)
@@ -55,7 +60,15 @@ export default function StudioPage() {
       .then(d => { if (d?.ok) setCredits({ configured: d.configured, balance: d.balance, grant: d.grant }); })
       .catch(() => {});
   }
-  useEffect(() => { refreshCredits(); return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
+  useEffect(() => {
+    refreshCredits();
+    // Semáforo: verifica EN VIVO tabla + Gemini + fal y dice qué falta.
+    fetch('/api/studio/health', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (d && typeof d.listo === 'boolean') setHealth(d); })
+      .catch(() => {});
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -74,6 +87,7 @@ export default function StudioPage() {
         body: JSON.stringify({
           prompt: prompt.trim() || 'Retrato fotorrealista de esta persona, mirando a cámara, iluminación de estudio, estética de reel.',
           photoBase64: photo?.base64, photoMime: photo?.mime,
+          formato,
         }),
       });
       const d = await res.json();
@@ -115,6 +129,7 @@ export default function StudioPage() {
   return (
     <main className="min-h-screen text-white px-6 py-8"
       style={{ background: 'radial-gradient(ellipse 90% 45% at 25% 0%, #2a0a1e 0%, transparent 60%), radial-gradient(ellipse 70% 35% at 85% 8%, #3a2406 0%, transparent 55%), #070710' }}>
+      <AdminGate />
       <div className="max-w-5xl mx-auto">
         <ProductNav active="studio" />
 
@@ -136,6 +151,28 @@ export default function StudioPage() {
           )}
         </div>
 
+        {/* Semáforo de configuración: qué pieza falta y cómo se arregla */}
+        {health && !health.listo && (
+          <div className="mb-6 rounded-2xl p-5" style={{ background: '#1a1408', border: '1px solid #f59e0b55' }}>
+            <p className="text-sm font-bold mb-3" style={{ color: '#fde68a' }}>⚙️ Para encender Avatares IA faltan estas piezas:</p>
+            <div className="flex flex-col gap-1.5 text-xs" style={{ color: '#d6d6de' }}>
+              <span>{health.tabla === 'ok' ? '✅' : '❌'} Tabla de créditos en Supabase {health.tabla === 'ok' ? '' : '(correr supabase/ai_credits.sql)'}</span>
+              <span>{health.gemini === 'ok' ? '✅' : '❌'} Imagen · Gemini — {health.gemini === 'ok' ? `listo (${health.modeloImagen})` : health.gemini}</span>
+              <span>{health.fal === 'ok' ? '✅' : '❌'} Video · fal.ai — {health.fal === 'ok' ? `listo (${health.modeloVideo})` : health.fal}</span>
+            </div>
+            {health.pasos.length > 0 && (
+              <div className="mt-3 pt-3 text-xs" style={{ borderTop: '1px solid #f59e0b33', color: '#c9b48a' }}>
+                {health.pasos.map(p => <p key={p} className="mb-1">→ {p}</p>)}
+              </div>
+            )}
+          </div>
+        )}
+        {health?.listo && (
+          <div className="mb-6 rounded-2xl px-5 py-3 text-xs" style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
+            ✅ Todo configurado: imagen ({health.modeloImagen}) + video ({health.modeloVideo}) + créditos. A crear.
+          </div>
+        )}
+
         <div className="grid md:grid-cols-2 gap-6">
           {/* ── Columna izquierda: crear el avatar ── */}
           <div className="rounded-3xl p-6" style={card}>
@@ -152,6 +189,19 @@ export default function StudioPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photo.dataUrl} alt="tu foto" className="w-20 h-20 object-cover rounded-xl mb-3" style={{ border: '1px solid #2a2a36' }} />
             )}
+
+            {/* Formato de salida — vertical (reel) por defecto */}
+            <div className="flex gap-1.5 mb-3 flex-wrap">
+              {([['9:16', '📱 Vertical (reel)'], ['1:1', '⬜ Cuadrado'], ['16:9', '🖥 Horizontal']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setFormato(v)}
+                  className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
+                  style={formato === v
+                    ? { background: `linear-gradient(135deg, ${PINK}, ${AMBER})`, color: '#fff' }
+                    : { background: '#0a0a12', border: '1px solid #2a2a36', color: '#8b8b96' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
 
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} maxLength={600}
               placeholder="Ej: a mí con traje, fondo de oficina moderna, luz cálida de estudio…"

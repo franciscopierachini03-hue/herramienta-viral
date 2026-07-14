@@ -15,8 +15,8 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   const { email, admin, ent } = await getAccess();
   if (!email) return Response.json({ error: 'No autorizado' }, { status: 401 });
-  if (!admin && !ent.viraladn && !ent.topcut) {
-    return Response.json({ error: 'Necesitas un plan activo para usar Avatares IA.' }, { status: 403 });
+  if (!admin) {
+    return Response.json({ error: 'Avatares IA está disponible solo para administradores.' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -45,8 +45,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const { email } = await getAccess();
+  const { email, admin } = await getAccess();
   if (!email) return Response.json({ error: 'No autorizado' }, { status: 401 });
+  if (!admin) return Response.json({ error: 'Solo administradores.' }, { status: 403 });
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return Response.json({ error: 'Falta el id del job.' }, { status: 400 });
 

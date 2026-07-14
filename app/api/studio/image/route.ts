@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
 import { spendCredits, refundCredits, monthlyGrantFor, CREDIT_COST } from '@/lib/credits';
-import { generateAvatarImage } from '@/lib/studio';
+import { generateAvatarImage, type AvatarAspect } from '@/lib/studio';
 
 // POST /api/studio/image  { prompt, photoBase64?, photoMime? }
 // Genera/edita una imagen con Nano Banana. Cobra créditos; si la API falla, los
@@ -13,8 +13,8 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   const { email, admin, ent } = await getAccess();
   if (!email) return Response.json({ error: 'No autorizado' }, { status: 401 });
-  if (!admin && !ent.viraladn && !ent.topcut) {
-    return Response.json({ error: 'Necesitas un plan activo para usar Avatares IA.' }, { status: 403 });
+  if (!admin) {
+    return Response.json({ error: 'Avatares IA está disponible solo para administradores.' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
   if (!prompt) return Response.json({ error: 'Falta describir qué generar.' }, { status: 400 });
   const photoBase64 = body?.photoBase64 ? String(body.photoBase64) : undefined;
   const photoMime = body?.photoMime ? String(body.photoMime) : undefined;
+  // Formato de salida: vertical 9:16 por defecto (reels).
+  const formato: AvatarAspect = ['9:16', '1:1', '16:9'].includes(body?.formato) ? body.formato : '9:16';
 
   const grant = monthlyGrantFor(ent, admin);
   const cost = CREDIT_COST.image;
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { dataUrl } = await generateAvatarImage({ prompt, photoBase64, photoMime });
+    const { dataUrl } = await generateAvatarImage({ prompt, photoBase64, photoMime, aspect: formato });
     return Response.json({ ok: true, image: dataUrl, balance: spent.balance });
   } catch (e) {
     await refundCredits(email, cost);

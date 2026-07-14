@@ -23,32 +23,54 @@ type GeminiPart =
 
 // Genera/edita una imagen. Si pasás photoBase64 (+mime), el modelo usa esa cara
 // como referencia ("ponme con este traje", etc.). Devuelve un data URL PNG.
+// aspect: formato de salida — por defecto VERTICAL 9:16 (para reels).
+export type AvatarAspect = '9:16' | '1:1' | '16:9';
+
 export async function generateAvatarImage(opts: {
   prompt: string;
   photoBase64?: string;     // base64 SIN el prefijo data:
   photoMime?: string;       // ej. 'image/jpeg'
+  aspect?: AvatarAspect;
 }): Promise<{ dataUrl: string }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY no configurada (Nano Banana).');
   const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  const aspect: AvatarAspect = opts.aspect || '9:16';
 
-  const parts: GeminiPart[] = [{ text: opts.prompt }];
+  // Refuerzo del formato también en el prompt (por si el modelo ignora config).
+  const aspectTexto = aspect === '9:16' ? 'VERTICAL 9:16, formato de reel'
+    : aspect === '16:9' ? 'horizontal 16:9' : 'cuadrado 1:1';
+  const parts: GeminiPart[] = [{ text: `${opts.prompt}\n\nFormato de la imagen: ${aspectTexto}.` }];
   if (opts.photoBase64) {
     parts.push({ inline_data: { mime_type: opts.photoMime || 'image/jpeg', data: opts.photoBase64 } });
   }
 
-  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: { responseModalities: ['IMAGE'] },
-    }),
-  });
+  const pedir = (conImageConfig: boolean) =>
+    fetch(`${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: conImageConfig
+          ? { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: aspect } }
+          : { responseModalities: ['IMAGE'] },
+      }),
+    });
 
+  let res = await pedir(true);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Gemini ${res.status}: ${body.slice(0, 240)}`);
+    // Si el rechazo es por imageConfig (versión de API sin ese campo), reintenta
+    // sin él — el formato queda reforzado igual por el prompt.
+    if (res.status === 400 && /imageConfig|aspect/i.test(body)) {
+      res = await pedir(false);
+      if (!res.ok) {
+        const b2 = await res.text().catch(() => '');
+        throw new Error(`Gemini ${res.status}: ${b2.slice(0, 240)}`);
+      }
+    } else {
+      throw new Error(`Gemini ${res.status}: ${body.slice(0, 240)}`);
+    }
   }
   const data = await res.json();
   const outParts: GeminiPart[] = data?.candidates?.[0]?.content?.parts || [];
