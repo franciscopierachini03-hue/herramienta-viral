@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 // Props:
 //   active: en qué herramienta estás (define el título que se muestra).
 
-type Active = 'viral' | 'topcut' | 'guiones' | 'studio' | 'carruseles' | 'teleprompter';
+type Active = 'viral' | 'topcut' | 'guiones' | 'studio' | 'carruseles' | 'teleprompter' | 'comunidad';
 
 const TITLES: Record<Active, { title: string; sub: string }> = {
   viral:   { title: 'ViralADN', sub: 'Descifra el ADN del contenido viral' },
@@ -24,6 +24,7 @@ const TITLES: Record<Active, { title: string; sub: string }> = {
   studio:  { title: 'Avatares IA', sub: 'Crea tu avatar y conviértelo en video' },
   carruseles: { title: 'Carruseles', sub: 'De una idea a un carrusel listo para publicar' },
   teleprompter: { title: 'Teleprompter', sub: 'Leé tu guion a cámara, la letra baja sola' },
+  comunidad: { title: 'Comunidad', sub: 'Tu clase semanal en vivo' },
 };
 
 export default function ProductNav({ active }: { active: Active }) {

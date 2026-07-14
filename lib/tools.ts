@@ -49,6 +49,15 @@ export const TOOLS: Tool[] = [
     unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
   },
   {
+    key: 'comunidad', name: 'Comunidad', href: '/comunidad', icon: '🎓',
+    desc: 'La clase en vivo de todos los miércoles con Francisco: qué está funcionando y qué ajustar en tu cuenta.',
+    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
+    includedNote: 'Incluida con tu plan',
+    grad: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+    border: '#f59e0b44', glow: '#f59e0b14', iconGlow: '#f59e0b33',
+    unlockBorder: '#f59e0b55', unlockColor: '#fcd34d',
+  },
+  {
     key: 'studio', name: 'Avatares IA', href: '/studio', icon: '🎭',
     desc: 'Crea tu avatar con IA y conviértelo en video. Tu foto cobra vida para tus reels.',
     needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
