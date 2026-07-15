@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { isAdminEmail } from '@/lib/access';
+import PagosDia from '../PagosDia';
 
 export const dynamic = 'force-dynamic';
 
@@ -288,6 +289,9 @@ export default async function Pagos({ searchParams }: { searchParams: Promise<{ 
             <div className="text-[11px] mt-1" style={{ color: '#666' }}>Stripe reintenta solo</div>
           </div>
         </div>
+
+        {/* 📅 Pagos por día — elegí la fecha y mirá qué entró ese día */}
+        <PagosDia />
 
         {/* Suscripciones activas por producto × ciclo (en vivo de Stripe) */}
         <div className="flex items-baseline justify-between mb-3">
