@@ -16,10 +16,17 @@ type Clase = { id: string; fecha: string; titulo: string; resumen: string | null
 function toEmbed(url: string): string {
   const u = (url || '').trim();
   if (!u) return '';
+  // Ya es un embed (player.vimeo / youtube embed / iframe src) → tal cual.
+  if (/player\.vimeo\.com\/video\/|youtube(?:-nocookie)?\.com\/embed\//.test(u)) return u;
   const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
   if (yt) return `https://www.youtube.com/embed/${yt[1]}?rel=0`;
+  // Vimeo: vimeo.com/ID · vimeo.com/ID/HASH (privado) · ?h=HASH. Hay que conservar
+  // el HASH de privacidad o el video privado no carga en el embed.
   const vimeo = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  if (vimeo) {
+    const h = u.match(/vimeo\.com\/(?:video\/)?\d+\/([A-Za-z0-9]+)/)?.[1] || u.match(/[?&]h=([A-Za-z0-9]+)/)?.[1];
+    return `https://player.vimeo.com/video/${vimeo[1]}${h ? `?h=${h}` : ''}`;
+  }
   return u;
 }
 

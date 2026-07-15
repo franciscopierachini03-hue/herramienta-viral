@@ -167,11 +167,11 @@ export default function AdminClases() {
           </label>
 
           <label className="block mb-4">
-            <span className="text-xs" style={{ color: '#8b8b96' }}>Link del video (YouTube "Oculto" o Vimeo)</span>
+            <span className="text-xs" style={{ color: '#8b8b96' }}>Link del video (Vimeo)</span>
             <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} maxLength={2000}
-              placeholder="https://youtu.be/…"
+              placeholder="https://vimeo.com/123456789/abcdef"
               className="w-full px-3 py-2.5 rounded-xl text-sm outline-none mt-1" style={input} />
-            <span className="text-[11px]" style={{ color: '#6b6b78' }}>Subí la grabación a YouTube como "Oculto" y pegá el link acá. El video no ocupa nuestro almacenamiento.</span>
+            <span className="text-[11px]" style={{ color: '#6b6b78' }}>Subí la grabación a Vimeo (privada/oculta) y pegá el link completo — con el código de privacidad si lo tiene (vimeo.com/123…/abcdef). El video no ocupa nuestro almacenamiento.</span>
           </label>
 
           {/* Archivos */}
