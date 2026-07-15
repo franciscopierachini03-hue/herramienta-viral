@@ -9,6 +9,30 @@ import ProductNav from '../_components/ProductNav';
 
 import { CLASE, HORARIOS } from './clase-config';
 
+type Archivo = { nombre: string; url: string };
+type Clase = { id: string; fecha: string; titulo: string; resumen: string | null; video_url: string | null; archivos: Archivo[] };
+
+// Normaliza un link de YouTube/Vimeo al formato embebible.
+function toEmbed(url: string): string {
+  const u = (url || '').trim();
+  if (!u) return '';
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?rel=0`;
+  const vimeo = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return u;
+}
+
+// 'YYYY-MM-DD' → 'miércoles 9 de julio' (parse manual, sin depender de la zona).
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function fmtFecha(f: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || '');
+  if (!m) return f || '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()]}`;
+}
+
 // Próximo miércoles 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
 // horario de verano desde 2022) → miércoles 16:00 UTC. Calcular en UTC hace que
 // el timer sea correcto para cualquier persona, esté en la zona que esté.
@@ -32,6 +56,17 @@ export default function Comunidad() {
   const [restante, setRestante] = useState<Restante | null>(null);
   const [enVivo, setEnVivo] = useState(false);
   const [copiado, setCopiado] = useState<'id' | 'codigo' | null>(null);
+  const [clases, setClases] = useState<Clase[] | null>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
+  const [videoAbierto, setVideoAbierto] = useState<string | null>(null);
+
+  // Grabaciones cargadas desde /admin/clases (gateadas: solo miembros).
+  useEffect(() => {
+    fetch('/api/comunidad/clases', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (d?.ok) { setClases(d.clases || []); setEsAdmin(!!d.admin); } else setClases([]); })
+      .catch(() => setClases([]));
+  }, []);
 
   useEffect(() => {
     // "Próxima clase" calculada en hora CDMX (client-only: sin hydration mismatch).
@@ -184,13 +219,63 @@ export default function Comunidad() {
           </p>
         </div>
 
-        {/* Lo que viene */}
-        <div className="rounded-3xl p-6" style={{ background: '#0c0c14', border: '1px dashed #2a2a36' }}>
-          <p className="text-sm font-bold mb-1" style={{ color: '#d4d4dc' }}>📼 Grabaciones de las clases</p>
-          <p className="text-xs" style={{ color: '#8b8b96' }}>
-            Próximamente: acá van a quedar las grabaciones de cada miércoles para que las veas cuando quieras.
-          </p>
+        {/* 📼 Grabaciones — la biblioteca de clases pasadas */}
+        <div className="flex items-center justify-between gap-2 mb-3 mt-2">
+          <h2 className="text-lg font-extrabold">📼 Grabaciones de las clases</h2>
+          {esAdmin && (
+            <a href="/admin/clases" className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: '#1a1408', border: '1px solid #f59e0b55', color: '#fcd34d' }}>
+              ➕ Administrar
+            </a>
+          )}
         </div>
+
+        {clases === null ? (
+          <p className="text-sm px-1" style={{ color: '#6b6b78' }}>cargando grabaciones…</p>
+        ) : clases.length === 0 ? (
+          <div className="rounded-3xl p-6" style={{ background: '#0c0c14', border: '1px dashed #2a2a36' }}>
+            <p className="text-xs" style={{ color: '#8b8b96' }}>
+              Todavía no hay grabaciones subidas. En cuanto termine la próxima clase, la vas a encontrar acá para verla cuando quieras.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {clases.map(c => {
+              const embed = c.video_url ? toEmbed(c.video_url) : '';
+              const abierto = videoAbierto === c.id;
+              return (
+                <div key={c.id} className="rounded-3xl p-6" style={card}>
+                  <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: '#fcd34d' }}>{fmtFecha(c.fecha)}</p>
+                  <h3 className="text-lg font-extrabold mb-1">{c.titulo}</h3>
+                  {c.resumen && <p className="text-sm mb-4 whitespace-pre-line" style={{ color: '#b4b4c0' }}>{c.resumen}</p>}
+
+                  {embed && (abierto ? (
+                    <div className="rounded-2xl overflow-hidden mb-4" style={{ border: '1px solid #2a2a36', aspectRatio: '16 / 9' }}>
+                      <iframe src={embed} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={c.titulo} />
+                    </div>
+                  ) : (
+                    <button onClick={() => setVideoAbierto(c.id)}
+                      className="w-full py-3 rounded-2xl text-sm font-bold mb-4 transition-transform hover:-translate-y-0.5"
+                      style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: '#fff' }}>
+                      ▶ Ver la grabación
+                    </button>
+                  ))}
+
+                  {c.archivos.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {c.archivos.map((a, i) => (
+                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download
+                          className="text-xs font-semibold px-3 py-2 rounded-xl inline-flex items-center gap-1.5"
+                          style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#93c5fd' }}>
+                          📎 {a.nombre}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </main>
   );
