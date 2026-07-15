@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/health", "schedule": "0 13 * * *" }
+    { "path": "/api/cron/daily", "schedule": "45 14 * * *" },
+    { "path": "/api/cron/recordatorio-clase", "schedule": "0 16 * * 2" }
   ]
 }

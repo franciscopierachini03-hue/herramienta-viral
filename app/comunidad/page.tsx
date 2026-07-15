@@ -7,24 +7,7 @@ import ProductNav from '../_components/ProductNav';
 // Todos los miércoles 10:00 AM Ciudad de México, en la Sala Z1 de Zoom.
 // Config editable acá abajo (CLASE). Gate por plan en layout.tsx.
 
-const CLASE = {
-  diaSemana: 3,            // 0=domingo … 3=MIÉRCOLES
-  horaCDMX: '10:00 AM',
-  finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
-  sala: 'SALA Z1',
-  zoomUrl: 'https://us02web.zoom.us/j/85141202983?pwd=x9tt0HBcxPMMZsWBXJayQrEb2EATwy.1',
-  zoomId: '851 4120 2983',
-  zoomCodigo: 'C123',
-};
-
-// Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
-const HORARIOS: Array<[string, string, string]> = [
-  ['🇲🇽', '10:00 AM', 'Ciudad de México'],
-  ['🇺🇸', '9:00 AM', 'Los Ángeles / Tijuana'],
-  ['🇨🇴🇵🇪', '11:00 AM', 'Colombia / Perú / Texas'],
-  ['🇺🇸🇨🇱🇻🇪', '12:00 PM', 'Miami / Chile / Venezuela'],
-  ['🇦🇷🇧🇷', '1:00 PM', 'Argentina / Brasil'],
-];
+import { CLASE, HORARIOS } from './clase-config';
 
 // Próximo miércoles 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
 // horario de verano desde 2022) → miércoles 16:00 UTC. Calcular en UTC hace que
