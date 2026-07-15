@@ -133,14 +133,38 @@ export async function falVideoSubmit(opts: {
   return { requestId };
 }
 
+// ── fal.ai — CLON QUE HABLA (foto + audio → video hablando) ──────────────────
+// sadtalker: barato (por segundo de cómputo), toma la foto directa. El audio
+// sale de ElevenLabs (voz clonada). Override por env FAL_TALKING_MODEL.
+export function falTalkingModel(): string {
+  return process.env.FAL_TALKING_MODEL || 'fal-ai/sadtalker';
+}
+
+export async function falTalkingSubmit(opts: { imageUrl: string; audioUrl: string }): Promise<{ requestId: string }> {
+  const key = process.env.FAL_KEY;
+  if (!key) throw new Error('FAL_KEY no configurada (clon que habla).');
+  const res = await fetch(`${FAL_QUEUE}/${falTalkingModel()}`, {
+    method: 'POST',
+    headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_image_url: opts.imageUrl, driven_audio_url: opts.audioUrl }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`fal talking submit ${res.status}: ${body.slice(0, 240)}`);
+  }
+  const data = await res.json();
+  const requestId = data?.request_id || data?.requestId;
+  if (!requestId) throw new Error('fal no devolvió request_id.');
+  return { requestId };
+}
+
 export type FalStatus = { status: 'pending' | 'done' | 'error'; url?: string; error?: string };
 
-// Consulta el estado de un job de fal. Cuando está listo, devuelve la URL del
-// video. El tier tiene que ser el MISMO del submit (la cola es por modelo).
-export async function falVideoStatus(requestId: string, tier: VideoTier = 'pro'): Promise<FalStatus> {
+// Consulta el estado de un job de fal para un MODELO dado (la cola es por
+// modelo). Devuelve la URL del video cuando está listo.
+async function falStatusByModel(requestId: string, model: string): Promise<FalStatus> {
   const key = process.env.FAL_KEY;
   if (!key) return { status: 'error', error: 'FAL_KEY no configurada.' };
-  const model = falModel(tier);
   const headers = { Authorization: `Key ${key}` };
 
   const st = await fetch(`${FAL_QUEUE}/${model}/requests/${requestId}/status`, { headers, cache: 'no-store' });
@@ -157,4 +181,14 @@ export async function falVideoStatus(requestId: string, tier: VideoTier = 'pro')
   }
   if (s === 'IN_QUEUE' || s === 'IN_PROGRESS' || s === 'PENDING') return { status: 'pending' };
   return { status: 'error', error: `fal estado inesperado: ${s || 'desconocido'}` };
+}
+
+// Estado de un job de foto→video. El tier tiene que ser el MISMO del submit.
+export function falVideoStatus(requestId: string, tier: VideoTier = 'pro'): Promise<FalStatus> {
+  return falStatusByModel(requestId, falModel(tier));
+}
+
+// Estado de un job del clon que habla.
+export function falTalkingStatus(requestId: string): Promise<FalStatus> {
+  return falStatusByModel(requestId, falTalkingModel());
 }

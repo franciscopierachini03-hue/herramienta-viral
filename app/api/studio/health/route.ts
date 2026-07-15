@@ -1,5 +1,7 @@
 import { getAccess } from '@/lib/access';
 import { createServiceClient } from '@/lib/supabase/server';
+import { elevenLabsSano } from '@/lib/elevenlabs';
+import { falTalkingModel } from '@/lib/studio';
 
 // GET /api/studio/health — semáforo de Avatares IA (solo admin).
 // Verifica EN VIVO las 3 piezas que la herramienta necesita:
@@ -57,11 +59,28 @@ export async function GET() {
     } catch { fal = 'sin conexión con fal.ai'; }
   }
 
+  // 4) Clon que habla — ElevenLabs (voz) + tabla voice_clones.
+  const voz = await elevenLabsSano();
+  let tablaVoz: 'ok' | 'falta' = 'falta';
+  try {
+    const sb = createServiceClient();
+    const { error } = await sb.from('voice_clones').select('email').limit(1);
+    tablaVoz = error ? 'falta' : 'ok';
+  } catch { tablaVoz = 'falta'; }
+
+  // El clon básico (imagen + video mudo) queda listo con tabla+gemini+fal.
+  // El clon que HABLA suma ElevenLabs + la tabla de voces.
   const listo = tabla === 'ok' && gemini === 'ok' && fal === 'ok';
+  const listoHabla = listo && voz === 'ok' && tablaVoz === 'ok';
   const pasos: string[] = [];
   if (tabla !== 'ok') pasos.push('Correr supabase/ai_credits.sql en Supabase → SQL Editor (1 min).');
   if (gemini !== 'ok') pasos.push(`Gemini: ${gemini} → agregá/corregí GEMINI_API_KEY en Vercel (aistudio.google.com → API keys) y redeploy.`);
   if (fal !== 'ok') pasos.push(`fal.ai: ${fal} → creá la key en fal.ai/dashboard/keys (con billing activo), agregala como FAL_KEY en Vercel y redeploy.`);
+  if (voz !== 'ok') pasos.push(`Voz (ElevenLabs): ${voz} → plan Starter+ · agregá ELEVENLABS_API_KEY en Vercel y redeploy.`);
+  if (tablaVoz !== 'ok') pasos.push('Correr supabase/voice_clones.sql en Supabase (guarda la voz de cada usuario).');
 
-  return Response.json({ listo, tabla, gemini, fal, modeloImagen: gModel, modeloVideo: fModel, pasos });
+  return Response.json({
+    listo, listoHabla, tabla, gemini, fal, voz, tablaVoz,
+    modeloImagen: gModel, modeloVideo: fModel, modeloVoz: falTalkingModel(), pasos,
+  });
 }
