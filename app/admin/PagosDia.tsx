@@ -6,10 +6,10 @@
 
 import { useEffect, useState } from 'react';
 
-type Detalle = { hora: string; email: string; monto: number; producto: string; estado: string; viralAdn: boolean };
+type Detalle = { hora: string; email: string; monto: number; refund: number; producto: string; estado: string; viralAdn: boolean };
 type Resp = {
   fecha: string; zona: string;
-  tuyo_viraladn: { cobros: number; total: number; detalle: Detalle[] };
+  tuyo_viraladn: { cobros: number; total: number; bruto: number; reembolsado: number; neto: number; detalle: Detalle[] };
   otros_negocios: { cobros: number; total: number };
   reembolsos_del_dia: number;
 };
@@ -89,8 +89,14 @@ export default function PagosDia() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <div className="rounded-2xl p-4 sm:col-span-1" style={{ background: '#0a1a12', border: '1px solid #22c55e55' }}>
               <div className="text-xs mb-1" style={{ color: '#7dd3a8' }}>🧬 TUYO (ViralADN) el {fechaLinda(data.fecha)}</div>
-              <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>${data.tuyo_viraladn.total.toFixed(0)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#5a8a6a' }}>{data.tuyo_viraladn.cobros} cobro{data.tuyo_viraladn.cobros === 1 ? '' : 's'}</div>
+              <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>${data.tuyo_viraladn.neto.toFixed(0)}</div>
+              {data.tuyo_viraladn.reembolsado > 0 ? (
+                <div className="text-[11px] mt-1" style={{ color: '#5a8a6a' }}>
+                  vendido ${data.tuyo_viraladn.bruto.toFixed(0)} <span style={{ color: '#fda4af' }}>− reembolsado ${data.tuyo_viraladn.reembolsado.toFixed(0)}</span> = neto · {data.tuyo_viraladn.cobros} cobro{data.tuyo_viraladn.cobros === 1 ? '' : 's'}
+                </div>
+              ) : (
+                <div className="text-[11px] mt-1" style={{ color: '#5a8a6a' }}>{data.tuyo_viraladn.cobros} cobro{data.tuyo_viraladn.cobros === 1 ? '' : 's'} · sin reembolsos</div>
+              )}
             </div>
             <div className="rounded-2xl p-4" style={card}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>🏢 Otros negocios</div>
@@ -126,7 +132,14 @@ export default function PagosDia() {
                     <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#888' }}>{c.hora}</td>
                     <td className="px-4 py-2.5 text-xs">{c.email}</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#aaa' }}>{c.producto}</td>
-                    <td className="px-4 py-2.5 text-xs text-right font-bold" style={{ color: '#86efac' }}>${c.monto.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-xs text-right font-bold" style={{ color: c.refund > 0 ? '#fda4af' : '#86efac' }}>
+                      ${c.monto.toFixed(2)}
+                      {c.refund > 0 && (
+                        <div className="text-[10px] font-normal" style={{ color: '#fda4af' }}>
+                          🔴 −${c.refund.toFixed(2)} reemb.{c.refund >= c.monto ? ' (total)' : ' (parcial)'}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -59,7 +59,8 @@ export async function GET(req: NextRequest) {
     const nombre = (plat?: string) => plat === 'viraladn' ? 'ViralADN' : plat === 'topcut' ? 'TOPCUT' : plat === 'combo' ? 'Combo' : 'otro negocio';
 
     // Cobros del día (paginado, con la factura expandida para saber el producto).
-    type Cobro = { hora: string; email: string; monto: number; producto: string; estado: string; viralAdn: boolean };
+    // monto = bruto cobrado · refund = lo devuelto de ESE cobro (amount_refunded).
+    type Cobro = { hora: string; email: string; monto: number; refund: number; producto: string; estado: string; viralAdn: boolean };
     const cobros: Cobro[] = [];
     let after: string | null = null;
     for (let i = 0; i < 10; i++) {
@@ -79,8 +80,11 @@ export async function GET(req: NextRequest) {
           hora: new Date(Number(c.created) * 1000).toISOString().slice(11, 16),
           email: String(bd.email || c.receipt_email || '—'),
           monto: money(c.amount as number),
+          refund: money(c.amount_refunded as number),
+          // status real de Stripe: un cobro reembolsado sigue 'succeeded' (el
+          // reembolso vive en amount_refunded, no cambia el status).
+          estado: String(c.status || ''),
           producto: nombre(plat),
-          estado: c.refunded ? 'reembolsado' : String(c.status || ''),
           viralAdn: !!plat,
         });
       }
@@ -91,14 +95,23 @@ export async function GET(req: NextRequest) {
     const ok = cobros.filter(c => c.estado === 'succeeded');
     const tuyos = ok.filter(c => c.viralAdn);
     const otros = ok.filter(c => !c.viralAdn);
-    const sum = (arr: Cobro[]) => Math.round(arr.reduce((a, c) => a + c.monto, 0) * 100) / 100;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const sumB = (arr: Cobro[]) => r2(arr.reduce((a, c) => a + c.monto, 0));   // bruto vendido
+    const sumR = (arr: Cobro[]) => r2(arr.reduce((a, c) => a + c.refund, 0));  // reembolsado
+    const neto = (arr: Cobro[]) => r2(sumB(arr) - sumR(arr));                  // lo que quedó (= gráfico)
 
     return Response.json({
       fecha: dia,
       zona: 'hora Ciudad de México',
-      tuyo_viraladn: { cobros: tuyos.length, total: sum(tuyos), detalle: tuyos },
-      otros_negocios: { cobros: otros.length, total: sum(otros) },
-      reembolsos_del_dia: cobros.filter(c => c.estado === 'reembolsado').length,
+      tuyo_viraladn: {
+        cobros: tuyos.length,
+        bruto: sumB(tuyos), reembolsado: sumR(tuyos), neto: neto(tuyos),
+        total: neto(tuyos), // compat: total = neto (lo que quedó cobrado)
+        detalle: tuyos,
+      },
+      otros_negocios: { cobros: otros.length, total: neto(otros), bruto: sumB(otros), reembolsado: sumR(otros) },
+      reembolsos_del_dia: cobros.filter(c => c.refund > 0).length,
+      reembolsado_total: r2(sumR(tuyos)),
     });
   } catch (e) {
     return Response.json({ error: (e as Error).message.slice(0, 200) }, { status: 502 });
