@@ -90,7 +90,12 @@ export type BillingOverview = {
   totalRevenueThisMonth: number;
   totalRevenueLastMonth: number;
   activeSubscriptions: number;
-  committedMrr: number;            // MRR comprometido (subs activas, normalizado a mensual)
+  committedMrr: number;            // MRR comprometido (subs activas a precio de lista, mensual)
+  effectiveMrrNow: number;         // lo que se cobra DE VERDAD este mes (bonos/descuentos ya restados)
+  bonoMrr: number;                 // lo que está en bono/descuento AHORA → no entra este mes, sí el que viene
+  expectedMrrNextMonth: number;    // esperado el MES QUE VIENE = comprometido − por cancelar (bonos ya pagan)
+  cancelMrr: number;               // MRR de las subs marcadas "cancelar a fin de período"
+  porCancelar: number;             // cuántas subs activas van a cancelar a fin de período
   recentPayments: Array<{
     id: string; amount: number; currency: string; customer: string;
     email: string; date: string; description: string; refunded: boolean; product: string;
@@ -223,7 +228,9 @@ function isFreeMonth(s: StripeSubscription): boolean {
 function zero(configured: boolean, error?: string): BillingOverview {
   return {
     totalRevenueAllTime: 0, totalRevenueThisMonth: 0, totalRevenueLastMonth: 0,
-    activeSubscriptions: 0, committedMrr: 0, recentPayments: [], monthlyRevenue: [],
+    activeSubscriptions: 0, committedMrr: 0,
+    effectiveMrrNow: 0, bonoMrr: 0, expectedMrrNextMonth: 0, cancelMrr: 0, porCancelar: 0,
+    recentPayments: [], monthlyRevenue: [],
     payments: [], trialCustomerIds: [], subscribers: [], configured, error,
   };
 }
@@ -295,6 +302,24 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     const activeSubs = ourSubs.filter(s => s.status === 'active');
     const committedMrr = activeSubs.reduce((s, sub) => s + mrrCents(sub), 0) / 100;
 
+    // 3b) Proyección "este mes vs el que viene". El MRR comprometido está a precio
+    // de LISTA (no resta bonos ni descuentos) → sobreestima lo que entra ESTE mes.
+    //   · effectiveMrrNow = lo que se cobra de verdad este ciclo (la última factura
+    //     de cada sub; un mes gratis = $0), normalizado a mensual.
+    //   · bonoMrr = comprometido − efectivo = lo que hoy está en bono/descuento →
+    //     NO entra este mes, pero SÍ el que viene (cuando el bono se acaba).
+    //   · expectedMrrNextMonth = comprometido − lo que está por cancelar (los bonos
+    //     ya cuentan como full el mes que viene).
+    const perMes = (sub: StripeSubscription, cents: number): number => {
+      const iv = sub.items?.data?.[0]?.price?.recurring?.interval;
+      return iv === 'year' ? cents / 12 : iv === 'week' ? (cents * 52) / 12 : iv === 'day' ? (cents * 365) / 12 : cents;
+    };
+    const effectiveMrrNow = activeSubs.reduce((s, sub) => s + perMes(sub, lastAmtBySub.get(sub.id) || 0), 0) / 100;
+    const porCancelarSubs = activeSubs.filter(s => s.cancel_at_period_end);
+    const cancelMrr = porCancelarSubs.reduce((s, sub) => s + mrrCents(sub), 0) / 100;
+    const bonoMrr = Math.max(0, committedMrr - effectiveMrrNow);
+    const expectedMrrNextMonth = Math.max(0, committedMrr - cancelMrr);
+
     // 4) Mes de prueba (cupón activo o trialing).
     const trialCustomerIds = ourSubs
       .filter(s => s.status === 'trialing' || isFreeMonth(s))
@@ -349,6 +374,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     return {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
+      effectiveMrrNow, bonoMrr, expectedMrrNextMonth, cancelMrr, porCancelar: porCancelarSubs.length,
       recentPayments, monthlyRevenue,
       // Solo dinero que QUEDÓ cobrado (neto de reembolsos) → alimenta Cobrado
       // HOY, el gráfico diario y el export de ventas.
