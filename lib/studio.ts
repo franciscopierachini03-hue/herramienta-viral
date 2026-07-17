@@ -143,10 +143,15 @@ export async function falVideoSubmit(opts: {
 }
 
 // ── fal.ai — CLON QUE HABLA (foto + audio → video hablando) ──────────────────
-// sadtalker: barato (por segundo de cómputo), toma la foto directa. El audio
-// sale de ElevenLabs (voz clonada). Override por env FAL_TALKING_MODEL.
+// Kling AI Avatar v2: foto + audio → video hablando MANTENIENDO la cara (no la
+// re-imagina como los image-to-video comunes), hasta ~60s. El audio sale de
+// ElevenLabs (voz clonada). Params fal estándar: image_url + audio_url.
+// Alternativas por env FAL_TALKING_MODEL:
+//   fal-ai/kling-video/ai-avatar/v2/pro   (mejor calidad, ~$0.115/s)
+//   fal-ai/bytedance/omnihuman            (SOTA pero máx 30s)
+//   fal-ai/hunyuan-avatar                 (hasta 120s, más barato)
 export function falTalkingModel(): string {
-  return process.env.FAL_TALKING_MODEL || 'fal-ai/sadtalker';
+  return process.env.FAL_TALKING_MODEL || 'fal-ai/kling-video/ai-avatar/v2/standard';
 }
 
 export async function falTalkingSubmit(opts: { imageUrl: string; audioUrl: string }): Promise<{ requestId: string }> {
@@ -155,7 +160,7 @@ export async function falTalkingSubmit(opts: { imageUrl: string; audioUrl: strin
   const res = await fetch(`${FAL_QUEUE}/${falTalkingModel()}`, {
     method: 'POST',
     headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source_image_url: opts.imageUrl, driven_audio_url: opts.audioUrl }),
+    body: JSON.stringify({ image_url: opts.imageUrl, audio_url: opts.audioUrl }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

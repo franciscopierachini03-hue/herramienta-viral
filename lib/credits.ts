@@ -18,7 +18,9 @@ export const PLAN_CREDITS = { viraladn: 50, topcut: 50, combo: 150 } as const;
 // videoFast (LTX, ≈$0.10/clip) y video pro (Kling, ≈$0.28/clip).
 //   voz     = crear el clon de voz (1 vez, ElevenLabs) — barato.
 //   hablar  = clip del clon hablando (ElevenLabs TTS + fal sadtalker) — barato.
-export const CREDIT_COST = { image: 1, video: 10, videoFast: 3, voz: 3, hablar: 8 } as const;
+// hablar = video del clon hablando (Kling AI Avatar, hasta ~1 min, ~$0.056/s →
+// ~$3.4 el minuto). Ajustable si se abre a usuarios (hoy admin = ilimitado).
+export const CREDIT_COST = { image: 1, video: 10, videoFast: 3, voz: 3, hablar: 40 } as const;
 
 // Cuántos créditos/mes le tocan a este usuario según su plan.
 export function monthlyGrantFor(ent: Entitlement, admin: boolean): number {
