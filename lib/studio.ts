@@ -89,6 +89,15 @@ export async function generateAvatarImage(opts: {
 // ── fal.ai — foto → video (cola async) ───────────────────────────────────────
 const FAL_QUEUE = 'https://queue.fal.run';
 
+// El SUBMIT va al endpoint completo (ej: fal-ai/ltxv-13b-098-distilled/image-to-video),
+// pero el ESTADO/RESULTADO de la cola viven en el APP = los 2 primeros segmentos
+// (owner/app). Pedir el estado en la ruta completa devuelve 405. ej:
+//   submit: …/fal-ai/ltxv-13b-098-distilled/image-to-video
+//   estado: …/fal-ai/ltxv-13b-098-distilled/requests/{id}/status
+function falAppBase(model: string): string {
+  return model.split('/').slice(0, 2).join('/');
+}
+
 // Dos niveles de calidad/costo (precios fal verificados 14-jul-26):
 //   fast → LTX 13B distilled: $0.02/s ≈ $0.10 el clip de 5s (económico, DEFAULT)
 //   pro  → Kling v2.1 standard: ≈ $0.28 el clip de 5s (más cine, más caro)
@@ -167,12 +176,12 @@ async function falStatusByModel(requestId: string, model: string): Promise<FalSt
   if (!key) return { status: 'error', error: 'FAL_KEY no configurada.' };
   const headers = { Authorization: `Key ${key}` };
 
-  const st = await fetch(`${FAL_QUEUE}/${model}/requests/${requestId}/status`, { headers, cache: 'no-store' });
+  const st = await fetch(`${FAL_QUEUE}/${falAppBase(model)}/requests/${requestId}/status`, { headers, cache: 'no-store' });
   if (!st.ok) return { status: 'error', error: `fal status ${st.status}` };
   const sj = await st.json();
   const s = String(sj?.status || '').toUpperCase();
   if (s === 'COMPLETED' || s === 'OK') {
-    const r = await fetch(`${FAL_QUEUE}/${model}/requests/${requestId}`, { headers, cache: 'no-store' });
+    const r = await fetch(`${FAL_QUEUE}/${falAppBase(model)}/requests/${requestId}`, { headers, cache: 'no-store' });
     if (!r.ok) return { status: 'error', error: `fal result ${r.status}` };
     const rj = await r.json();
     const url = rj?.video?.url || rj?.output?.video?.url || rj?.video_url || (Array.isArray(rj?.videos) ? rj.videos[0]?.url : undefined);
