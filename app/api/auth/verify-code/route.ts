@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { findAuthUserByEmail } from '@/lib/auth-users';
 
 // POST /api/auth/verify-code
 //
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   const admin = createServiceClient();
   const { data: profile, error: fetchErr } = await admin
     .from('profiles')
-    .select('email, name, redeemed_code, pending_code, pending_code_expires_at, pending_code_attempts, pending_code_purpose, email_verified')
+    .select('email, name, redeemed_code, subscription_status, pending_code, pending_code_expires_at, pending_code_attempts, pending_code_purpose, email_verified')
     .eq('email', email)
     .maybeSingle();
 
@@ -104,7 +105,11 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Contraseña inválida.' }, { status: 400 });
     }
 
-    const inviteMatch = profile.redeemed_code ? lookupInviteCode(profile.redeemed_code) : null;
+    // Si el perfil YA está activo/trialing (pagó, o lo activó el webhook o un
+    // código tipo LegacyQuito), verificar el email NO debe tocar su acceso:
+    // ni re-arrancar un trial ni borrar su redeemed_code.
+    const yaActivo = ['active', 'trialing'].includes(String(profile.subscription_status || ''));
+    const inviteMatch = !yaActivo && profile.redeemed_code ? lookupInviteCode(profile.redeemed_code) : null;
     const trialEndsAt = inviteMatch ? new Date(Date.now() + inviteMatch.durationMs).toISOString() : null;
 
     const patch: Record<string, unknown> = {
@@ -119,8 +124,8 @@ export async function POST(req: NextRequest) {
       patch.trial_ends_at = trialEndsAt;
       patch.redeemed_code = inviteMatch.code;
       patch.activated_at = new Date().toISOString();
-    } else {
-      // Si no había código → limpiar el redeemed_code "pending"
+    } else if (!yaActivo) {
+      // Sin código válido y sin acceso previo → limpiar el redeemed_code "pending"
       patch.redeemed_code = null;
     }
 
@@ -150,8 +155,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 100 });
-    const authUser = list?.users?.find(u => u.email?.toLowerCase() === email);
+    // Busca en TODAS las páginas (la página 1 sola dejaba afuera a los usuarios
+    // 101+ → "Cuenta no encontrada" en el reset. Ver lib/auth-users.ts).
+    const authUser = await findAuthUserByEmail(admin, email);
     if (!authUser) {
       return Response.json({ error: 'Cuenta no encontrada.' }, { status: 404 });
     }
