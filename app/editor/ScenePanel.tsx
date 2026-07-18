@@ -19,13 +19,15 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [hook, setHook] = useState<Caption | null>(null);
   const [hookText, setHookText] = useState("");
   const [headlineOptions, setHeadlineOptions] = useState<string[]>([]);
+  // Defaults = receta de la casa: subtítulo grande, palabra clave en color,
+  // hook con pop y cama musical (la auditoría 18-jul mostró renders planos).
   const [subPos, setSubPos] = useState<"middle" | "low">("middle");
-  const [subSize, setSubSize] = useState<"small" | "medium" | "large">("medium");
+  const [subSize, setSubSize] = useState<"small" | "medium" | "large">("large");
   const [subColor, setSubColor] = useState("#FFFFFF");
   const [accent, setAccent] = useState("#60a5fa");
-  const [musicMood, setMusicMood] = useState("");
-  const [headlineStyle, setHeadlineStyle] = useState("clean");
-  const [hookAnim, setHookAnim] = useState("fade");
+  const [musicMood, setMusicMood] = useState("uplifting motivational");
+  const [headlineStyle, setHeadlineStyle] = useState("highlight");
+  const [hookAnim, setHookAnim] = useState("pop");
   const [activeCap, setActiveCap] = useState("");
   const [activeHook, setActiveHook] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,12 +51,12 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setHookText(d.hookText || d.hook?.text || "");
       setHeadlineOptions(Array.isArray(d.headlineOptions) ? d.headlineOptions : []);
       setSubPos(d.subtitles?.position === "low" ? "low" : "middle");
-      setSubSize((["small", "medium", "large"].includes(d.subtitles?.size) ? d.subtitles.size : "medium"));
+      setSubSize((["small", "medium", "large"].includes(d.subtitles?.size) ? d.subtitles.size : "large"));
       setSubColor(d.subtitles?.color || "#FFFFFF");
       setAccent(d.accent || "#60a5fa");
-      setMusicMood(d.music_mood || "");
-      setHeadlineStyle(d.headlineStyle || "clean");
-      setHookAnim(d.hookAnim || "fade");
+      setMusicMood(d.music_mood || "uplifting motivational");
+      setHeadlineStyle(d.headlineStyle || "highlight");
+      setHookAnim(d.hookAnim || "pop");
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   }

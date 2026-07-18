@@ -55,6 +55,17 @@ import { getUserKey } from '@/lib/user-key';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
+// 🧂 RECETA DE LA CASA — estándar de estilo que viaja en TODAS las ediciones
+// (auditoría 18-jul sobre un render: subtítulos blancos planos sin acento,
+// hook estático, cero zooms y sin música → esto fija ese 5% que faltaba).
+// Los pedidos del usuario SIEMPRE pisan la receta.
+const RECETA_CASA = `ESTILO DE LA CASA (aplicalo siempre; los pedidos del usuario tienen prioridad):
+- Subtítulos: 1 sola línea de 2-4 palabras, grandes y en negrita, sincronizados palabra por palabra con la voz; resaltá LA palabra clave de cada frase en el color de acento.
+- Hook inicial: máximo 6 palabras, con la palabra más fuerte en color de acento; entra con animación (pop) en el primer medio segundo y sale antes del segundo 3.
+- Ritmo visual: micro-zoom (3-5%) o cambio de plano en cada cambio de idea (cada 5-8 segundos); nunca más de 8 segundos con el encuadre estático; cero aire muerto mayor a 0.4s.
+- Música: agregá SIEMPRE una cama instrumental acorde al tono del video, 10-15% por debajo de la voz (que nunca la tape), con una subida sutil en el cierre.
+- Cierre: la última frase también como texto grande en pantalla (remate visual).`;
+
 // 🚀 TOPCUT LANZADO — el editor está público. Para volver a ocultarlo (mostrar
 // la cuenta regresiva ComingSoon): setear NEXT_PUBLIC_TOPCUT_LIVE=0 en Vercel.
 const TOPCUT_LIVE = process.env.NEXT_PUBLIC_TOPCUT_LIVE !== '0';
@@ -384,8 +395,9 @@ export default function Topcut() {
     // `instructions` (que sí se usa para el plan) y `context` vacío. Cuando se
     // arregle transcribe_openai.py, volver a: fd.append('context', context).
     const mergedInstructions = [
+      RECETA_CASA,
       context.trim() ? `Contexto del video: ${context.trim()}` : '',
-      instructions.trim(),
+      instructions.trim() ? `Pedidos del usuario (PRIORIDAD sobre el estilo de la casa): ${instructions.trim()}` : '',
     ].filter(Boolean).join('\n\n');
     fd.append('context', '');
     fd.append('instructions', mergedInstructions);
@@ -485,6 +497,9 @@ export default function Topcut() {
       qs.set('trimEnd', String(segs[segs.length - 1].end));
     }
     if (context) qs.set('context', context.slice(0, 500));
+    // La receta de la casa también en el flujo directo (si el backend la ignora,
+    // no molesta; si la lee, todas las ediciones salen con el estándar).
+    qs.set('instructions', RECETA_CASA);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${ticket.api}/api/jobs?${qs.toString()}`);
