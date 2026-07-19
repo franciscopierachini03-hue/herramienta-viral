@@ -76,12 +76,14 @@ function estadoPorUso(usado?: number, limite?: number): Servicio['estado'] {
 }
 
 // Un request a una API de RapidAPI leyendo los headers de cuota del gateway.
-async function medirRapidApi(host: string, path: string): Promise<{ limite?: number; restante?: number; body: string }> {
+async function medirRapidApi(host: string, path: string, init?: { method?: string; body?: string }): Promise<{ limite?: number; restante?: number; body: string }> {
   const key = process.env.RAPIDAPI_KEY;
   if (!key) return { body: 'sin RAPIDAPI_KEY' };
   try {
     const res = await fetch(`https://${host}${path}`, {
-      headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': key },
+      method: init?.method || 'GET',
+      headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': key, ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
+      body: init?.body,
     });
     const lim = Number(res.headers.get('x-ratelimit-requests-limit'));
     const rem = Number(res.headers.get('x-ratelimit-requests-remaining'));
@@ -158,8 +160,9 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
       estado: sc.limite ? estadoPorUso(sc.limite - (sc.restante ?? 0), sc.limite) : 'sin-dato',
     });
     const fb = await medirRapidApi(
-      'facebook-reel-and-video-downloader.p.rapidapi.com',
-      '/app/main.php?url=' + encodeURIComponent('https://www.facebook.com/share/r/19hAnb69w2/'),
+      process.env.FB_DL_HOST || 'social-download-all-in-one.p.rapidapi.com',
+      process.env.FB_DL_PATH || '/v1/social/autolink',
+      { method: 'POST', body: JSON.stringify({ url: 'https://www.facebook.com/share/r/19hAnb69w2/' }) },
     );
     const sinSub = /not subscribed/i.test(fb.body);
     servicios.push({
@@ -167,7 +170,7 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
       limite: fb.limite, restante: fb.restante,
       usado: fb.limite != null && fb.restante != null ? fb.limite - fb.restante : undefined,
       unidad: 'requests',
-      nota: sinSub ? 'FALTA la suscripción gratis (vikas5914/facebook-reel-and-video-downloader).' : undefined,
+      nota: sinSub ? 'FALTA la suscripción gratis (social-download-all-in-one).' : 'social-download-all-in-one (plan gratis Basic).',
       estado: sinSub ? 'roto' : (fb.limite ? estadoPorUso(fb.limite - (fb.restante ?? 0), fb.limite) : 'ok'),
     });
   } else {
@@ -177,7 +180,7 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
     });
     servicios.push({
       key: 'fbdl', icono: '📘', nombre: 'Facebook — downloader', costoMes: 0,
-      nota: 'Pendiente: suscripción gratis en RapidAPI (vikas5914). «Medición profunda» lo verifica.', estado: 'roto',
+      nota: 'social-download-all-in-one (plan gratis, 100/mes). «Medición profunda» ve el cupo.', estado: 'ok',
     });
   }
 
