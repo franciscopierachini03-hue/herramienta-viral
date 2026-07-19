@@ -1,48 +1,86 @@
 'use client';
 
-// Chat de ideas de ViralADN — método de 3 preguntas:
-//   1) ¿A qué te dedicas hoy? (nicho)
-//   2) ¿Qué es lo que más te apasiona hoy? (pilar 1)
-//   3) ¿Qué es lo que más amas hoy? (pilar 2)
-// Con eso la IA devuelve 15 palabras CLAVE (de a una palabra) como chips
-// clicables. Al tocar un chip, se dispara la búsqueda (via onPick).
+// 🎯 Chat de ViralADN — basado en el CLIENTE IDEAL:
+//   1) La persona describe su cliente ideal (una vez).
+//   2) La IA devuelve palabras clave (1-2 palabras) como chips clicables.
+//   3) Las palabras se GUARDAN en su cuenta (/api/nicho) → cuando vuelve, su
+//      lista ya está lista para buscar, sin rehacer el proceso.
+// Tocar un chip 🔎 dispara la búsqueda (via onPick). El ⭐ guarda/quita.
 
 import { useState, useRef, useEffect } from 'react';
 
 type Msg = { role: 'user' | 'assistant'; content: string; terms?: string[] };
-type Answers = { dedico: string; apasiona: string; amo: string };
 
-const Q1 = 'Te ayudo a armar tu lista de palabras 🔥 Responde 3 cosas (una por una):\n\n1️⃣ ¿A qué te dedicas hoy en día? (tu nicho)';
-const Q2 = '2️⃣ ¿Qué es lo que MÁS te apasiona hoy en día?';
-const Q3 = '3️⃣ Y por último: ¿qué es lo que más amas hoy?';
+const EJEMPLO_CLIENTE = 'Ej: Expertos, coaches, consultores y mentores con una oferta validada que quieren escalar sus ventas convirtiendo su conocimiento en contenido viral.';
 
 export default function IdeasChat({ onPick }: { onPick: (term: string) => void }) {
   const [open, setOpen] = useState(true);
-  const [step, setStep] = useState(0); // 0,1,2 = juntando respuestas · 3 = generado
-  const [ans, setAns] = useState<Answers>({ dedico: '', apasiona: '', amo: '' });
-  const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: Q1 }]);
+  const [cargando, setCargando] = useState(true);
+  const [dormido, setDormido] = useState(false);
+  const [clienteIdeal, setClienteIdeal] = useState('');
+  const [saved, setSaved] = useState<string[]>([]);
+  const [definiendo, setDefiniendo] = useState(true); // pidiendo el cliente ideal
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const shownRef = useRef<string[]>([]); // palabras ya mostradas (para "dame más")
+  const shownRef = useRef<string[]>([]); // palabras ya mostradas/guardadas (para "dame más")
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy, cargando]);
 
-  async function generate(answers: Answers, extra: string) {
+  // Cargar lo guardado al abrir.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/nicho', { cache: 'no-store' });
+        const j = await r.json();
+        const ci: string = j.clienteIdeal || '';
+        const pal: string[] = Array.isArray(j.palabras) ? j.palabras : [];
+        setDormido(!!j.dormido);
+        setClienteIdeal(ci);
+        setSaved(pal);
+        shownRef.current = [...pal];
+        setDefiniendo(!ci);
+        setMessages([{
+          role: 'assistant',
+          content: ci
+            ? '¡Hola de nuevo! 👋 Tu cliente ideal ya está guardado. Tocá ✨ Generar más palabras cuando quieras, o cambialo.'
+            : 'Armemos tu lista 🔥 Contame en una frase: ¿quién es tu CLIENTE IDEAL?',
+        }]);
+      } catch {
+        setDefiniendo(true);
+        setMessages([{ role: 'assistant', content: '¿Quién es tu CLIENTE IDEAL? Describilo en una frase y te armo la lista.' }]);
+      } finally {
+        setCargando(false);
+      }
+    })();
+  }, []);
+
+  async function persistir(ci: string, pal: string[]) {
+    try {
+      const r = await fetch('/api/nicho', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteIdeal: ci, palabras: pal }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j?.dormido) setDormido(true);
+    } catch { /* best-effort */ }
+  }
+
+  async function generar(ci: string, extra: string) {
     setBusy(true);
     try {
       const r = await fetch('/api/ideas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...answers, exclude: shownRef.current, extra }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteIdeal: ci, exclude: shownRef.current, extra }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'error');
       const terms: string[] = Array.isArray(j.terms) ? j.terms : [];
       shownRef.current = [...shownRef.current, ...terms];
-      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Aquí tienes tus palabras:', terms }]);
+      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Acá tenés tus palabras:', terms }]);
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Prueba de nuevo en un momento.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Probá de nuevo en un momento.' }]);
     } finally {
       setBusy(false);
     }
@@ -53,56 +91,101 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
     if (!t || busy) return;
     setMessages(m => [...m, { role: 'user', content: t }]);
     setInput('');
-
-    if (step === 0) {
-      setAns(a => ({ ...a, dedico: t }));
-      setMessages(m => [...m, { role: 'assistant', content: Q2 }]);
-      setStep(1);
-    } else if (step === 1) {
-      setAns(a => ({ ...a, apasiona: t }));
-      setMessages(m => [...m, { role: 'assistant', content: Q3 }]);
-      setStep(2);
-    } else if (step === 2) {
-      const finalAns = { ...ans, amo: t };
-      setAns(finalAns);
-      setStep(3);
-      await generate(finalAns, '');
+    if (definiendo) {
+      setClienteIdeal(t);
+      setDefiniendo(false);
+      persistir(t, saved);
+      await generar(t, '');
     } else {
-      await generate(ans, t); // refinamiento libre
+      await generar(clienteIdeal, t); // ajuste/refinamiento libre
     }
   }
 
-  function reset() {
-    setStep(0);
-    setAns({ dedico: '', apasiona: '', amo: '' });
-    shownRef.current = [];
-    setMessages([{ role: 'assistant', content: 'Listo, arrancamos de nuevo 🔥\n\n1️⃣ ¿A qué te dedicas hoy en día? (tu nicho)' }]);
+  const isSaved = (t: string) => saved.some(x => x.toLowerCase() === t.toLowerCase());
+
+  function toggleSave(t: string) {
+    setSaved(prev => {
+      const yaEsta = prev.some(x => x.toLowerCase() === t.toLowerCase());
+      const next = yaEsta ? prev.filter(x => x.toLowerCase() !== t.toLowerCase()) : [...prev, t];
+      persistir(clienteIdeal, next);
+      return next;
+    });
   }
 
-  const placeholder = step < 3 ? 'Escribe tu respuesta…' : 'Pide más o ajusta (ej: más de fitness)…';
+  function guardarTodas(terms: string[]) {
+    setSaved(prev => {
+      const set = new Set(prev.map(x => x.toLowerCase()));
+      const next = [...prev];
+      for (const t of terms) if (!set.has(t.toLowerCase())) { next.push(t); set.add(t.toLowerCase()); }
+      persistir(clienteIdeal, next);
+      return next;
+    });
+  }
+
+  function cambiarCliente() {
+    setDefiniendo(true);
+    setMessages(m => [...m, { role: 'assistant', content: 'Dale 👇 ¿Quién es tu nuevo CLIENTE IDEAL? (tus palabras guardadas quedan intactas)' }]);
+  }
+
+  const ultimaConTerms = [...messages].reverse().find(m => m.terms && m.terms.length);
+  const placeholder = definiendo ? EJEMPLO_CLIENTE : 'Ajustá o pedí más (ej: más de ventas, en inglés)…';
 
   return (
     <div className="rounded-2xl mb-5 overflow-hidden" style={{ background: 'linear-gradient(145deg, #120c1f, #0b0b0b)', border: '1px solid #7c3aed44' }}>
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
         <span className="flex items-center gap-2 text-sm font-bold text-white">
-          <span>💡</span> ¿No sabes qué buscar? Responde 3 preguntas y te doy tu lista
+          <span>🎯</span> Definí tu cliente ideal y armá tu lista de palabras
         </span>
         <span className="text-xs" style={{ color: '#888' }}>{open ? 'Ocultar ▲' : 'Mostrar ▼'}</span>
       </button>
 
       {open && (
         <div className="px-4 pb-4">
-          {/* Progreso de las 3 preguntas */}
-          {step < 3 && (
-            <div className="flex items-center gap-1.5 mb-3">
-              {[0, 1, 2].map(i => (
-                <span key={i} className="h-1 flex-1 rounded-full" style={{ background: i <= step ? 'linear-gradient(90deg,#a855f7,#ec4899)' : '#222' }} />
-              ))}
-              <span className="text-[10px] ml-1" style={{ color: '#888' }}>{Math.min(step + 1, 3)}/3</span>
+          {/* Palabras guardadas — persisten, no se rehacen */}
+          {saved.length > 0 && (
+            <div className="rounded-xl p-3 mb-3" style={{ background: '#0a1508', border: '1px solid #22c55e33' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold" style={{ color: '#86efac' }}>⭐ Tus palabras guardadas ({saved.length})</span>
+                <span className="text-[10px]" style={{ color: '#5a8a6a' }}>se guardan solas · tocá 🔎 para buscar</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {saved.map((t, k) => (
+                  <span key={k} className="inline-flex items-center rounded-full overflow-hidden" style={{ background: '#22c55e14', border: '1px solid #22c55e44' }}>
+                    <button onClick={() => onPick(t)} className="text-xs pl-3 pr-2 py-1.5 font-semibold" style={{ color: '#86efac' }} title="Buscar este tema">🔎 {t}</button>
+                    <button onClick={() => toggleSave(t)} className="text-xs px-2 py-1.5" style={{ color: '#5a8a6a' }} title="Quitar de guardadas">✕</button>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
+          {/* Cliente ideal actual */}
+          {clienteIdeal && !definiendo && (
+            <div className="rounded-xl p-3 mb-3 flex items-start justify-between gap-3" style={{ background: '#120c1f', border: '1px solid #7c3aed33' }}>
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold mb-0.5" style={{ color: '#a78bfa' }}>🎯 Tu cliente ideal</div>
+                <div className="text-xs" style={{ color: '#cbb8f0' }}>{clienteIdeal}</div>
+              </div>
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <button onClick={() => generar(clienteIdeal, '')} disabled={busy}
+                  className="text-[11px] px-2.5 py-1 rounded-full font-bold whitespace-nowrap disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg,#a855f7,#ec4899)', color: '#fff' }}>✨ Generar más</button>
+                <button onClick={cambiarCliente}
+                  className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap"
+                  style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888' }}>✎ Cambiar</button>
+              </div>
+            </div>
+          )}
+
+          {dormido && (
+            <div className="rounded-xl p-2.5 mb-3 text-[11px]" style={{ background: '#2a1a06', border: '1px solid #7c5410', color: '#fbbf24' }}>
+              ⚠️ El guardado se activa al correr el SQL (nicho_usuario). Por ahora las palabras no persisten al recargar.
+            </div>
+          )}
+
+          {/* Conversación */}
           <div className="flex flex-col gap-2.5 mb-3 max-h-80 overflow-y-auto pr-1">
+            {cargando && <div className="self-start text-xs" style={{ color: '#888' }}>cargando tu lista…</div>}
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'self-end max-w-[85%]' : 'self-start max-w-[92%]'}>
                 <div className="px-3.5 py-2.5 rounded-2xl text-sm whitespace-pre-line"
@@ -112,38 +195,36 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
                   {m.content}
                 </div>
                 {m.terms && m.terms.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {m.terms.map((t, k) => (
-                      <button key={k} onClick={() => onPick(t)}
-                        className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
-                        style={{ background: '#7c3aed1f', border: '1px solid #7c3aed55', color: '#c4b5fd' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#7c3aed33'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#7c3aed1f'; }}
-                        title="Buscar este tema">
-                        🔎 {t}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {m.terms.map((t, k) => (
+                        <span key={k} className="inline-flex items-center rounded-full overflow-hidden" style={{ background: '#7c3aed1f', border: '1px solid #7c3aed55' }}>
+                          <button onClick={() => onPick(t)} className="text-xs pl-3 pr-2 py-1.5 font-semibold" style={{ color: '#c4b5fd' }} title="Buscar este tema">🔎 {t}</button>
+                          <button onClick={() => toggleSave(t)} className="text-xs px-2 py-1.5" style={{ color: isSaved(t) ? '#fcd34d' : '#7c6aa8' }} title={isSaved(t) ? 'Guardada' : 'Guardar'}>{isSaved(t) ? '⭐' : '☆'}</button>
+                        </span>
+                      ))}
+                    </div>
+                    <button onClick={() => guardarTodas(m.terms!)}
+                      className="text-[11px] px-3 py-1 mt-2 rounded-full font-semibold"
+                      style={{ background: '#22c55e18', border: '1px solid #22c55e44', color: '#86efac' }}>⭐ Guardar todas</button>
+                  </>
                 )}
               </div>
             ))}
             {busy && (
               <div className="self-start px-3.5 py-2.5 rounded-2xl text-sm" style={{ background: '#141414', border: '1px solid #232323', color: '#888' }}>
-                buscando tus palabras…
+                armando tus palabras…
               </div>
             )}
             <div ref={endRef} />
           </div>
 
           {/* Acciones tras generar */}
-          {step === 3 && !busy && (
+          {!definiendo && ultimaConTerms && !busy && (
             <div className="flex gap-2 mb-3 flex-wrap">
-              <button onClick={() => generate(ans, '')}
+              <button onClick={() => generar(clienteIdeal, '')}
                 className="text-xs px-3 py-1.5 rounded-full font-semibold"
                 style={{ background: '#7c3aed22', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>🔄 Dame más palabras</button>
-              <button onClick={reset}
-                className="text-xs px-3 py-1.5 rounded-full"
-                style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888' }}>↺ Empezar de nuevo</button>
             </div>
           )}
 
@@ -157,7 +238,7 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
               className="px-4 rounded-xl text-sm font-bold disabled:opacity-40"
               style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff' }}>↑</button>
           </div>
-          {step === 3 && <p className="text-[11px] mt-2" style={{ color: '#555' }}>Toca una palabra 🔎 y se busca sola.</p>}
+          {definiendo && <p className="text-[11px] mt-2" style={{ color: '#7c6aa8' }}>💡 Cuanto más claro el cliente ideal, más acertadas las palabras.</p>}
         </div>
       )}
     </div>
