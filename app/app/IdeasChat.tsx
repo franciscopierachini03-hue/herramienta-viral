@@ -20,6 +20,8 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
   const [clienteIdeal, setClienteIdeal] = useState('');
   const [saved, setSaved] = useState<string[]>([]);
   const [definiendo, setDefiniendo] = useState(true); // pidiendo el cliente ideal
+  const [ayudando, setAyudando] = useState(false);    // modo "ayudame a definirlo"
+  const [propuesta, setPropuesta] = useState('');     // cliente ideal propuesto por la IA
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,12 +88,50 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
     }
   }
 
+  // Modo "ayudame a definirlo": la IA hace preguntas cortas y propone la frase.
+  async function ayudarADefinir(historial: Msg[]) {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/ideas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: 'definir', messages: historial.map(m => ({ role: m.role, content: m.content })) }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'error');
+      setMessages(m => [...m, { role: 'assistant', content: j.reply || '¿Qué vendés?' }]);
+      setPropuesta(typeof j.propuesta === 'string' ? j.propuesta : '');
+    } catch {
+      setMessages(m => [...m, { role: 'assistant', content: 'No pude seguir ahora. Probá de nuevo en un momento.' }]);
+    } finally { setBusy(false); }
+  }
+
+  function arrancarAyuda() {
+    setAyudando(true);
+    setPropuesta('');
+    setMessages(m => [...m, { role: 'assistant', content: 'Dale, lo armamos juntos 💪 Contame: ¿qué vendés o qué resultado le hacés lograr a la gente?' }]);
+  }
+
+  function usarPropuesta() {
+    const ci = propuesta.trim();
+    if (!ci) return;
+    setClienteIdeal(ci);
+    setDefiniendo(false);
+    setAyudando(false);
+    setPropuesta('');
+    setMessages(m => [...m, { role: 'assistant', content: `Guardado ✅\n\n🎯 ${ci}\n\nAhora te armo tus palabras.` }]);
+    persistir(ci, saved);
+    generar(ci, '');
+  }
+
   async function send(text: string) {
     const t = text.trim();
     if (!t || busy) return;
-    setMessages(m => [...m, { role: 'user', content: t }]);
+    const nuevos: Msg[] = [...messages, { role: 'user', content: t }];
+    setMessages(nuevos);
     setInput('');
-    if (definiendo) {
+    if (ayudando) {
+      await ayudarADefinir(nuevos);
+    } else if (definiendo) {
       setClienteIdeal(t);
       setDefiniendo(false);
       persistir(t, saved);
@@ -128,7 +168,9 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
   }
 
   const ultimaConTerms = [...messages].reverse().find(m => m.terms && m.terms.length);
-  const placeholder = definiendo ? EJEMPLO_CLIENTE : 'Ajustá o pedí más (ej: más de ventas, en inglés)…';
+  const placeholder = ayudando ? 'Contame qué vendés o a quién ayudás…'
+    : definiendo ? EJEMPLO_CLIENTE
+    : 'Ajustá o pedí más (ej: más de ventas, en inglés)…';
 
   return (
     <div className="rounded-2xl mb-5 overflow-hidden" style={{ background: 'linear-gradient(145deg, #120c1f, #0b0b0b)', border: '1px solid #7c3aed44' }}>
@@ -218,6 +260,32 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
             )}
             <div ref={endRef} />
           </div>
+
+          {/* "No lo sé" → la IA te ayuda a definir el cliente ideal */}
+          {definiendo && !ayudando && !busy && (
+            <button onClick={arrancarAyuda} className="text-xs px-3 py-1.5 rounded-full mb-3"
+              style={{ background: '#1a1030', border: '1px solid #7c3aed55', color: '#c4b5fd' }}>
+              🤔 No lo sé — ayudame a definirlo
+            </button>
+          )}
+
+          {/* Propuesta de cliente ideal, lista para guardar */}
+          {propuesta && !busy && (
+            <div className="rounded-xl p-3 mb-3" style={{ background: '#0a1508', border: '1px solid #22c55e44' }}>
+              <div className="text-[11px] font-bold mb-1" style={{ color: '#86efac' }}>🎯 Tu cliente ideal (propuesta)</div>
+              <div className="text-xs mb-2.5" style={{ color: '#d7f5e3' }}>{propuesta}</div>
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={usarPropuesta} className="text-[11px] px-3 py-1.5 rounded-full font-bold"
+                  style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
+                  ✅ Usar este y darme las palabras
+                </button>
+                <button onClick={() => setPropuesta('')} className="text-[11px] px-3 py-1.5 rounded-full"
+                  style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888' }}>
+                  ✍️ Ajustarlo
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Acciones tras generar */}
           {!definiendo && ultimaConTerms && !busy && (
