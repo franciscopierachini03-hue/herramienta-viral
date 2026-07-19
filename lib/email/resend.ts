@@ -152,3 +152,44 @@ export async function sendPasswordResetCode(email: string, code: string) {
     html,
   });
 }
+
+// ── Centro de Ayuda: formulario de contacto ──────────────────────────────
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+// El mensaje del usuario → llega a contacto@viraladn.com con reply-to del
+// usuario, así se responde directo desde la bandeja.
+export async function sendMensajeContacto(opts: { nombre: string; email: string; asunto: string; mensaje: string }) {
+  const destino = process.env.CONTACTO_EMAIL || 'contacto@viraladn.com';
+  const body = `
+    <h1 style="font-size:20px;color:#fff;margin:0 0 16px;">Nuevo mensaje del Centro de Ayuda</h1>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;color:#ddd;line-height:1.7;">
+      <tr><td style="color:#888;padding-right:12px;">De:</td><td><b>${escapeHtml(opts.nombre)}</b></td></tr>
+      <tr><td style="color:#888;padding-right:12px;">Correo:</td><td><a href="mailto:${escapeHtml(opts.email)}" style="color:#c4b5fd;">${escapeHtml(opts.email)}</a></td></tr>
+      <tr><td style="color:#888;padding-right:12px;">Asunto:</td><td>${escapeHtml(opts.asunto)}</td></tr>
+    </table>
+    <div style="margin-top:20px;padding:16px;background:#0a0a0a;border:1px solid #1f1f1f;border-radius:12px;font-size:14px;color:#e5e5e5;line-height:1.7;white-space:pre-wrap;">${escapeHtml(opts.mensaje)}</div>
+    <p style="font-size:12px;color:#666;margin:16px 0 0;">Respondé este correo y le llega directo a ${escapeHtml(opts.nombre)}.</p>
+  `;
+  const html = shellEmail({ title: 'Mensaje de contacto', preheader: `${opts.nombre}: ${opts.mensaje.slice(0, 80)}`, body });
+  return client().emails.send({
+    from: from(),
+    to: destino,
+    replyTo: opts.email,
+    subject: `[Ayuda] ${opts.asunto} — ${opts.nombre}`,
+    html,
+  });
+}
+
+// Confirmación al usuario de que su mensaje llegó.
+export async function sendConfirmacionContacto(email: string, nombre: string) {
+  const body = `
+    <h1 style="font-size:22px;color:#fff;margin:0 0 12px;">Recibimos tu mensaje ✅</h1>
+    <p style="font-size:14px;color:#aaa;line-height:1.6;margin:0;">Hola ${escapeHtml(nombre)}, gracias por escribirnos. Tu consulta llegó a nuestro equipo y te vamos a responder a este mismo correo lo antes posible.</p>
+    <p style="font-size:13px;color:#888;line-height:1.6;margin:16px 0 0;">Mientras tanto, muchas dudas se resuelven al toque en el chat de ayuda de la plataforma.</p>
+  `;
+  const html = shellEmail({ title: 'Recibimos tu mensaje', preheader: 'Gracias por escribirnos — te respondemos pronto.', body });
+  return client().emails.send({ from: from(), to: email, subject: 'Recibimos tu mensaje — ViralADN', html });
+}

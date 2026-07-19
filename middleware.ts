@@ -94,6 +94,7 @@ export async function middleware(req: NextRequest) {
       pathname === '/proximamente' || pathname.startsWith('/proximamente/') ||
       pathname === '/login' || pathname.startsWith('/login/') ||
       pathname === '/evento' || pathname.startsWith('/evento/') || pathname === '/api/evento' ||
+      pathname === '/ayuda' || pathname.startsWith('/ayuda/') || pathname.startsWith('/api/ayuda') ||
       pathname.startsWith('/api/auth') || pathname === '/api/waitlist';
     if (alwaysOpen) return NextResponse.next();
 

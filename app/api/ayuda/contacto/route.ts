@@ -1,0 +1,45 @@
+import { NextRequest } from 'next/server';
+import { sendMensajeContacto, sendConfirmacionContacto } from '@/lib/email/resend';
+import { rateLimit, clientIp } from '@/lib/ratelimit';
+
+// POST /api/ayuda/contacto — el formulario de contacto (público).
+// Body: { nombre, email, asunto?, mensaje, hp? }. Manda el mensaje a
+// contacto@viraladn.com (reply-to del usuario) + confirmación al usuario.
+// hp = honeypot: si viene con algo, es un bot → respondemos ok sin enviar.
+
+export const dynamic = 'force-dynamic';
+
+const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+export async function POST(req: NextRequest) {
+  // Anti-abuso: 5 mensajes cada 10 minutos por IP.
+  const rl = rateLimit(`ayuda-contacto:${clientIp(req)}`, 5, 10 * 60_000);
+  if (!rl.ok) return Response.json({ error: `Enviaste varios mensajes. Probá de nuevo en un rato.` }, { status: 429 });
+
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch { return Response.json({ error: 'JSON inválido.' }, { status: 400 }); }
+
+  // Honeypot: campo invisible que solo un bot completa.
+  if (typeof body.hp === 'string' && body.hp.trim() !== '') return Response.json({ ok: true });
+
+  const nombre = String(body.nombre || '').trim().slice(0, 100);
+  const email = String(body.email || '').trim().toLowerCase().slice(0, 200);
+  const asunto = (String(body.asunto || '').trim() || 'Consulta').slice(0, 140);
+  const mensaje = String(body.mensaje || '').trim().slice(0, 4000);
+
+  if (nombre.length < 2) return Response.json({ error: 'Decinos tu nombre.' }, { status: 400 });
+  if (!emailOk(email)) return Response.json({ error: 'Poné un correo válido.' }, { status: 400 });
+  if (mensaje.length < 5) return Response.json({ error: 'Contanos un poco más en el mensaje.' }, { status: 400 });
+
+  try {
+    await sendMensajeContacto({ nombre, email, asunto, mensaje });
+  } catch (e) {
+    console.error('[ayuda/contacto] envío:', e);
+    return Response.json({ error: 'No pudimos enviar el mensaje. Probá de nuevo en un momento.' }, { status: 502 });
+  }
+
+  // La confirmación al usuario es "best-effort": si falla, el mensaje ya se envió.
+  try { await sendConfirmacionContacto(email, nombre); } catch (e) { console.error('[ayuda/contacto] confirmación:', e); }
+
+  return Response.json({ ok: true });
+}
