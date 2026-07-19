@@ -452,88 +452,49 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
       <div className="max-w-7xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Panel de admin</h1>
             <p className="text-xs" style={{ color: '#666' }}>
               Logueado como {user.email}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/admin/ventas"
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#0a1a12', border: '1px solid #22c55e55', color: '#86efac' }}>
-              📊 Ventas por día
-            </Link>
-            <Link href="/admin/pagos"
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#10141f', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>
-              💳 Pagos
-            </Link>
-            <Link href="/admin/costos"
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>
-              💸 Costos de APIs
-            </Link>
-            <Link href="/admin/whatsapp"
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
-              📲 WhatsApp
-            </Link>
+          <Link href="/app" className="text-sm" style={{ color: '#888' }}>
+            ← Volver a la app
+          </Link>
+        </div>
+
+        {/* Barra de herramientas — agrupada por propósito */}
+        <div className="mb-4 rounded-2xl p-4 flex flex-wrap items-center gap-x-7 gap-y-3"
+          style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wide mr-0.5" style={{ color: '#555' }}>Reportes</span>
+            <Link href="/admin/ventas" className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#0a1a12', border: '1px solid #22c55e55', color: '#86efac' }}>📊 Ventas por día</Link>
+            <Link href="/admin/pagos" className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#10141f', border: '1px solid #7c3aed44', color: '#c4b5fd' }}>💳 Pagos</Link>
+            <Link href="/admin/costos" className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#1a1408', border: '1px solid #a1620a55', color: '#fcd34d' }}>💸 Costos de APIs</Link>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wide mr-0.5" style={{ color: '#555' }}>Exportar</span>
+            <a href="/api/admin/export" download className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#eee' }}>⬇ Clientes CSV</a>
+            <a href="/api/admin/export?type=ventas" download className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>💵 Exportar ventas</a>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wide mr-0.5" style={{ color: '#555' }}>Acciones</span>
+            <Link href="/admin/whatsapp" className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>📲 WhatsApp</Link>
             <ReconcileButton />
-            <a href="/api/admin/export" download
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#eee' }}>
-              ⬇ Clientes CSV
-            </a>
-            <a href="/api/admin/export?type=ventas" download
-              className="px-4 py-2 rounded-xl text-xs font-bold"
-              style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
-              💵 Exportar ventas
-            </a>
-            <Link href="/app"
-              className="text-sm" style={{ color: '#888' }}>
-              ← Volver a la app
-            </Link>
           </div>
         </div>
 
-        {/* Envío masivo de accesos Legacy */}
-        <SendAccessPanel />
-
-        {/* Restablecer contraseña de un usuario + arreglar accesos en masa */}
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <AdminResetPassword />
-          <AdminFixAccess />
+        {/* Navegación rápida a las secciones */}
+        <div className="mb-8 flex flex-wrap gap-2 text-xs">
+          <a href="#facturacion" className="px-3 py-1.5 rounded-full" style={{ background: '#12101f', border: '1px solid #2a2a36', color: '#c4b5fd' }}>💳 Facturación</a>
+          <a href="#costos" className="px-3 py-1.5 rounded-full" style={{ background: '#12101f', border: '1px solid #2a2a36', color: '#fcd34d' }}>💸 Costos</a>
+          <a href="#usuarios" className="px-3 py-1.5 rounded-full" style={{ background: '#12101f', border: '1px solid #2a2a36', color: '#86efac' }}>👥 Usuarios</a>
+          <a href="#gestion" className="px-3 py-1.5 rounded-full" style={{ background: '#12101f', border: '1px solid #2a2a36', color: '#fca5a5' }}>🛠️ Gestión</a>
         </div>
 
-        {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-          {[
-            { label: 'Total', value: stats.total, color: '#fff', filter: '' },
-            { label: 'Pagaron', value: stats.active, color: '#86efac', filter: 'active' },
-            { label: '🎁 Mes prueba', value: stats.trialMonth, color: '#5eead4', filter: 'trial-month' },
-            { label: 'En trial', value: stats.trialing, color: '#c4b5fd', filter: 'trial-active' },
-            { label: 'Sin pagar', value: stats.pending, color: '#9ca3af', filter: 'pending' },
-            { label: 'Cancelados', value: stats.cancelled, color: '#fda4af', filter: 'cancelled' },
-            { label: '🎁 Cortesía', value: stats.courtesy, color: '#fcd34d', filter: 'courtesy' },
-          ].map(s => (
-            <Link
-              key={s.label}
-              href={s.filter ? `/admin?status=${s.filter}` : '/admin'}
-              className="rounded-2xl p-4 transition-all hover:scale-[1.02]"
-              style={{
-                background: 'linear-gradient(145deg, #141414, #0d0d0d)',
-                border: statusFilter === s.filter ? `1px solid ${s.color}55` : '1px solid #1f1f1f',
-              }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>{s.label}</div>
-              <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
-            </Link>
-          ))}
-        </div>
-
-        {/* ── BILLING (Stripe) ───────────────────────────────────────────── */}
-        <div className="mb-6">
+        {/* ── FACTURACIÓN (Stripe) ───────────────────────────────────────── */}
+        <div id="facturacion" className="mb-8 scroll-mt-6">
           <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
             💳 Facturación
             {billing.configured && !billing.error && (
@@ -793,8 +754,8 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           )}
         </div>
 
-        {/* ── COSTO POR USUARIO ─────────────────────────────────────────── */}
-        <div className="mb-6">
+        {/* ── COSTOS DE API ─────────────────────────────────────────────── */}
+        <div id="costos" className="mb-8 scroll-mt-6">
           <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
             💸 Costo estimado por usuario
             <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
@@ -887,6 +848,37 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               Sin datos de uso todavía. Los logs se generan con cada búsqueda viral o transcripción.
             </div>
           )}
+        </div>
+
+        {/* ── USUARIOS ──────────────────────────────────────────────────── */}
+        <h2 id="usuarios" className="text-lg font-bold mb-3 flex items-center gap-2 scroll-mt-6">
+          👥 Usuarios
+          <span className="text-xs font-normal" style={{ color: '#666' }}>· tocá un contador para filtrar la tabla</span>
+        </h2>
+
+        {/* Contadores por estado (= filtros de la tabla) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+          {[
+            { label: 'Total', value: stats.total, color: '#fff', filter: '' },
+            { label: 'Pagaron', value: stats.active, color: '#86efac', filter: 'active' },
+            { label: '🎁 Mes prueba', value: stats.trialMonth, color: '#5eead4', filter: 'trial-month' },
+            { label: 'En trial', value: stats.trialing, color: '#c4b5fd', filter: 'trial-active' },
+            { label: 'Sin pagar', value: stats.pending, color: '#9ca3af', filter: 'pending' },
+            { label: 'Cancelados', value: stats.cancelled, color: '#fda4af', filter: 'cancelled' },
+            { label: '🎁 Cortesía', value: stats.courtesy, color: '#fcd34d', filter: 'courtesy' },
+          ].map(s => (
+            <Link
+              key={s.label}
+              href={s.filter ? `/admin?status=${s.filter}` : '/admin'}
+              className="rounded-2xl p-4 transition-all hover:scale-[1.02]"
+              style={{
+                background: 'linear-gradient(145deg, #141414, #0d0d0d)',
+                border: statusFilter === s.filter ? `1px solid ${s.color}55` : '1px solid #1f1f1f',
+              }}>
+              <div className="text-xs mb-1" style={{ color: '#666' }}>{s.label}</div>
+              <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
+            </Link>
+          ))}
         </div>
 
         {/* Filtros */}
@@ -1041,6 +1033,17 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── GESTIÓN (herramientas operativas — se usan de vez en cuando) ── */}
+        <div id="gestion" className="mt-10 pt-6 scroll-mt-6" style={{ borderTop: '1px solid #1f1f1f' }}>
+          <h2 className="text-lg font-bold mb-1 flex items-center gap-2">🛠️ Gestión de usuarios</h2>
+          <p className="text-xs mb-4" style={{ color: '#666' }}>Enviar accesos, resetear contraseñas y arreglar cuentas que quedaron a medias.</p>
+          <div className="mb-4"><SendAccessPanel /></div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AdminResetPassword />
+            <AdminFixAccess />
+          </div>
         </div>
       </div>
     </main>
