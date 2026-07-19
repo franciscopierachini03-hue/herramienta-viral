@@ -161,7 +161,7 @@ function escapeHtml(s: string): string {
 
 // El mensaje del usuario → llega a contacto@viraladn.com con reply-to del
 // usuario, así se responde directo desde la bandeja.
-export async function sendMensajeContacto(opts: { nombre: string; email: string; asunto: string; mensaje: string }) {
+export async function sendMensajeContacto(opts: { nombre: string; email: string; asunto: string; mensaje: string; adjunto?: { filename: string; base64: string } }) {
   const destino = process.env.CONTACTO_EMAIL || 'contacto@viraladn.com';
   const body = `
     <h1 style="font-size:20px;color:#fff;margin:0 0 16px;">Nuevo mensaje del Centro de Ayuda</h1>
@@ -171,6 +171,7 @@ export async function sendMensajeContacto(opts: { nombre: string; email: string;
       <tr><td style="color:#888;padding-right:12px;">Asunto:</td><td>${escapeHtml(opts.asunto)}</td></tr>
     </table>
     <div style="margin-top:20px;padding:16px;background:#0a0a0a;border:1px solid #1f1f1f;border-radius:12px;font-size:14px;color:#e5e5e5;line-height:1.7;white-space:pre-wrap;">${escapeHtml(opts.mensaje)}</div>
+    ${opts.adjunto ? '<p style="font-size:13px;color:#c4b5fd;margin:16px 0 0;">📎 Adjuntó una imagen — la ves en el adjunto de este correo.</p>' : ''}
     <p style="font-size:12px;color:#666;margin:16px 0 0;">Respondé este correo y le llega directo a ${escapeHtml(opts.nombre)}.</p>
   `;
   const html = shellEmail({ title: 'Mensaje de contacto', preheader: `${opts.nombre}: ${opts.mensaje.slice(0, 80)}`, body });
@@ -180,6 +181,7 @@ export async function sendMensajeContacto(opts: { nombre: string; email: string;
     replyTo: opts.email,
     subject: `[Ayuda] ${opts.asunto} — ${opts.nombre}`,
     html,
+    ...(opts.adjunto ? { attachments: [{ filename: opts.adjunto.filename, content: Buffer.from(opts.adjunto.base64, 'base64') }] } : {}),
   });
 }
 

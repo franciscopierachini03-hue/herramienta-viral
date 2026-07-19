@@ -99,15 +99,58 @@ export default function AyudaCliente() {
   );
 }
 
+// Comprime una imagen a JPEG (máx 1600px de lado) → dataURL liviano, para que
+// una captura pese poco y entre bien en el cuerpo del request.
+function comprimirImagen(file: File, maxLado = 1600, calidad = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (Math.max(width, height) > maxLado) {
+          const s = maxLado / Math.max(width, height);
+          width = Math.round(width * s); height = Math.round(height * s);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('canvas')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', calidad));
+      };
+      img.onerror = () => reject(new Error('img'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('read'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function FormularioContacto() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [asunto, setAsunto] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [hp, setHp] = useState(''); // honeypot
+  const [imagen, setImagen] = useState('');      // dataURL jpeg (opcional)
+  const [imgNombre, setImgNombre] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState('');
+
+  async function elegirImagen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite re-elegir el mismo archivo
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('El adjunto tiene que ser una imagen.'); return; }
+    if (file.size > 15 * 1024 * 1024) { setError('La imagen es muy pesada (máx 15 MB).'); return; }
+    setError('');
+    try {
+      setImagen(await comprimirImagen(file));
+      setImgNombre(file.name);
+    } catch { setError('No pude leer esa imagen. Probá con otra.'); }
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -115,7 +158,7 @@ function FormularioContacto() {
     try {
       const r = await fetch('/api/ayuda/contacto', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, asunto, mensaje, hp }),
+        body: JSON.stringify({ nombre, email, asunto, mensaje, hp, imagen, imgNombre }),
       });
       const d = await r.json();
       if (d.error) setError(d.error);
@@ -149,6 +192,24 @@ function FormularioContacto() {
           className="w-full text-sm px-4 py-2.5 rounded-xl outline-none" style={inp} />
         <textarea required value={mensaje} onChange={e => setMensaje(e.target.value)} placeholder="Contanos en qué te ayudamos…" rows={4}
           className="w-full text-sm px-4 py-2.5 rounded-xl outline-none resize-y" style={inp} />
+
+        {/* Adjuntar una foto (opcional) — ideal para reportar un error con captura */}
+        {!imagen ? (
+          <label className="flex items-center gap-2 text-sm cursor-pointer px-4 py-2.5 rounded-xl"
+            style={{ background: '#0a0a12', border: '1px dashed #3a3a4a', color: '#9ca3af' }}>
+            📎 Adjuntar una foto <span className="text-[11px]" style={{ color: '#666' }}>(opcional — ideal si reportás un error)</span>
+            <input type="file" accept="image/*" onChange={elegirImagen} className="hidden" />
+          </label>
+        ) : (
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagen} alt="adjunto" className="rounded-lg shrink-0" style={{ width: 44, height: 44, objectFit: 'cover' }} />
+            <span className="text-xs flex-1 truncate" style={{ color: '#cbd5e1' }}>{imgNombre || 'imagen adjunta'}</span>
+            <button type="button" onClick={() => { setImagen(''); setImgNombre(''); }}
+              className="text-xs px-2.5 py-1 rounded-lg" style={{ background: '#3f1515', border: '1px solid #b91c1c', color: '#fecaca' }}>Quitar</button>
+          </div>
+        )}
+
         {/* Honeypot: oculto para humanos, tentador para bots */}
         <input tabIndex={-1} autoComplete="off" value={hp} onChange={e => setHp(e.target.value)}
           aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1 }} />

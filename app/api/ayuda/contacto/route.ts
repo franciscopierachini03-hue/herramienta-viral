@@ -31,8 +31,22 @@ export async function POST(req: NextRequest) {
   if (!emailOk(email)) return Response.json({ error: 'Poné un correo válido.' }, { status: 400 });
   if (mensaje.length < 5) return Response.json({ error: 'Contanos un poco más en el mensaje.' }, { status: 400 });
 
+  // Adjunto opcional (imagen). El cliente ya la comprime a JPEG; validamos que
+  // sea un data:image y que no exceda ~4 MB en base64 (tope del cuerpo de Vercel).
+  let adjunto: { filename: string; base64: string } | undefined;
+  const imagenRaw = typeof body.imagen === 'string' ? body.imagen : '';
+  if (imagenRaw) {
+    const m = imagenRaw.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!m) return Response.json({ error: 'La imagen adjunta no es válida.' }, { status: 400 });
+    const base64 = m[2];
+    if (base64.length * 0.75 > 4 * 1024 * 1024) return Response.json({ error: 'La imagen es muy pesada.' }, { status: 400 });
+    const ext = (m[1].split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+    const base = String(body.imgNombre || 'adjunto').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_').slice(0, 60) || 'adjunto';
+    adjunto = { filename: `${base}.${ext}`, base64 };
+  }
+
   try {
-    await sendMensajeContacto({ nombre, email, asunto, mensaje });
+    await sendMensajeContacto({ nombre, email, asunto, mensaje, adjunto });
   } catch (e) {
     console.error('[ayuda/contacto] envío:', e);
     return Response.json({ error: 'No pudimos enviar el mensaje. Probá de nuevo en un momento.' }, { status: 502 });
