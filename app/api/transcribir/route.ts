@@ -581,17 +581,20 @@ export async function POST(req: NextRequest) {
   // ── Facebook ─────────────────────────────────────────────────────────────────
   // FB no expone el video sin un descargador. Usamos uno de RapidAPI (configurable
   // por env). Si no hay key / no estás suscrito → mensaje claro (501), no rompe.
-  // Default: facebook-reel-and-video-downloader — el anterior (social-media-video-
-  // downloader) vació sus endpoints: respondía "does not exist" a todas las rutas.
+  // Default: social-download-all-in-one (manhgdev) → POST /v1/social/autolink con
+  // { url } y responde { medias:[{url,extension,type}] }. El anterior
+  // (facebook-reel-and-video-downloader) fue delistado de RapidAPI (daba 404).
   if (platform === 'facebook') {
-    const fbHost = process.env.FB_DL_HOST || 'facebook-reel-and-video-downloader.p.rapidapi.com';
-    const fbPath = process.env.FB_DL_PATH || '/app/main.php?url=';
+    const fbHost = process.env.FB_DL_HOST || 'social-download-all-in-one.p.rapidapi.com';
+    const fbPath = process.env.FB_DL_PATH || '/v1/social/autolink';
     if (!rapidApiKey) {
       return Response.json({ error: 'La transcripción de Facebook todavía no está configurada (falta el descargador).' }, { status: 501 });
     }
     try {
-      const res = await fetch(`https://${fbHost}${fbPath}${encodeURIComponent(url)}`, {
-        headers: { 'x-rapidapi-host': fbHost, 'x-rapidapi-key': rapidApiKey },
+      const res = await fetch(`https://${fbHost}${fbPath}`, {
+        method: 'POST',
+        headers: { 'x-rapidapi-host': fbHost, 'x-rapidapi-key': rapidApiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 403 || /not subscribed/i.test(JSON.stringify(data || ''))) {
