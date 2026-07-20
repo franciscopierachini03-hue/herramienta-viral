@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
@@ -20,6 +20,14 @@ export default function Guiones() {
   const [loading, setLoading] = useState(false);
   const [script,   setScript]   = useState('');
   const [copied,   setCopied]   = useState(false);
+  // Cliente ideal guardado (lo usa el backend para adaptar BODY y CTA).
+  const [clienteIdeal, setClienteIdeal] = useState('');
+  useEffect(() => {
+    fetch('/api/nicho', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setClienteIdeal(typeof d.clienteIdeal === 'string' ? d.clienteIdeal : ''))
+      .catch(() => {});
+  }, []);
   const abortRef = useRef<AbortController | null>(null);
 
   const wordCount = script.split(/\s+/).filter(Boolean).length;
@@ -129,6 +137,19 @@ export default function Guiones() {
               onBlur={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
             />
           </div>
+
+          {/* A quién le habla el guión: el cliente ideal guardado adapta BODY y CTA */}
+          {clienteIdeal ? (
+            <div className="rounded-xl px-3 py-2 text-[11px] leading-relaxed"
+              style={{ background: '#0a1508', border: '1px solid #22c55e33', color: '#86efac' }}>
+              🎯 <b>Se adapta a tu cliente ideal:</b> <span style={{ color: '#cbead6' }}>{clienteIdeal}</span>
+            </div>
+          ) : (
+            <div className="rounded-xl px-3 py-2 text-[11px] leading-relaxed"
+              style={{ background: '#120c1f', border: '1px solid #7c3aed33', color: '#a78bfa' }}>
+              💡 Definí tu <b>cliente ideal</b> en ViralADN y tus guiones se van a adaptar solos a él (cuerpo y CTA).
+            </div>
+          )}
 
           {/* Botón */}
           <button

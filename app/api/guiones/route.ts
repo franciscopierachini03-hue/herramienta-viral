@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
+import { createClient } from '@/lib/supabase/server';
+import { getNicho } from '@/lib/nicho-store';
 
 export const maxDuration = 60;
 
@@ -59,10 +61,26 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'Falta el tema' }), { status: 400 });
   }
 
+  // Cliente ideal guardado (ver /api/nicho) → el BODY y el CTA le hablan a ÉL.
+  // Es el paso final del proceso: encontrás el viral del nicho grande y lo
+  // adaptás a quien de verdad le vendés. Si no lo definió, el guión sale igual.
+  let clienteIdeal = '';
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) clienteIdeal = (await getNicho(user.id)).nicho.clienteIdeal || '';
+  } catch { /* sin cliente ideal seguimos normal */ }
+
   const userMessage = `
 TEMA DEL VIDEO: ${tema}
 
 TONO: ${tono || 'natural y conversacional'}
+${clienteIdeal ? `
+A QUIÉN LE HABLA (cliente ideal de quien graba):
+---
+${clienteIdeal}
+---
+Importante: el HOOK va amplio para que el video llegue lejos, pero el BODY y sobre todo el CTA tienen que hablarle a ESTA persona — su problema, sus palabras y lo que quiere lograr. El CTA debe conectar con lo que esta persona necesita, sin nombrar "cliente ideal" ni sonar a marketing.` : ''}
 
 ${estilo?.trim() ? `CÓMO HABLA ESTA PERSONA (analiza su estilo y replicalo):
 ---

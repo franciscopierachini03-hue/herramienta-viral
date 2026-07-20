@@ -167,21 +167,36 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
     setMessages(m => [...m, { role: 'assistant', content: 'Dale 👇 ¿Quién es tu nuevo CLIENTE IDEAL? (tus palabras guardadas quedan intactas)' }]);
   }
 
+  // Todavía no definió su cliente ideal → lo mostramos como PASO 1, destacado y
+  // sin poder ocultarlo (antes quedaba escondido como un ayudante opcional).
+  const sinDefinir = !clienteIdeal && !cargando;
   const ultimaConTerms = [...messages].reverse().find(m => m.terms && m.terms.length);
   const placeholder = ayudando ? 'Contame qué vendés o a quién ayudás…'
     : definiendo ? EJEMPLO_CLIENTE
     : 'Ajustá o pedí más (ej: más de ventas, en inglés)…';
 
   return (
-    <div className="rounded-2xl mb-5 overflow-hidden" style={{ background: 'linear-gradient(145deg, #120c1f, #0b0b0b)', border: '1px solid #7c3aed44' }}>
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
-        <span className="flex items-center gap-2 text-sm font-bold text-white">
-          <span>🎯</span> Definí tu cliente ideal y armá tu lista de palabras
+    <div className="rounded-2xl mb-5 overflow-hidden" style={{
+      background: 'linear-gradient(145deg, #120c1f, #0b0b0b)',
+      border: sinDefinir ? '1px solid #a855f7' : '1px solid #7c3aed44',
+      boxShadow: sinDefinir ? '0 0 40px rgba(168,85,247,.22)' : undefined,
+    }}>
+      <button onClick={() => { if (!sinDefinir) setOpen(o => !o); }}
+        className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left">
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-sm font-bold text-white">
+            <span>🎯</span> {sinDefinir ? 'Paso 1 — Definí tu cliente ideal' : 'Tu cliente ideal y tu lista de palabras'}
+          </span>
+          {sinDefinir && (
+            <span className="block text-[11px] mt-1" style={{ color: '#a78bfa' }}>
+              Lo hacés <b>una sola vez</b>: te arma tus palabras para buscar virales y, desde ahora, <b>tus guiones se adaptan solos</b> a quien le vendés.
+            </span>
+          )}
         </span>
-        <span className="text-xs" style={{ color: '#888' }}>{open ? 'Ocultar ▲' : 'Mostrar ▼'}</span>
+        {!sinDefinir && <span className="text-xs shrink-0" style={{ color: '#888' }}>{open ? 'Ocultar ▲' : 'Mostrar ▼'}</span>}
       </button>
 
-      {open && (
+      {(open || sinDefinir) && (
         <div className="px-4 pb-4">
           {/* Palabras guardadas — persisten, no se rehacen */}
           {saved.length > 0 && (
