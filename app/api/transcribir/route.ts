@@ -2,12 +2,23 @@ import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 import ytdl from '@distube/ytdl-core';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { isAdminEmail } from '@/lib/access';
+import { isAdminEmail, CORTESIA_FULL } from '@/lib/access';
 
 export const maxDuration = 120;
 
 // Cache + rate limit configurables por env
 const RATE_LIMIT_PER_DAY = parseInt(process.env.TRANSCRIBE_RATE_LIMIT_PER_DAY || '30', 10);
+
+// Exentos del tope diario: admins + cortesías "acceso total" (CORTESIA-FULL).
+// Un acceso "total" no debería toparse con el límite de 30/día.
+async function exentoDelTope(email: string): Promise<boolean> {
+  if (isAdminEmail(email)) return true;
+  try {
+    const sb = createServiceClient();
+    const { data } = await sb.from('profiles').select('redeemed_code').eq('email', email).maybeSingle();
+    return CORTESIA_FULL.has(String((data as { redeemed_code?: string })?.redeemed_code || '').trim().toUpperCase());
+  } catch { return false; }
+}
 
 // Cache key estable por plataforma + ID del video. Si la URL cambia (parámetros
 // de tracking, etc.) pero el ID es el mismo → mismo cache hit.
@@ -208,8 +219,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limit: máx N transcripciones reales (no cache) por día por user ──
-  // Los admins (ADMIN_EMAILS) no tienen tope — necesitan probar sin freno.
-  if (userEmail && RATE_LIMIT_PER_DAY > 0 && !isAdminEmail(userEmail)) {
+  // Sin tope para admins y cortesías "acceso total" (CORTESIA-FULL).
+  if (userEmail && RATE_LIMIT_PER_DAY > 0 && !(await exentoDelTope(userEmail))) {
     const count = await countRecentTranscriptions(userEmail);
     if (count >= RATE_LIMIT_PER_DAY) {
       return Response.json({
