@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 import ytdl from '@distube/ytdl-core';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { isAdminEmail } from '@/lib/access';
 
 export const maxDuration = 120;
 
@@ -207,7 +208,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limit: máx N transcripciones reales (no cache) por día por user ──
-  if (userEmail && RATE_LIMIT_PER_DAY > 0) {
+  // Los admins (ADMIN_EMAILS) no tienen tope — necesitan probar sin freno.
+  if (userEmail && RATE_LIMIT_PER_DAY > 0 && !isAdminEmail(userEmail)) {
     const count = await countRecentTranscriptions(userEmail);
     if (count >= RATE_LIMIT_PER_DAY) {
       return Response.json({
