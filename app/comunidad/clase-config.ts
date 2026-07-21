@@ -7,8 +7,8 @@ export const CLASE = {
   horaCDMX: '10:00 AM',
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
   sala: 'SALA Z1',
-  zoomUrl: 'https://us02web.zoom.us/j/85141202983?pwd=x9tt0HBcxPMMZsWBXJayQrEb2EATwy.1',
-  zoomId: '851 4120 2983',
+  zoomUrl: 'https://us02web.zoom.us/j/84756346742?pwd=v1BkAgV10JYEfdO61lU4AXN4scDFtb.1',
+  zoomId: '847 5634 6742',
   zoomCodigo: 'C123',
 };
 
