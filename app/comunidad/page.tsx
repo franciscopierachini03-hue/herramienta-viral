@@ -136,7 +136,8 @@ export default function Comunidad() {
               style={{ background: '#ef4444', color: '#fff' }}>🔴 LA CLASE ES HOY</span>
           )}
           <p className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: '#fcd34d' }}>🎓 Clase semanal en vivo</p>
-          <h1 className="text-2xl md:text-3xl font-extrabold mb-1">Todos los miércoles · {CLASE.horaCDMX} <span className="text-base font-bold" style={{ color: '#9a9aa6' }}>(Ciudad de México)</span></h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold mb-1">{CLASE.nombre}</h1>
+          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>Todos los miércoles · {CLASE.horaCDMX} · Ciudad de México</p>
           <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
             Nos sentamos con tu cuenta a revisar qué está funcionando, qué ajustar y qué publicar esta semana.
             {proxima && <> Próxima clase: <b style={{ color: '#fcd34d', textTransform: 'capitalize' }}>{proxima}</b>.</>}
