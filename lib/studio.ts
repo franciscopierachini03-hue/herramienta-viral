@@ -151,7 +151,9 @@ export async function falVideoSubmit(opts: {
 //   fal-ai/bytedance/omnihuman            (SOTA pero máx 30s)
 //   fal-ai/hunyuan-avatar                 (hasta 120s, más barato)
 export function falTalkingModel(): string {
-  return process.env.FAL_TALKING_MODEL || 'fal-ai/kling-video/ai-avatar/v2/standard';
+  // Default PRO: mejor cara + labios (~$0.115/s). Hoy solo-admin → costo casi nulo;
+  // al abrir a clientes se ajusta el costo en créditos. Override por FAL_TALKING_MODEL.
+  return process.env.FAL_TALKING_MODEL || 'fal-ai/kling-video/ai-avatar/v2/pro';
 }
 
 export async function falTalkingSubmit(opts: { imageUrl: string; audioUrl: string }): Promise<{ requestId: string }> {
