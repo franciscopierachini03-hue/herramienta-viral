@@ -25,7 +25,9 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
   const [subSize, setSubSize] = useState<"small" | "medium" | "large">("large");
   const [subColor, setSubColor] = useState("#FFFFFF");
   const [accent, setAccent] = useState("#60a5fa");
-  const [musicMood, setMusicMood] = useState("uplifting motivational");
+  // Sin música por defecto (pedido de Francisco 24-jul) — se agrega solo si
+  // el usuario elige un mood a propósito.
+  const [musicMood, setMusicMood] = useState("");
   const [headlineStyle, setHeadlineStyle] = useState("highlight");
   const [hookAnim, setHookAnim] = useState("pop");
   const [activeCap, setActiveCap] = useState("");
@@ -54,7 +56,7 @@ export default function ScenePanel({ jobId, videoUrl }: { jobId: string; videoUr
       setSubSize((["small", "medium", "large"].includes(d.subtitles?.size) ? d.subtitles.size : "large"));
       setSubColor(d.subtitles?.color || "#FFFFFF");
       setAccent(d.accent || "#60a5fa");
-      setMusicMood(d.music_mood || "uplifting motivational");
+      setMusicMood(d.music_mood || "");
       setHeadlineStyle(d.headlineStyle || "highlight");
       setHookAnim(d.hookAnim || "pop");
     } catch (e: any) { setError(e.message); }

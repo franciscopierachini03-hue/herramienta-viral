@@ -63,7 +63,7 @@ const RECETA_CASA = `ESTILO DE LA CASA (aplicalo siempre; los pedidos del usuari
 - Subtítulos: 1 sola línea de 2-4 palabras, grandes y en negrita, sincronizados palabra por palabra con la voz; resaltá LA palabra clave de cada frase en el color de acento.
 - Hook inicial: máximo 6 palabras, con la palabra más fuerte en color de acento; entra con animación (pop) en el primer medio segundo y sale antes del segundo 3.
 - Ritmo visual: micro-zoom (3-5%) o cambio de plano en cada cambio de idea (cada 5-8 segundos); nunca más de 8 segundos con el encuadre estático; cero aire muerto mayor a 0.4s.
-- Música: agregá SIEMPRE una cama instrumental acorde al tono del video, 10-15% por debajo de la voz (que nunca la tape), con una subida sutil en el cierre.
+- Música: NO agregues música de fondo — el video va SIN cama musical, solo la voz. (Solo poné música si el usuario la pide explícitamente en sus instrucciones.)
 - Cierre: la última frase también como texto grande en pantalla (remate visual).`;
 
 // 🚀 TOPCUT LANZADO — el editor está público. Para volver a ocultarlo (mostrar
