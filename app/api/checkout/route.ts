@@ -101,6 +101,9 @@ export async function POST(req: NextRequest) {
   params.append('mode', mode);
   params.append('line_items[0][price]', priceId);
   params.append('line_items[0][quantity]', '1');
+  // Campo "código promocional" visible en el checkout (las ligas de pago ya lo
+  // tenían; el checkout web no) — para cupones tipo "-$20 el primer mes".
+  params.append('allow_promotion_codes', 'true');
   if (user?.email) params.append('customer_email', user.email);
   if (user?.id) params.append('client_reference_id', user.id);
 
