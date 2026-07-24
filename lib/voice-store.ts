@@ -25,3 +25,29 @@ export async function saveVoice(email: string, voiceId: string, nombre: string):
     return !error;
   } catch { return false; }
 }
+
+// ── Video base del clon (arquitectura lipsync) ───────────────────────────────
+// El video selfie que la persona sube UNA vez; cada reel le sincroniza la boca.
+// Vive en la misma fila de voice_clones (columna base_video_url, ver
+// supabase/clon_video.sql). Si falta la columna → mensaje claro, no rompe.
+
+export async function getBaseVideo(email: string): Promise<{ url: string | null; faltaSql: boolean }> {
+  try {
+    const sb = createServiceClient();
+    const { data, error } = await sb.from('voice_clones').select('base_video_url').eq('email', email).maybeSingle();
+    if (error) return { url: null, faltaSql: /base_video_url|column|does not exist/i.test(error.message || '') };
+    return { url: (data as { base_video_url?: string } | null)?.base_video_url ?? null, faltaSql: false };
+  } catch { return { url: null, faltaSql: false }; }
+}
+
+export async function saveBaseVideo(email: string, url: string): Promise<{ ok: boolean; faltaSql: boolean }> {
+  try {
+    const sb = createServiceClient();
+    const { error } = await sb.from('voice_clones').upsert(
+      { email, base_video_url: url },
+      { onConflict: 'email' },
+    );
+    if (error) return { ok: false, faltaSql: /base_video_url|column|does not exist|null value/i.test(error.message || '') };
+    return { ok: true, faltaSql: false };
+  } catch { return { ok: false, faltaSql: false }; }
+}

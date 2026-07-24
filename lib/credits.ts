@@ -17,10 +17,11 @@ export const PLAN_CREDITS = { viraladn: 50, topcut: 50, combo: 150 } as const;
 // Costo en créditos por tipo de generación. El video tiene dos niveles:
 // videoFast (LTX, ≈$0.10/clip) y video pro (Kling, ≈$0.28/clip).
 //   voz     = crear el clon de voz (1 vez, ElevenLabs) — barato.
-//   hablar  = clip del clon hablando (ElevenLabs TTS + fal sadtalker) — barato.
-// hablar = video del clon hablando (Kling AI Avatar, hasta ~1 min, ~$0.056/s →
-// ~$3.4 el minuto). Ajustable si se abre a usuarios (hoy admin = ilimitado).
-export const CREDIT_COST = { image: 1, video: 10, videoFast: 3, voz: 3, hablar: 40 } as const;
+//   hablar  = clon hablando v2 LIPSYNC: voz clonada + LatentSync sobre el video
+//             base del usuario (≈$0.30-0.45/min de costo, vs $3-7/min de los
+//             avatares generativos) → 1 crédito, para que el plan rinda los
+//             ~40-50 clones/mes que pidió Francisco.
+export const CREDIT_COST = { image: 1, video: 10, videoFast: 3, voz: 3, hablar: 1 } as const;
 
 // Cuántos créditos/mes le tocan a este usuario según su plan.
 export function monthlyGrantFor(ent: Entitlement, admin: boolean): number {

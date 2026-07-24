@@ -68,13 +68,14 @@ export async function GET() {
     tablaVoz = error ? 'falta' : 'ok';
   } catch { tablaVoz = 'falta'; }
 
-  // El clon básico (imagen + video mudo) queda listo con tabla+gemini+fal.
-  // El clon que HABLA suma ElevenLabs + la tabla de voces.
+  // El clon que HABLA (v2 lipsync: video base + voz + LatentSync) necesita
+  // tabla + fal + ElevenLabs + tabla de voces. Gemini es SOLO para la parte de
+  // imagen (generar avatar con IA) — no bloquea el clon.
   const listo = tabla === 'ok' && gemini === 'ok' && fal === 'ok';
-  const listoHabla = listo && voz === 'ok' && tablaVoz === 'ok';
+  const listoHabla = tabla === 'ok' && fal === 'ok' && voz === 'ok' && tablaVoz === 'ok';
   const pasos: string[] = [];
   if (tabla !== 'ok') pasos.push('Correr supabase/ai_credits.sql en Supabase → SQL Editor (1 min).');
-  if (gemini !== 'ok') pasos.push(`Gemini: ${gemini} → agregá/corregí GEMINI_API_KEY en Vercel (aistudio.google.com → API keys) y redeploy.`);
+  if (gemini !== 'ok') pasos.push(`(Opcional, solo "generar avatar con IA") Gemini: ${gemini}.`);
   if (fal !== 'ok') pasos.push(`fal.ai: ${fal} → creá la key en fal.ai/dashboard/keys (con billing activo), agregala como FAL_KEY en Vercel y redeploy.`);
   if (voz !== 'ok') pasos.push(`Voz (ElevenLabs): ${voz} → plan Starter+ · agregá ELEVENLABS_API_KEY en Vercel y redeploy.`);
   if (tablaVoz !== 'ok') pasos.push('Correr supabase/voice_clones.sql en Supabase (guarda la voz de cada usuario).');

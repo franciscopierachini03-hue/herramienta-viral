@@ -143,26 +143,26 @@ export async function falVideoSubmit(opts: {
 }
 
 // ── fal.ai — CLON QUE HABLA (foto + audio → video hablando) ──────────────────
-// Kling AI Avatar v2: foto + audio → video hablando MANTENIENDO la cara (no la
-// re-imagina como los image-to-video comunes), hasta ~60s. El audio sale de
-// ElevenLabs (voz clonada). Params fal estándar: image_url + audio_url.
-// Alternativas por env FAL_TALKING_MODEL:
-//   fal-ai/kling-video/ai-avatar/v2/pro   (mejor calidad, ~$0.115/s)
-//   fal-ai/bytedance/omnihuman            (SOTA pero máx 30s)
-//   fal-ai/hunyuan-avatar                 (hasta 120s, más barato)
+// CLON v2 — arquitectura LIPSYNC: el video base del usuario (su propio selfie,
+// subido UNA vez) + el audio de su voz clonada (ElevenLabs) → LatentSync le
+// sincroniza la boca. Es su propia filmación con la boca sincronizada → más
+// convincente que animar una foto, y MUCHO más barato que los avatares
+// generativos: ~$0.20 hasta 40s + $0.005/s después (≈$0.30/min) vs $3-7/min.
+// Params LatentSync: video_url + audio_url.
+// Alternativas por env FAL_TALKING_MODEL (mismos params video+audio):
+//   fal-ai/sync-lipsync             (~$3/min, más pulido)
+//   fal-ai/kling-video/lipsync/audio-to-video (~$0.84/min)
 export function falTalkingModel(): string {
-  // Default PRO: mejor cara + labios (~$0.115/s). Hoy solo-admin → costo casi nulo;
-  // al abrir a clientes se ajusta el costo en créditos. Override por FAL_TALKING_MODEL.
-  return process.env.FAL_TALKING_MODEL || 'fal-ai/kling-video/ai-avatar/v2/pro';
+  return process.env.FAL_TALKING_MODEL || 'fal-ai/latentsync';
 }
 
-export async function falTalkingSubmit(opts: { imageUrl: string; audioUrl: string }): Promise<{ requestId: string }> {
+export async function falTalkingSubmit(opts: { videoUrl: string; audioUrl: string }): Promise<{ requestId: string }> {
   const key = process.env.FAL_KEY;
   if (!key) throw new Error('FAL_KEY no configurada (clon que habla).');
   const res = await fetch(`${FAL_QUEUE}/${falTalkingModel()}`, {
     method: 'POST',
     headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image_url: opts.imageUrl, audio_url: opts.audioUrl }),
+    body: JSON.stringify({ video_url: opts.videoUrl, audio_url: opts.audioUrl }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
