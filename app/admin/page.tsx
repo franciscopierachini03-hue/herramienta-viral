@@ -551,33 +551,35 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             </div>
           </div>
 
-          {/* 📆 Proyección: este mes vs el que viene (los bonos no entran este mes, sí el siguiente) */}
+          {/* 📆 Facturación por MES CALENDARIO (del día 1 al último día) */}
           {billing.configured && !billing.error && (
             <div className="rounded-2xl p-4 mb-4" style={{ background: 'linear-gradient(145deg, #12101f, #0d0d0d)', border: '1px solid #7c3aed44' }}>
               <div className="text-xs mb-3 font-bold flex items-center gap-1" style={{ color: '#a78bfa' }}>
-                📆 Esperado a facturar — este mes vs el que viene
+                📆 Esperado a facturar — mes calendario (del 1 al último día)
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-xl p-3" style={{ background: '#0a1a12', border: '1px solid #22c55e44' }}>
-                  <div className="text-[11px] mb-1" style={{ color: '#7dd3a8' }}>Esperado ESTE mes (efectivo)</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(billing.effectiveMrrNow)}<span className="text-xs font-normal" style={{ color: '#5a8a6a' }}>/mes</span></div>
-                  <div className="text-[10px] mt-1" style={{ color: '#5a8a6a' }}>lo que se cobra hoy — bonos/descuentos ya restados</div>
+                  <div className="text-[11px] mb-1 capitalize" style={{ color: '#7dd3a8' }}>📅 {billing.mesActualLabel || 'Este mes'} completo (1 → último día)</div>
+                  <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(billing.esperadoEsteMesCal)}</div>
+                  <div className="text-[10px] mt-1" style={{ color: '#5a8a6a' }}>
+                    cobrado {fmtUSD(billing.totalRevenueThisMonth)} (del 1 a hoy) + por cobrar {fmtUSD(billing.porCobrarEsteMes)} (de hoy al último día)
+                  </div>
                 </div>
                 <div className="rounded-xl p-3" style={{ background: '#1a1408', border: '1px solid #f59e0b44' }}>
                   <div className="text-[11px] mb-1" style={{ color: '#fcd34d' }}>En bono/descuento ahora</div>
                   <div className="text-2xl font-extrabold" style={{ color: '#fcd34d' }}>{fmtUSD(billing.bonoMrr)}<span className="text-xs font-normal" style={{ color: '#a98b3a' }}>/mes</span></div>
-                  <div className="text-[10px] mt-1" style={{ color: '#a98b3a' }}>hoy paga $0 → empieza a entrar el mes que viene</div>
+                  <div className="text-[10px] mt-1" style={{ color: '#a98b3a' }}>hoy paga $0 → entra full cuando el bono termina</div>
                 </div>
                 <div className="rounded-xl p-3" style={{ background: '#12101f', border: '1px solid #7c3aed66' }}>
-                  <div className="text-[11px] mb-1" style={{ color: '#c4b5fd' }}>Esperado MES QUE VIENE</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.expectedMrrNextMonth)}<span className="text-xs font-normal" style={{ color: '#8b7fb0' }}>/mes</span></div>
+                  <div className="text-[11px] mb-1 capitalize" style={{ color: '#c4b5fd' }}>📅 {billing.mesProximoLabel || 'Mes que viene'} (1 → último día)</div>
+                  <div className="text-2xl font-extrabold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.esperadoMesQueVieneCal)}</div>
                   <div className="text-[10px] mt-1" style={{ color: '#8b7fb0' }}>
-                    full comprometido {billing.porCancelar > 0 ? `− ${fmtUSD(billing.cancelMrr)} de ${billing.porCancelar} por cancelar` : '(nadie por cancelar)'}
+                    renovaciones que caen en {billing.mesProximoLabel || 'el próximo mes'}{billing.porCancelar > 0 ? ` · ${billing.porCancelar} por cancelar ya restadas` : ''}
                   </div>
                 </div>
               </div>
               <div className="text-[10px] mt-3" style={{ color: '#666' }}>
-                💡 Este mes ({fmtUSD(billing.effectiveMrrNow)}) + lo que hoy está en bono ({fmtUSD(billing.bonoMrr)}) − lo que cancela = el mes que viene. El “MRR comprometido” ({fmtUSD(billing.committedMrr)}) es el full sin restar bonos.
+                💡 Cada tarjeta es un mes de calendario: lo del 1 a hoy es cobrado en serio (neto de reembolsos) y lo que falta sale de la PRÓXIMA factura exacta de cada suscripción (bonos y descuentos ya aplicados). Referencia: MRR comprometido {fmtUSD(billing.committedMrr)} (precio de lista, sin restar bonos).
               </div>
             </div>
           )}

@@ -96,6 +96,12 @@ export type BillingOverview = {
   expectedMrrNextMonth: number;    // esperado el MES QUE VIENE = comprometido − por cancelar (bonos ya pagan)
   cancelMrr: number;               // MRR de las subs marcadas "cancelar a fin de período"
   porCancelar: number;             // cuántas subs activas van a cancelar a fin de período
+  // ── Vista CALENDARIO (del día 1 al último día del mes) ──
+  porCobrarEsteMes: number;        // USD que faltan cobrar de HOY al último día del mes (próximas facturas)
+  esperadoEsteMesCal: number;      // cobrado del 1 a hoy + por cobrar hasta fin de mes
+  esperadoMesQueVieneCal: number;  // renovaciones que caen el mes que viene (1 → último día), canceladas restadas
+  mesActualLabel: string;          // "julio" (para el título de la tarjeta)
+  mesProximoLabel: string;         // "agosto"
   recentPayments: Array<{
     id: string; amount: number; currency: string; customer: string;
     email: string; date: string; description: string; refunded: boolean; product: string;
@@ -230,6 +236,8 @@ function zero(configured: boolean, error?: string): BillingOverview {
     totalRevenueAllTime: 0, totalRevenueThisMonth: 0, totalRevenueLastMonth: 0,
     activeSubscriptions: 0, committedMrr: 0,
     effectiveMrrNow: 0, bonoMrr: 0, expectedMrrNextMonth: 0, cancelMrr: 0, porCancelar: 0,
+    porCobrarEsteMes: 0, esperadoEsteMesCal: 0, esperadoMesQueVieneCal: 0,
+    mesActualLabel: '', mesProximoLabel: '',
     recentPayments: [], monthlyRevenue: [],
     payments: [], trialCustomerIds: [], subscribers: [], configured, error,
   };
@@ -320,6 +328,38 @@ export async function getBillingOverview(): Promise<BillingOverview> {
     const bonoMrr = Math.max(0, committedMrr - effectiveMrrNow);
     const expectedMrrNextMonth = Math.max(0, committedMrr - cancelMrr);
 
+    // 3c) Vista CALENDARIO (pedido de Francisco: "el mes va del día 1 al último").
+    // La PRÓXIMA factura exacta de cada sub cobrable (upcoming invoice: monto ya
+    // con bonos/descuentos aplicados) ubicada en el mes calendario en que cae:
+    //   · este mes  = cobrado del 1 a hoy + renovaciones que caen de hoy a fin de mes
+    //   · mes que viene = renovaciones que caen entre el 1 y el último día del próximo
+    //     (las mensuales que aún renuevan ESTE mes vuelven a renovar el próximo, ya
+    //      sin bono "una vez" → entran a precio de lista; canceladas quedan afuera).
+    const endThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+    const endNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 1).getTime();
+    const cobrables = ourSubs.filter(s => (s.status === 'active' || s.status === 'trialing') && !s.cancel_at_period_end);
+    const upcomings = await mapLimit(cobrables, 12, async (s) => {
+      const inv = await stripeGet<{ amount_due?: number }>('invoices/upcoming', { subscription: s.id }, INVOICE_API_VERSION);
+      return { sub: s, due: (s.current_period_end || 0) * 1000, amount: inv?.amount_due ?? null };
+    });
+    let porCobrarEsteMesCents = 0;
+    let esperadoProxMesCents = 0;
+    for (const { sub, due, amount } of upcomings) {
+      const lista = sub.items?.data?.[0]?.price?.unit_amount ?? 0;
+      const next = amount ?? lista; // sin upcoming legible → precio de lista
+      if (due >= Date.now() - 60_000 && due < endThisMonth) {
+        porCobrarEsteMesCents += next;
+        if (sub.items?.data?.[0]?.price?.recurring?.interval === 'month') esperadoProxMesCents += lista || next;
+      } else if (due >= endThisMonth && due < endNextMonth) {
+        esperadoProxMesCents += next;
+      }
+    }
+    const porCobrarEsteMes = porCobrarEsteMesCents / 100;
+    const esperadoEsteMesCal = totalRevenueThisMonth + porCobrarEsteMes;
+    const esperadoMesQueVieneCal = esperadoProxMesCents / 100;
+    const mesActualLabel = now.toLocaleDateString('es-AR', { month: 'long' });
+    const mesProximoLabel = new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('es-AR', { month: 'long' });
+
     // 4) Mes de prueba (cupón activo o trialing).
     const trialCustomerIds = ourSubs
       .filter(s => s.status === 'trialing' || isFreeMonth(s))
@@ -375,6 +415,7 @@ export async function getBillingOverview(): Promise<BillingOverview> {
       totalRevenueAllTime, totalRevenueThisMonth, totalRevenueLastMonth,
       activeSubscriptions: activeSubs.length, committedMrr,
       effectiveMrrNow, bonoMrr, expectedMrrNextMonth, cancelMrr, porCancelar: porCancelarSubs.length,
+      porCobrarEsteMes, esperadoEsteMesCal, esperadoMesQueVieneCal, mesActualLabel, mesProximoLabel,
       recentPayments, monthlyRevenue,
       // Solo dinero que QUEDÓ cobrado (neto de reembolsos) → alimenta Cobrado
       // HOY, el gráfico diario y el export de ventas.
