@@ -8,6 +8,7 @@ import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
 import AdminResetPassword from './AdminResetPassword';
 import AdminFixAccess from './AdminFixAccess';
+import ExportVentasMes from './ExportVentasMes';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -476,7 +477,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-bold uppercase tracking-wide mr-0.5" style={{ color: '#555' }}>Exportar</span>
             <a href="/api/admin/export" download className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#eee' }}>⬇ Clientes CSV</a>
-            <a href="/api/admin/export?type=ventas" download className="px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>💵 Exportar ventas</a>
+            <ExportVentasMes />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-bold uppercase tracking-wide mr-0.5" style={{ color: '#555' }}>Acciones</span>

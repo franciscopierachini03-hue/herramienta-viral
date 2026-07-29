@@ -2,14 +2,18 @@ import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
+import { cobrosRango } from '@/lib/ventas-stripe';
 
-// GET /api/admin/export             → tabla profiles como CSV (clientes).
-// GET /api/admin/export?type=ventas → reporte de ventas: ID de pago (Stripe) +
-//                                     cliente + plataforma (código) + monto + fecha.
+// GET /api/admin/export                       → tabla profiles como CSV (clientes).
+// GET /api/admin/export?type=ventas           → histórico de ventas (facturas de subs).
+// GET /api/admin/export?type=ventas&mes=YYYY-MM → ventas de ESE mes calendario
+//     (del 1 al último día, hora CDMX) sobre la base COMPLETA: 2CLICKS + Elevation
+//     + pagos únicos, en USD liquidado y neto de reembolsos (= selector de día).
 // Solo: email en ADMIN_EMAILS + cookie admin_pin_ok válida.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const PERMANENT_OWNERS = ['franciscopierachini03@gmail.com'];
 
@@ -55,7 +59,39 @@ export async function GET(req: NextRequest) {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // ── Reporte de VENTAS (id de pago + cliente + plataforma) ──
+  // ── Reporte de VENTAS de UN MES calendario (base completa, 2 cuentas) ──
+  const mes = (req.nextUrl.searchParams.get('mes') || '').trim();
+  if (req.nextUrl.searchParams.get('type') === 'ventas' && /^\d{4}-\d{2}$/.test(mes)) {
+    const [y, m] = mes.split('-').map(Number);
+    const desde = Math.floor(Date.UTC(y, m - 1, 1, 6, 0, 0) / 1000);  // 1° del mes 00:00 CDMX
+    const hasta = Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);      // 1° del mes siguiente
+    try {
+      const { cobros } = await cobrosRango(desde, hasta);
+      const ventas = cobros.filter(c => c.viralAdn && c.estado === 'succeeded').sort((a, b) => a.ts - b.ts);
+      const profs = (data || []) as unknown as Prof[];
+      const byEmail = new Map<string, Prof>();
+      for (const p of profs) if (p.email) byEmail.set(p.email.toLowerCase(), p);
+
+      const cols = ['Fecha', 'Hora (CDMX)', 'Cliente', 'Email', 'Producto', 'Cuenta', 'Código', 'Bruto USD', 'Reembolsado USD', 'Neto USD'];
+      const lines = [cols.join(',')];
+      let tb = 0, tr = 0;
+      for (const v of ventas) {
+        const prof = byEmail.get(v.email.toLowerCase());
+        tb += v.monto; tr += v.refund;
+        lines.push([
+          v.fecha, v.hora, prof?.name || '', v.email, v.producto, v.cuenta,
+          prof?.redeemed_code || '', v.monto.toFixed(2), v.refund.toFixed(2), (v.monto - v.refund).toFixed(2),
+        ].map(csvEscape).join(','));
+      }
+      lines.push('');
+      lines.push(['TOTAL', '', '', '', `${ventas.length} cobros`, '', '', tb.toFixed(2), tr.toFixed(2), (tb - tr).toFixed(2)].map(csvEscape).join(','));
+      return csvResponse(lines.join('\n'), `viraladn-ventas-${mes}.csv`);
+    } catch (e) {
+      return new Response(`Error: ${(e as Error).message.slice(0, 200)}`, { status: 502 });
+    }
+  }
+
+  // ── Reporte de VENTAS histórico (id de pago + cliente + plataforma) ──
   if (req.nextUrl.searchParams.get('type') === 'ventas') {
     const billing = await getBillingOverview();
     const profs = (data || []) as unknown as Prof[];
