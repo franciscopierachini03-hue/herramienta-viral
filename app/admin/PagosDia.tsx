@@ -6,10 +6,13 @@
 
 import { useEffect, useState } from 'react';
 
-type Detalle = { hora: string; email: string; monto: number; refund: number; producto: string; estado: string; viralAdn: boolean };
+type Detalle = { hora: string; email: string; monto: number; refund: number; producto: string; estado: string; viralAdn: boolean; cuenta?: string };
 type Resp = {
   fecha: string; zona: string;
-  tuyo_viraladn: { cobros: number; total: number; bruto: number; reembolsado: number; neto: number; detalle: Detalle[] };
+  tuyo_viraladn: {
+    cobros: number; total: number; bruto: number; reembolsado: number; neto: number; detalle: Detalle[];
+    por_cuenta?: { clicks: { cobros: number; neto: number }; elevation: { cobros: number; neto: number; configurada?: boolean } };
+  };
   otros_negocios: { cobros: number; total: number };
   reembolsos_del_dia: number;
 };
@@ -64,7 +67,7 @@ export default function PagosDia() {
     <div className="mb-8">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <h2 className="text-sm font-bold" style={{ color: '#d4d4dc' }}>📅 Pagos que entraron un día puntual</h2>
-        <span className="text-[11px]" style={{ color: '#666' }}>hora Ciudad de México · en vivo desde Stripe (2CLICKS)</span>
+        <span className="text-[11px]" style={{ color: '#666' }}>hora Ciudad de México · en vivo desde Stripe (2CLICKS + Elevation, en USD liquidado)</span>
       </div>
 
       {/* Selector */}
@@ -96,6 +99,14 @@ export default function PagosDia() {
                 </div>
               ) : (
                 <div className="text-[11px] mt-1" style={{ color: '#5a8a6a' }}>{data.tuyo_viraladn.cobros} cobro{data.tuyo_viraladn.cobros === 1 ? '' : 's'} · sin reembolsos</div>
+              )}
+              {data.tuyo_viraladn.por_cuenta && (
+                <div className="text-[11px] mt-1" style={{ color: '#7dd3a8' }}>
+                  2CLICKS ${data.tuyo_viraladn.por_cuenta.clicks.neto.toFixed(0)} ({data.tuyo_viraladn.por_cuenta.clicks.cobros})
+                  {' · '}Elevation {data.tuyo_viraladn.por_cuenta.elevation.configurada === false
+                    ? <span style={{ color: '#fcd34d' }}>sin llave ⚠️</span>
+                    : <>${data.tuyo_viraladn.por_cuenta.elevation.neto.toFixed(0)} ({data.tuyo_viraladn.por_cuenta.elevation.cobros})</>}
+                </div>
               )}
             </div>
             <div className="rounded-2xl p-4" style={card}>
