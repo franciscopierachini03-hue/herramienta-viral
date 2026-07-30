@@ -40,5 +40,12 @@ export async function GET(req: NextRequest) {
     resultado.recordatorio = 'hoy no toca (solo miércoles)';
   }
 
+  // 3) 🛡️ Protección admin: cancela cualquier cobro a correos de ADMIN_EMAILS
+  //    (regla de Francisco: "a mi correo no le tienes que cobrar nada").
+  try {
+    const r = await fetch(`${base}/api/cron/proteger-admins`, interno);
+    resultado.protegerAdmins = await r.json().catch(() => `HTTP ${r.status}`);
+  } catch (e) { resultado.protegerAdmins = `error: ${(e as Error).message.slice(0, 80)}`; }
+
   return Response.json({ ok: true, ...resultado });
 }
