@@ -111,6 +111,9 @@ type Msg = { role: 'user' | 'brain'; text: string };
 const STAGE_ES: Record<string, string> = {
   uploading:  'Subiendo video',
   queued:     'En cola',
+  claimed:    'En cola',
+  normalize:  'Optimizando tu video (vertical 9:16)',
+  trim:       'Aplicando tus recortes',
   transcribe: 'Transcribiendo audio',
   plan:       'Diseñando la edición (IA)',
   broll:      'Buscando B-roll',
