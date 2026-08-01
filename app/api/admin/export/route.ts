@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview } from '@/lib/stripe-admin';
 import { cobrosRango } from '@/lib/ventas-stripe';
+import { hacerXlsx } from '@/lib/xlsx';
 
 // GET /api/admin/export                       → tabla profiles como CSV (clientes).
 // GET /api/admin/export?type=ventas           → histórico de ventas (facturas de subs).
@@ -60,32 +61,69 @@ export async function GET(req: NextRequest) {
   const today = new Date().toISOString().slice(0, 10);
 
   // ── Reporte de VENTAS de UN MES calendario (base completa, 2 cuentas) ──
+  // ?mes=YYYY-MM · ?producto=viraladn|topcut|combo (default: todos)
+  // ?formato=csv (default: xlsx, que Google Sheets abre con doble clic)
   const mes = (req.nextUrl.searchParams.get('mes') || '').trim();
   if (req.nextUrl.searchParams.get('type') === 'ventas' && /^\d{4}-\d{2}$/.test(mes)) {
+    const prodFiltro = (req.nextUrl.searchParams.get('producto') || '').toLowerCase();
+    const soloCsv = req.nextUrl.searchParams.get('formato') === 'csv';
     const [y, m] = mes.split('-').map(Number);
     const desde = Math.floor(Date.UTC(y, m - 1, 1, 6, 0, 0) / 1000);  // 1° del mes 00:00 CDMX
     const hasta = Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);      // 1° del mes siguiente
     try {
       const { cobros } = await cobrosRango(desde, hasta);
-      const ventas = cobros.filter(c => c.viralAdn && c.estado === 'succeeded').sort((a, b) => a.ts - b.ts);
-      const profs = (data || []) as unknown as Prof[];
-      const byEmail = new Map<string, Prof>();
-      for (const p of profs) if (p.email) byEmail.set(p.email.toLowerCase(), p);
-
-      const cols = ['Fecha', 'Hora (CDMX)', 'Cliente', 'Email', 'Producto', 'Cuenta', 'Código', 'Bruto USD', 'Reembolsado USD', 'Neto USD'];
-      const lines = [cols.join(',')];
-      let tb = 0, tr = 0;
-      for (const v of ventas) {
-        const prof = byEmail.get(v.email.toLowerCase());
-        tb += v.monto; tr += v.refund;
-        lines.push([
-          v.fecha, v.hora, prof?.name || '', v.email, v.producto, v.cuenta,
-          prof?.redeemed_code || '', v.monto.toFixed(2), v.refund.toFixed(2), (v.monto - v.refund).toFixed(2),
-        ].map(csvEscape).join(','));
+      let ventas = cobros.filter(c => c.viralAdn && c.estado === 'succeeded').sort((a, b) => a.ts - b.ts);
+      if (['viraladn', 'topcut', 'combo'].includes(prodFiltro)) {
+        ventas = ventas.filter(c => c.plataforma === prodFiltro);
       }
-      lines.push('');
-      lines.push(['TOTAL', '', '', '', `${ventas.length} cobros`, '', '', tb.toFixed(2), tr.toFixed(2), (tb - tr).toFixed(2)].map(csvEscape).join(','));
-      return csvResponse(lines.join('\n'), `viraladn-ventas-${mes}.csv`);
+      // Datos de la persona desde profiles (por email).
+      const profs = (data || []) as unknown as Prof[];
+      const byEmail = new Map<string, Record<string, unknown>>();
+      for (const p of profs) if (p.email) byEmail.set(p.email.toLowerCase(), p as unknown as Record<string, unknown>);
+
+      const encabezados = [
+        'Fecha', 'Hora (CDMX)', 'Nombre', 'Email', 'Teléfono', 'País', 'Ciudad',
+        'Producto', 'Código', 'Cuenta', 'Método de pago',
+        'Cobrado USD', 'Reembolsado USD', 'Comisión Stripe USD', 'Neto al banco USD',
+        'Pagó en su moneda', 'Moneda', 'Estado cuenta', 'Registrado', 'Renovación',
+        'Suscripción', 'ID de pago', 'Recibo',
+      ];
+      const fechaCorta = (v: unknown) => v ? String(v).slice(0, 10) : '';
+      const filas = ventas.map(v => {
+        const p = byEmail.get(v.email.toLowerCase()) || {};
+        return [
+          v.fecha, v.hora, v.nombre || (p.name as string) || '', v.email, (p.phone as string) || '',
+          v.pais, v.ciudad, v.producto, (p.redeemed_code as string) || '', v.cuenta, v.metodoPago,
+          v.monto, v.refund, v.comision, v.netoBanco,
+          v.montoOriginal, v.monedaOriginal,
+          (p.subscription_status as string) || '', fechaCorta(p.created_at), fechaCorta(p.trial_ends_at),
+          v.suscripcion, v.chargeId, v.recibo,
+        ];
+      });
+      // Fila de totales al final.
+      const tot = (f: (c: typeof ventas[number]) => number) => Math.round(ventas.reduce((a, c) => a + f(c), 0) * 100) / 100;
+      filas.push([]);
+      filas.push(['TOTAL', '', `${ventas.length} ventas`, '', '', '', '', '', '', '', '',
+        tot(c => c.monto), tot(c => c.refund), tot(c => c.comision), tot(c => c.netoBanco)]);
+
+      const etiqueta = ['viraladn', 'topcut', 'combo'].includes(prodFiltro) ? `-${prodFiltro}` : '';
+      const nombreArch = `viraladn-ventas-${mes}${etiqueta}`;
+
+      if (soloCsv) {
+        const lines = [encabezados.join(',')];
+        for (const f of filas) lines.push(f.map(csvEscape).join(','));
+        return csvResponse(lines.join('\n'), `${nombreArch}.csv`);
+      }
+      const buf = await hacerXlsx({
+        hoja: `Ventas ${mes}`, encabezados, filas,
+        anchos: [11, 11, 26, 30, 16, 7, 16, 22, 14, 11, 20, 13, 15, 17, 16, 16, 9, 14, 12, 12, 26, 30, 44],
+      });
+      return new Response(new Uint8Array(buf), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${nombreArch}.xlsx"`,
+        },
+      });
     } catch (e) {
       return new Response(`Error: ${(e as Error).message.slice(0, 200)}`, { status: 502 });
     }
