@@ -9,6 +9,7 @@ import SendAccessPanel from './SendAccessPanel';
 import AdminResetPassword from './AdminResetPassword';
 import AdminFixAccess from './AdminFixAccess';
 import ExportVentasMes from './ExportVentasMes';
+import BalanceMes from './BalanceMes';
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -557,6 +558,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               <div className="text-2xl font-bold" style={{ color: '#fff' }}>{billing.activeSubscriptions}</div>
             </div>
           </div>
+
+          {/* 💰 Balance del mes — las 2 cuentas, dato duro */}
+          <BalanceMes />
 
           {/* 📆 Facturación por MES CALENDARIO (del día 1 al último día) */}
           {billing.configured && !billing.error && (
