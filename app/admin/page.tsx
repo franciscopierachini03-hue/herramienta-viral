@@ -356,8 +356,14 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     if ((p.redeemed_code || '').toUpperCase().startsWith('COURTESY')) return false;
     // Path 1: Stripe lo confirma ahora mismo
     if (p.stripe_customer_id && trialCustomerSet.has(p.stripe_customer_id)) return true;
-    // Path 2: guardado al pagar (sobrevive aunque Stripe ya consumió el cupón)
+    // Path 2: guardado al pagar (sobrevive aunque Stripe ya consumió el cupón).
+    // OJO (caso Lucila, 1-ago): tener código NO implica mes gratis — hay códigos
+    // que solo marcan la campaña y la persona igual pagó completo. Si Stripe dice
+    // que su última factura fue > $0, MANDA STRIPE: no es mes de prueba.
     if (p.redeemed_code && p.trial_ends_at) {
+      const s = (p.stripe_customer_id ? subByCustomer.get(p.stripe_customer_id) : undefined)
+        || (p.email ? subByEmail.get(p.email.toLowerCase()) : undefined);
+      if (s && s.amountThisCycle > 0) return false; // pagó de verdad este ciclo
       return new Date(p.trial_ends_at).getTime() > Date.now();
     }
     return false;
