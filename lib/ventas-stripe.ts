@@ -59,12 +59,12 @@ type ChargeRaw = {
   id?: string;
 };
 
-async function cobrosDeCuenta(key: string, desde: number, hasta: number): Promise<ChargeRaw[]> {
+async function paginaCobros(key: string, desde: number, hasta: number): Promise<ChargeRaw[]> {
   const out: ChargeRaw[] = [];
   let after: string | null = null;
-  for (let i = 0; i < 40; i++) { // hasta 4.000 cobros por rango (un mes entero entra)
+  for (let i = 0; i < 20; i++) {
     const q = `charges?limit=100&created[gte]=${desde}&created[lt]=${hasta}`
-      + `&expand[]=data.invoice&expand[]=data.payment_intent&expand[]=data.balance_transaction&expand[]=data.payment_method_details`
+      + `&expand[]=data.invoice&expand[]=data.payment_intent&expand[]=data.balance_transaction`
       + (after ? `&starting_after=${after}` : '');
     const d = await sGet(q, key);
     const data: ChargeRaw[] = d?.data || [];
@@ -73,6 +73,21 @@ async function cobrosDeCuenta(key: string, desde: number, hasta: number): Promis
     after = data[data.length - 1]?.id || null;
   }
   return out;
+}
+
+// Escanea el rango en VENTANAS paralelas (la paginación de Stripe es secuencial
+// por cursor, pero varias ventanas de fechas corren a la vez) → un mes entero
+// entra holgado en el límite de 60s de Vercel, incluso en la cuenta compartida
+// con miles de cobros de otros negocios.
+async function cobrosDeCuenta(key: string, desde: number, hasta: number): Promise<ChargeRaw[]> {
+  const total = Math.max(1, hasta - desde);
+  const dias = total / 86400;
+  const n = dias > 20 ? 8 : dias > 8 ? 4 : dias > 2 ? 2 : 1; // ventanas
+  const paso = Math.ceil(total / n);
+  const ventanas: Array<[number, number]> = [];
+  for (let t = desde; t < hasta; t += paso) ventanas.push([t, Math.min(t + paso, hasta)]);
+  const partes = await Promise.all(ventanas.map(([a, b]) => paginaCobros(key, a, b)));
+  return partes.flat();
 }
 
 // USD liquidado del cobro: balance_transaction si vino; crudo solo si ya es USD.
@@ -110,8 +125,17 @@ const horaCDMX = (ts?: number) => new Date(((ts ?? 0) - 6 * 3600) * 1000).toISOS
 const fechaCDMX = (ts?: number) => new Date(((ts ?? 0) - 6 * 3600) * 1000).toISOString().slice(0, 10);
 const emailDe = (c: ChargeRaw) => String(c.billing_details?.email || c.receipt_email || '—');
 
+// Caché corto por rango: el panel pide balance y el export pide el detalle del
+// mismo mes → la segunda llamada es instantánea (y no re-consulta Stripe).
+const cache = new Map<string, { ts: number; data: { cobros: CobroRango[]; elevationConfigurada: boolean } }>();
+const CACHE_MS = 5 * 60 * 1000;
+
 // Todos los cobros del rango [desde, hasta) en ambas cuentas, clasificados.
 export async function cobrosRango(desde: number, hasta: number): Promise<{ cobros: CobroRango[]; elevationConfigurada: boolean }> {
+  const ck = `${desde}-${hasta}`;
+  const hit = cache.get(ck);
+  if (hit && Date.now() - hit.ts < CACHE_MS) return hit.data;
+
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error('Falta STRIPE_SECRET_KEY (2CLICKS).');
   const keyElev = process.env.STRIPE_SECRET_KEY_ELEVATION;
@@ -121,15 +145,22 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
   platformOf.set(PRODUCT_IDS.viraladn, 'viraladn');
   platformOf.set(PRODUCT_IDS.topcut, 'topcut');
   platformOf.set(PRODUCT_IDS.combo, 'combo');
-  for (const [a, plat] of ANCHORS) {
-    const p = await sGet(`prices/${encodeURIComponent(a)}`, key);
-    if (p?.product) platformOf.set(p.product as string, plat);
-  }
   const nombre = (plat?: string) => plat === 'viraladn' ? 'ViralADN' : plat === 'topcut' ? 'TOPCUT' : plat === 'combo' ? 'Combo' : 'otro negocio';
+
+  // Anchors + las dos cuentas, TODO en paralelo.
+  const [anchors, chClicks, chElev] = await Promise.all([
+    Promise.all(ANCHORS.map(async ([a, plat]) => {
+      const p = await sGet(`prices/${encodeURIComponent(a)}`, key);
+      return [p?.product as string | undefined, plat] as const;
+    })),
+    cobrosDeCuenta(key, desde, hasta),
+    keyElev ? cobrosDeCuenta(keyElev, desde, hasta) : Promise.resolve([] as ChargeRaw[]),
+  ]);
+  for (const [prod, plat] of anchors) if (prod) platformOf.set(prod, plat);
 
   const cobros: CobroRango[] = [];
 
-  for (const c of await cobrosDeCuenta(key, desde, hasta)) {
+  for (const c of chClicks) {
     let plat: 'viraladn' | 'topcut' | 'combo' | undefined;
     const inv = typeof c.invoice === 'object' ? c.invoice : null;
     for (const l of inv?.lines?.data || []) {
@@ -158,20 +189,21 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
     });
   }
 
-  if (keyElev) {
-    for (const c of await cobrosDeCuenta(keyElev, desde, hasta)) {
-      const { monto, refund, comision } = usdDe(c);
-      const extra = datosDe(c);
-      const invE = typeof c.invoice === 'object' ? c.invoice : null;
-      cobros.push({
-        ts: c.created ?? 0, fecha: fechaCDMX(c.created), hora: horaCDMX(c.created), email: emailDe(c),
-        monto, refund, comision, netoBanco: r2(monto - refund - comision),
-        estado: String(c.status || ''), producto: 'ViralADN (Elevation)', plataforma: 'viraladn',
-        viralAdn: true, cuenta: 'Elevation', suscripcion: String(invE?.subscription || ''),
-        ...extra,
-      });
-    }
+  for (const c of chElev) {
+    const { monto, refund, comision } = usdDe(c);
+    const extra = datosDe(c);
+    const invE = typeof c.invoice === 'object' ? c.invoice : null;
+    cobros.push({
+      ts: c.created ?? 0, fecha: fechaCDMX(c.created), hora: horaCDMX(c.created), email: emailDe(c),
+      monto, refund, comision, netoBanco: r2(monto - refund - comision),
+      estado: String(c.status || ''), producto: 'ViralADN (Elevation)', plataforma: 'viraladn',
+      viralAdn: true, cuenta: 'Elevation', suscripcion: String(invE?.subscription || ''),
+      ...extra,
+    });
   }
 
-  return { cobros, elevationConfigurada: !!keyElev };
+  const data = { cobros, elevationConfigurada: !!keyElev };
+  cache.set(ck, { ts: Date.now(), data });
+  if (cache.size > 24) cache.delete([...cache.keys()][0]); // no crecer sin fin
+  return data;
 }
