@@ -157,7 +157,9 @@ export async function GET(req: NextRequest) {
     const orden = { '🔴': 0, '🟡': 1, '🔵': 2 } as Record<string, number>;
     hallazgos.sort((a, b) => (orden[a.nivel] ?? 9) - (orden[b.nivel] ?? 9));
 
-    return Response.json({
+    // ?descargar=1 → baja el informe como archivo (para leerlo/archivarlo).
+    const descargar = req.nextUrl.searchParams.get('descargar') === '1';
+    const payload = {
       mes,
       totales: {
         cobros: ventas.length,
@@ -172,7 +174,16 @@ export async function GET(req: NextRequest) {
       hallazgos_total: hallazgos.length,
       hallazgos,
       nota: 'Base: cobros de Stripe de las 2 cuentas (USD liquidado) cruzados contra profiles y suscripciones vivas.',
-    });
+    };
+    if (descargar) {
+      return new Response(JSON.stringify(payload, null, 2), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="auditoria-viraladn-${mes}.json"`,
+        },
+      });
+    }
+    return Response.json(payload);
   } catch (e) {
     return Response.json({ error: (e as Error).message.slice(0, 200) }, { status: 502 });
   }

@@ -64,12 +64,14 @@ export async function GET(req: NextRequest) {
   // ?mes=YYYY-MM · ?producto=viraladn|topcut|combo (default: todos)
   // ?formato=csv (default: xlsx, que Google Sheets abre con doble clic)
   const mes = (req.nextUrl.searchParams.get('mes') || '').trim();
-  if (req.nextUrl.searchParams.get('type') === 'ventas' && /^\d{4}-\d{2}$/.test(mes)) {
+  const esHistorico = mes === 'historico';
+  if (req.nextUrl.searchParams.get('type') === 'ventas' && (/^\d{4}-\d{2}$/.test(mes) || esHistorico)) {
     const prodFiltro = (req.nextUrl.searchParams.get('producto') || '').toLowerCase();
     const soloCsv = req.nextUrl.searchParams.get('formato') === 'csv';
-    const [y, m] = mes.split('-').map(Number);
+    // historico = TODO desde el arranque del negocio (may-2026) hasta hoy.
+    const [y, m] = esHistorico ? [2026, 5] : mes.split('-').map(Number);
     const desde = Math.floor(Date.UTC(y, m - 1, 1, 6, 0, 0) / 1000);  // 1° del mes 00:00 CDMX
-    const hasta = Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);      // 1° del mes siguiente
+    const hasta = esHistorico ? Math.floor(Date.now() / 1000) : Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);
     try {
       const { cobros } = await cobrosRango(desde, hasta);
       let ventas = cobros.filter(c => c.viralAdn && c.estado === 'succeeded').sort((a, b) => a.ts - b.ts);
@@ -106,8 +108,29 @@ export async function GET(req: NextRequest) {
       filas.push(['TOTAL', '', `${ventas.length} ventas`, '', '', '', '', '', '', '', '',
         tot(c => c.monto), tot(c => c.refund), tot(c => c.comision), tot(c => c.netoBanco)]);
 
+      // ── Resumen POR PERSONA (acumulado): cuánto pagó cada quien en el período ──
+      const porPersona = new Map<string, { nombre: string; tel: string; pagos: number; total: number; neto: number; productos: Set<string> }>();
+      for (const v of ventas) {
+        const k = v.email.toLowerCase();
+        const p = byEmail.get(k) || {};
+        const e = porPersona.get(k) || { nombre: v.nombre || (p.name as string) || '', tel: (p.phone as string) || '', pagos: 0, total: 0, neto: 0, productos: new Set<string>() };
+        e.pagos++; e.total = Math.round((e.total + v.monto - v.refund) * 100) / 100;
+        e.neto = Math.round((e.neto + v.netoBanco) * 100) / 100;
+        e.productos.add(v.producto);
+        if (!e.nombre && v.nombre) e.nombre = v.nombre;
+        porPersona.set(k, e);
+      }
+      filas.push([]);
+      filas.push(['POR PERSONA (acumulado del período)']);
+      filas.push(['Nombre', 'Email', 'Teléfono', 'Pagos', 'Productos', '', '', '', '', '', '', 'Total pagado USD', '', '', 'Neto al banco USD']);
+      const personas = [...porPersona.entries()].sort((a, b) => b[1].total - a[1].total);
+      for (const [em, e] of personas) {
+        filas.push([e.nombre, em, e.tel, e.pagos, [...e.productos].join(' + '), '', '', '', '', '', '', e.total, '', '', e.neto]);
+      }
+      filas.push(['', `${personas.length} personas en total`]);
+
       const etiqueta = ['viraladn', 'topcut', 'combo'].includes(prodFiltro) ? `-${prodFiltro}` : '';
-      const nombreArch = `viraladn-ventas-${mes}${etiqueta}`;
+      const nombreArch = esHistorico ? `viraladn-ventas-HISTORICO-COMPLETO${etiqueta}` : `viraladn-ventas-${mes}${etiqueta}`;
 
       if (soloCsv) {
         const lines = [encabezados.join(',')];
@@ -115,7 +138,7 @@ export async function GET(req: NextRequest) {
         return csvResponse(lines.join('\n'), `${nombreArch}.csv`);
       }
       const buf = await hacerXlsx({
-        hoja: `Ventas ${mes}`, encabezados, filas,
+        hoja: esHistorico ? 'Ventas historico' : `Ventas ${mes}`, encabezados, filas,
         anchos: [11, 11, 26, 30, 16, 7, 16, 22, 14, 11, 20, 13, 15, 17, 16, 16, 9, 14, 12, 12, 26, 30, 44],
       });
       return new Response(new Uint8Array(buf), {

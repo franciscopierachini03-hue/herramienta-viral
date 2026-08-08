@@ -82,7 +82,7 @@ async function paginaCobros(key: string, desde: number, hasta: number): Promise<
 async function cobrosDeCuenta(key: string, desde: number, hasta: number): Promise<ChargeRaw[]> {
   const total = Math.max(1, hasta - desde);
   const dias = total / 86400;
-  const n = dias > 20 ? 8 : dias > 8 ? 4 : dias > 2 ? 2 : 1; // ventanas
+  const n = dias > 45 ? 14 : dias > 20 ? 8 : dias > 8 ? 4 : dias > 2 ? 2 : 1; // ventanas
   const paso = Math.ceil(total / n);
   const ventanas: Array<[number, number]> = [];
   for (let t = desde; t < hasta; t += paso) ventanas.push([t, Math.min(t + paso, hasta)]);

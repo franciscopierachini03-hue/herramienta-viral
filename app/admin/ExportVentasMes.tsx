@@ -47,7 +47,12 @@ export default function ExportVentasMes() {
         📊 Exportar ventas
       </a>
       <a href={href('csv')} download className="text-[11px] underline" style={{ color: '#666' }} title="Mismo reporte en CSV">csv</a>
-      <a href="/api/admin/export?type=ventas" download className="text-[11px] underline" style={{ color: '#666' }} title="Histórico completo">todo</a>
+      <a href={`/api/admin/export?type=ventas&mes=historico${producto ? `&producto=${producto}` : ''}`} download
+        className="px-3 py-1.5 rounded-xl text-xs font-bold"
+        style={{ background: '#12101f', border: '1px solid #7c3aed55', color: '#c4b5fd' }}
+        title="TODAS las ventas desde el día uno: cada pago + acumulado por persona + total general">
+        🗂 Histórico completo
+      </a>
     </span>
   );
 }
