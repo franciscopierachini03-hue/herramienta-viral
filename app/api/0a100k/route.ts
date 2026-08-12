@@ -46,24 +46,13 @@ export async function POST(req: NextRequest) {
   const lineas = CAMPOS.map(([k, label]) => `${label}:\n${String(body[k] || '—').trim().slice(0, 1200)}`).join('\n\n');
   const resumen = `${(body.facturacion || '?')} → meta ${(body.meta || '?')}`;
 
-  const r = await sendMensajeContacto({
-    nombre,
-    email,
-    asunto: `🚀 Aplicación 0a100K — ${nombre} (${resumen})`,
-    mensaje: `Nueva aplicación del funnel 0 a 100K:\n\n${lineas}`,
-  });
-  if (r.error) {
-    const motivo = String((r.error as { message?: string })?.message || r.error).slice(0, 200);
-    console.error('[0a100k] resend:', motivo);
-    return Response.json({ error: 'No pudimos enviar tu aplicación. Probá de nuevo.', motivo }, { status: 502 });
-  }
-
-  // 📊 Fila en el Google Sheet (Apps Script, mismo patrón que /api/registro).
-  // Best-effort: si el Sheet falla, la aplicación igual quedó en el correo.
+  // 1) 📊 EL SHEET MANDA: la aplicación se guarda ahí SIEMPRE. Si el correo
+  // falla (p. ej. cupo diario de Resend agotado), la persona NO se pierde.
+  let enSheet = false;
   const sheet = process.env.SHEET_0A100K_URL;
   if (sheet) {
     try {
-      await fetch(sheet, {
+      const rs = await fetch(sheet, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,7 +69,27 @@ export async function POST(req: NextRequest) {
           inversion: (body.inversion || '').slice(0, 60),
         }),
       });
+      enSheet = rs.ok;
     } catch (e) { console.error('[0a100k] sheet:', (e as Error).message.slice(0, 120)); }
+  }
+
+  // 2) 📧 Aviso por correo (best-effort): si falla, queda registrado en el log
+  // pero la aplicación ya está guardada en el Sheet.
+  let enCorreo = false;
+  try {
+    const r = await sendMensajeContacto({
+      nombre,
+      email,
+      asunto: `🚀 Aplicación 0a100K — ${nombre} (${resumen})`,
+      mensaje: `Nueva aplicación del funnel 0 a 100K:\n\n${lineas}`,
+    });
+    if (r.error) console.error('[0a100k] resend:', String((r.error as { message?: string })?.message || r.error).slice(0, 200));
+    else enCorreo = true;
+  } catch (e) { console.error('[0a100k] resend excepción:', (e as Error).message.slice(0, 150)); }
+
+  // Solo es error si NO quedó registrada en ningún lado.
+  if (!enSheet && !enCorreo) {
+    return Response.json({ error: 'No pudimos registrar tu aplicación. Escribinos y te ayudamos.' }, { status: 502 });
   }
 
   return Response.json({ ok: true });
