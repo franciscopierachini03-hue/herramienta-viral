@@ -41,3 +41,19 @@ export function claseEnFecha(fechaCDMX: string) {
   }
   return { ...CLASE, esEspecial: false as const };
 }
+
+// 📣 AVISO en pantalla (banner) para cambios de último momento. Se muestra en
+// /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
+// Para apagarlo: dejá `texto` vacío.
+export const AVISO = {
+  desde: '2026-08-12',
+  hasta: '2026-08-13',
+  titulo: '📅 La clase de HOY se mueve para MAÑANA',
+  texto: 'Cambio de último momento: la clase de hoy no se hace. Nos vemos mañana a la misma hora, en la misma sala. ¡Te esperamos!',
+};
+
+export function avisoVigente(hoyCDMX: string) {
+  if (!AVISO.texto) return null;
+  if (hoyCDMX < AVISO.desde || hoyCDMX > AVISO.hasta) return null;
+  return AVISO;
+}

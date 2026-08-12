@@ -7,7 +7,7 @@ import ProductNav from '../_components/ProductNav';
 // Todos los miércoles 10:00 AM Ciudad de México, en la Sala Z1 de Zoom.
 // Config editable acá abajo (CLASE). Gate por plan en layout.tsx.
 
-import { CLASE, HORARIOS, claseEnFecha } from './clase-config';
+import { CLASE, HORARIOS, claseEnFecha, avisoVigente } from './clase-config';
 
 type Archivo = { nombre: string; url: string };
 type Clase = { id: string; fecha: string; titulo: string; resumen: string | null; video_url: string | null; archivos: Archivo[] };
@@ -126,12 +126,20 @@ export default function Comunidad() {
   // Clase vigente HOY (CDMX): la especial si es su día, si no la semanal.
   const hoyCDMX = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
   const C = claseEnFecha(hoyCDMX);
+  const aviso = avisoVigente(hoyCDMX);
 
   return (
     <main className="min-h-screen text-white px-6 py-8"
       style={{ background: 'radial-gradient(ellipse 90% 45% at 25% 0%, #2a1a06 0%, transparent 60%), radial-gradient(ellipse 70% 35% at 85% 8%, #2a0a0e 0%, transparent 55%), #070710' }}>
       <div className="max-w-4xl mx-auto">
         <ProductNav active="comunidad" />
+
+        {aviso && (
+          <div className="rounded-3xl p-5 mb-6" style={{ background: 'linear-gradient(145deg, #2a1206, #1a0d0d)', border: '2px solid #f59e0b', boxShadow: '0 0 40px #f59e0b44' }}>
+            <p className="text-lg font-extrabold mb-1" style={{ color: '#fcd34d' }}>{aviso.titulo}</p>
+            <p className="text-sm" style={{ color: '#e8d8b4' }}>{aviso.texto}</p>
+          </div>
+        )}
 
         {/* La clase semanal */}
         <div className="rounded-3xl p-7 mb-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #1a1206, #0d0d16)', border: '1px solid #f59e0b55', boxShadow: '0 0 50px #f59e0b22' }}>

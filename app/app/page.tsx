@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
+import { avisoVigente } from '../comunidad/clase-config';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
 import IdeasChat from './IdeasChat';
@@ -975,6 +976,15 @@ export default function Home() {
       <ProductGate product="viraladn" />
       {/* Header */}
       <ProductNav active="viral" />
+      {(() => {
+        const a = avisoVigente(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date()));
+        return a ? (
+          <div className="rounded-2xl p-4 mb-5" style={{ background: 'linear-gradient(145deg, #2a1206, #1a0d0d)', border: '2px solid #f59e0b', boxShadow: '0 0 30px #f59e0b33' }}>
+            <p className="text-base font-extrabold mb-1" style={{ color: '#fcd34d' }}>{a.titulo}</p>
+            <p className="text-sm" style={{ color: '#e8d8b4' }}>{a.texto}</p>
+          </div>
+        ) : null;
+      })()}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
