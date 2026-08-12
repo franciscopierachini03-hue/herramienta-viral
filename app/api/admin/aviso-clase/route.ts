@@ -19,6 +19,32 @@ const APP = 'https://www.viraladn.com';
 
 type ClaseInfo = ReturnType<typeof claseEnFecha>;
 
+function emailMovida(hora: string, fechaTxt: string, C: ClaseInfo): { subject: string; html: string } {
+  const subject = `📅 La clase de HOY se mueve para mañana (${hora})`;
+  const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+<div style="max-width:520px;margin:0 auto;background:#101018;border:1px solid #23232e;border-radius:18px;padding:28px;">
+  <div style="background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:8px;padding:8px 14px;display:inline-block;">
+    <span style="color:#fff;font-weight:800;font-size:15px;">ViralADN</span>
+  </div>
+  <h1 style="margin:18px 0 8px;font-size:25px;color:#fff;">📅 La clase de hoy se mueve para MAÑANA</h1>
+  <p style="margin:0 0 16px;font-size:15px;color:#c8c8d4;line-height:1.55;">
+    Cambio de último momento: <b style="color:#fff;">${C.nombre}</b> no será hoy.
+    Nos vemos <b style="color:#fcd34d;font-size:17px;">${fechaTxt} a las ${hora} (hora CDMX)</b>.
+    Misma sala, mismo link — solo cambia el día. ¡Agendalo!
+  </p>
+  <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:0 0 18px;">
+    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+  </div>
+  <a href="${C.zoomUrl}" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:16px;padding:14px;border-radius:12px;text-decoration:none;">
+    👉 Guardar el link de la clase
+  </a>
+  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Perdón por el cambio y gracias por entender. El acceso está siempre en <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a>.</p>
+</div>
+</body></html>`;
+  return { subject, html };
+}
+
 function emailHtml(hora: string, fechaTxt: string, C: ClaseInfo): { subject: string; html: string } {
   const subject = `🕗 Cambio de horario: la clase de mañana es a las ${hora}`;
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
@@ -81,7 +107,12 @@ export async function GET(req: NextRequest) {
   const mananaCDMX = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(manana);
   const C = claseEnFecha(mananaCDMX); // la ESPECIAL si mañana es su día (link/sala correctos)
   const horaFinal = C.esEspecial ? C.horaCDMX : hora;
-  const { subject, html } = emailHtml(horaFinal, fechaTxt, C);
+  // ?tipo=movida → "la clase de HOY se mueve para mañana" (default: cambio de horario)
+  const tipo = sp.get('tipo') || '';
+  const fechaManana = new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', day: 'numeric', month: 'long' }).format(manana);
+  const { subject, html } = tipo === 'movida'
+    ? emailMovida(sp.get('hora') || C.horaCDMX, `mañana ${fechaManana}`, C)
+    : emailHtml(horaFinal, fechaTxt, C);
 
   const sb = createServiceClient();
   const { data } = await sb.from('profiles')
@@ -100,7 +131,7 @@ export async function GET(req: NextRequest) {
 
   // Candado anti doble-clic: 1 envío por día (marca en ai_credits si existe).
   const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
-  const marca = 'aviso:clase-horario';
+  const marca = `aviso:clase-${tipo || 'horario'}`;
   if (!force) {
     try {
       const { data: m } = await sb.from('ai_credits').select('period').eq('email', marca).maybeSingle();
