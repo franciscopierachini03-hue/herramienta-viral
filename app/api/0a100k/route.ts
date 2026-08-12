@@ -52,7 +52,11 @@ export async function POST(req: NextRequest) {
     asunto: `🚀 Aplicación 0a100K — ${nombre} (${resumen})`,
     mensaje: `Nueva aplicación del funnel 0 a 100K:\n\n${lineas}`,
   });
-  if (r.error) return Response.json({ error: 'No pudimos enviar tu aplicación. Probá de nuevo.' }, { status: 502 });
+  if (r.error) {
+    const motivo = String((r.error as { message?: string })?.message || r.error).slice(0, 200);
+    console.error('[0a100k] resend:', motivo);
+    return Response.json({ error: 'No pudimos enviar tu aplicación. Probá de nuevo.', motivo }, { status: 502 });
+  }
 
   // 📊 Fila en el Google Sheet (Apps Script, mismo patrón que /api/registro).
   // Best-effort: si el Sheet falla, la aplicación igual quedó en el correo.
