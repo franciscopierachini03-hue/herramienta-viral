@@ -54,5 +54,30 @@ export async function POST(req: NextRequest) {
   });
   if (r.error) return Response.json({ error: 'No pudimos enviar tu aplicación. Probá de nuevo.' }, { status: 502 });
 
+  // 📊 Fila en el Google Sheet (Apps Script, mismo patrón que /api/registro).
+  // Best-effort: si el Sheet falla, la aplicación igual quedó en el correo.
+  const sheet = process.env.SHEET_0A100K_URL;
+  if (sheet) {
+    try {
+      await fetch(sheet, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fecha: new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
+          nombre, email, whatsapp,
+          instagram: (body.instagram || '').slice(0, 120),
+          seguidores: (body.seguidores || '').slice(0, 60),
+          oferta: (body.oferta || '').slice(0, 1200),
+          facturacion: (body.facturacion || '').slice(0, 60),
+          meta: (body.meta || '').slice(0, 60),
+          freno: (body.freno || '').slice(0, 1200),
+          frecuencia: (body.frecuencia || '').slice(0, 60),
+          equipo: (body.equipo || '').slice(0, 60),
+          inversion: (body.inversion || '').slice(0, 60),
+        }),
+      });
+    } catch (e) { console.error('[0a100k] sheet:', (e as Error).message.slice(0, 120)); }
+  }
+
   return Response.json({ ok: true });
 }
