@@ -68,8 +68,10 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('type') === 'ventas' && (/^\d{4}-\d{2}$/.test(mes) || esHistorico)) {
     const prodFiltro = (req.nextUrl.searchParams.get('producto') || '').toLowerCase();
     const soloCsv = req.nextUrl.searchParams.get('formato') === 'csv';
-    // historico = TODO desde el arranque del negocio (may-2026) hasta hoy.
-    const [y, m] = esHistorico ? [2026, 5] : mes.split('-').map(Number);
+    // historico = TODO desde el arranque del negocio hasta hoy. Arranca en
+    // ENERO 2026 para no dejar fuera ventas viejas (el corte en mayo escondía
+    // pagos de abril — caso sabasktk, registrado el 29-abr).
+    const [y, m] = esHistorico ? [2026, 1] : mes.split('-').map(Number);
     const desde = Math.floor(Date.UTC(y, m - 1, 1, 6, 0, 0) / 1000);  // 1° del mes 00:00 CDMX
     const hasta = esHistorico ? Math.floor(Date.now() / 1000) : Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);
     try {
