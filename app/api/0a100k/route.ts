@@ -49,6 +49,12 @@ export async function POST(req: NextRequest) {
   // 1) 📊 EL SHEET MANDA: la aplicación se guarda ahí SIEMPRE. Si el correo
   // falla (p. ej. cupo diario de Resend agotado), la persona NO se pierde.
   let enSheet = false;
+  // Google Sheets interpreta como FÓRMULA lo que empieza con = + - @ (el
+  // WhatsApp "+52…" salía #ERROR!). El apóstrofo lo fuerza a texto y no se ve.
+  const txt = (v: unknown, max = 200) => {
+    const t = String(v ?? '').slice(0, max);
+    return /^[=+\-@]/.test(t) ? `'${t}` : t;
+  };
   const sheet = process.env.SHEET_0A100K_URL;
   if (sheet) {
     try {
@@ -57,16 +63,16 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fecha: new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
-          nombre, email, whatsapp,
-          instagram: (body.instagram || '').slice(0, 120),
-          seguidores: (body.seguidores || '').slice(0, 60),
-          oferta: (body.oferta || '').slice(0, 1200),
-          facturacion: (body.facturacion || '').slice(0, 60),
-          meta: (body.meta || '').slice(0, 60),
-          freno: (body.freno || '').slice(0, 1200),
-          frecuencia: (body.frecuencia || '').slice(0, 60),
-          equipo: (body.equipo || '').slice(0, 60),
-          inversion: (body.inversion || '').slice(0, 60),
+          nombre: txt(nombre), email: txt(email), whatsapp: txt(whatsapp, 40),
+          instagram: txt(body.instagram, 120),
+          seguidores: txt(body.seguidores, 60),
+          oferta: txt(body.oferta, 1200),
+          facturacion: txt(body.facturacion, 60),
+          meta: txt(body.meta, 60),
+          freno: txt(body.freno, 1200),
+          frecuencia: txt(body.frecuencia, 60),
+          equipo: txt(body.equipo, 60),
+          inversion: txt(body.inversion, 60),
         }),
       });
       enSheet = rs.ok;
