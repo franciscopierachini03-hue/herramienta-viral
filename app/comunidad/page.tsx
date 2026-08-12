@@ -7,7 +7,7 @@ import ProductNav from '../_components/ProductNav';
 // Todos los miércoles 10:00 AM Ciudad de México, en la Sala Z1 de Zoom.
 // Config editable acá abajo (CLASE). Gate por plan en layout.tsx.
 
-import { CLASE, HORARIOS } from './clase-config';
+import { CLASE, HORARIOS, claseEnFecha } from './clase-config';
 
 type Archivo = { nombre: string; url: string };
 type Clase = { id: string; fecha: string; titulo: string; resumen: string | null; video_url: string | null; archivos: Archivo[] };
@@ -123,6 +123,10 @@ export default function Comunidad() {
 
   const card = { background: 'linear-gradient(145deg, #14141f, #0d0d16)', border: '1px solid #23232f' } as const;
 
+  // Clase vigente HOY (CDMX): la especial si es su día, si no la semanal.
+  const hoyCDMX = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  const C = claseEnFecha(hoyCDMX);
+
   return (
     <main className="min-h-screen text-white px-6 py-8"
       style={{ background: 'radial-gradient(ellipse 90% 45% at 25% 0%, #2a1a06 0%, transparent 60%), radial-gradient(ellipse 70% 35% at 85% 8%, #2a0a0e 0%, transparent 55%), #070710' }}>
@@ -137,7 +141,7 @@ export default function Comunidad() {
           )}
           <p className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: '#fcd34d' }}>🎓 Clase semanal en vivo</p>
           <h1 className="text-2xl md:text-3xl font-extrabold mb-1">{CLASE.nombre}</h1>
-          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>Todos los miércoles · {CLASE.horaCDMX} · Ciudad de México</p>
+          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>{C.esEspecial ? <b style={{ color: '#fcd34d' }}>🕗 HOY clase especial · {C.horaCDMX} · Ciudad de México</b> : <>Todos los miércoles · {CLASE.horaCDMX} · Ciudad de México</>}</p>
           <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
             Nos sentamos con tu cuenta a revisar qué está funcionando, qué ajustar y qué publicar esta semana.
             {proxima && <> Próxima clase: <b style={{ color: '#fcd34d', textTransform: 'capitalize' }}>{proxima}</b>.</>}
@@ -150,7 +154,7 @@ export default function Comunidad() {
               <span className="text-base font-extrabold animate-pulse" style={{ color: '#fca5a5' }}>
                 🔴 LA CLASE ESTÁ EN VIVO AHORA
               </span>
-              <a href={CLASE.zoomUrl} target="_blank" rel="noopener noreferrer"
+              <a href={C.zoomUrl} target="_blank" rel="noopener noreferrer"
                 className="text-xs font-extrabold px-4 py-2 rounded-xl"
                 style={{ background: '#ef4444', color: '#fff' }}>
                 Entrar ya →
@@ -191,7 +195,7 @@ export default function Comunidad() {
             </span>
           </div>
 
-          <a href={CLASE.zoomUrl} target="_blank" rel="noopener noreferrer"
+          <a href={C.zoomUrl} target="_blank" rel="noopener noreferrer"
             className="block w-full py-4 rounded-2xl text-base font-extrabold text-center transition-transform hover:-translate-y-0.5 mb-4"
             style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: '#fff', boxShadow: '0 0 30px #f59e0b44' }}>
             🚀 Entrar a la clase (Zoom) →
@@ -201,9 +205,9 @@ export default function Comunidad() {
             <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
               <div>
                 <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>ID de la reunión</p>
-                <p className="text-sm font-bold font-mono">{CLASE.zoomId}</p>
+                <p className="text-sm font-bold font-mono">{C.zoomId}</p>
               </div>
-              <button onClick={() => copiar(CLASE.zoomId.replace(/\s/g, ''), 'id')}
+              <button onClick={() => copiar(C.zoomId.replace(/\s/g, ''), 'id')}
                 className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
                 style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === 'id' ? '#86efac' : '#c9c9d4' }}>
                 {copiado === 'id' ? '✓ Copiado' : 'Copiar'}
@@ -212,9 +216,9 @@ export default function Comunidad() {
             <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
               <div>
                 <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>Código de acceso</p>
-                <p className="text-sm font-bold font-mono">{CLASE.zoomCodigo}</p>
+                <p className="text-sm font-bold font-mono">{C.zoomCodigo}</p>
               </div>
-              <button onClick={() => copiar(CLASE.zoomCodigo, 'codigo')}
+              <button onClick={() => copiar(C.zoomCodigo, 'codigo')}
                 className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
                 style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === 'codigo' ? '#86efac' : '#c9c9d4' }}>
                 {copiado === 'codigo' ? '✓ Copiado' : 'Copiar'}

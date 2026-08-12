@@ -21,3 +21,23 @@ export const HORARIOS: Array<[string, string, string]> = [
   ['🇺🇸🇨🇱🇻🇪', '12:00 PM', 'Miami / Chile / Venezuela'],
   ['🇦🇷🇧🇷', '1:00 PM', 'Argentina / Brasil'],
 ];
+
+// 🕗 CLASE ESPECIAL de UN día (link/hora distintos). Vigente SOLO en su fecha
+// (CDMX): /comunidad y el aviso por correo la toman solos; después, todo
+// vuelve a la clase semanal normal sin tocar nada.
+export const CLASE_ESPECIAL = {
+  fecha: '2026-08-08',           // sábado 8-ago-2026
+  hora: '8:00 AM',
+  zoomUrl: 'https://us02web.zoom.us/j/83597583355?pwd=LaCf8yUfO6rPFOqlJ27u46J6WNYMMu.1',
+  zoomId: '835 9758 3355',
+  zoomCodigo: 'V123',
+};
+
+// La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
+// día, si no la semanal de siempre.
+export function claseEnFecha(fechaCDMX: string) {
+  if (CLASE_ESPECIAL && fechaCDMX === CLASE_ESPECIAL.fecha) {
+    return { ...CLASE, horaCDMX: CLASE_ESPECIAL.hora, zoomUrl: CLASE_ESPECIAL.zoomUrl, zoomId: CLASE_ESPECIAL.zoomId, zoomCodigo: CLASE_ESPECIAL.zoomCodigo, esEspecial: true as const };
+  }
+  return { ...CLASE, esEspecial: false as const };
+}
