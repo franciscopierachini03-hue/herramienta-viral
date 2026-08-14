@@ -75,6 +75,15 @@ export const TOOLS: Tool[] = [
     border: '#10b98144', glow: '#10b98114', iconGlow: '#10b98133',
     unlockBorder: '#10b98155', unlockColor: '#6ee7b7',
   },
+  {
+    key: 'metricas', name: 'Analizar mi reel', href: '/metricas', icon: '📊',
+    desc: 'Subí la captura de tus estadísticas y la IA te dice por qué no funcionó y qué cambiar en el próximo.',
+    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
+    includedNote: 'Incluido con tu plan',
+    grad: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+    border: '#60a5fa44', glow: '#60a5fa14', iconGlow: '#60a5fa33',
+    unlockBorder: '#60a5fa55', unlockColor: '#93c5fd',
+  },
   // Guiones y Teleprompter NO son cards del hub: viven DENTRO de ViralADN.
   // - Guiones: pestaña "📚 Guiones" en /app, con botón "Generar guion" → /guiones.
   // - Teleprompter (/teleprompter): se abre desde la pestaña "📚 Guiones" (botón
