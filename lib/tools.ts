@@ -84,6 +84,15 @@ export const TOOLS: Tool[] = [
     border: '#60a5fa44', glow: '#60a5fa14', iconGlow: '#60a5fa33',
     unlockBorder: '#60a5fa55', unlockColor: '#93c5fd',
   },
+  {
+    key: 'historias', name: 'Historias que venden', href: '/historias', icon: '📖',
+    desc: 'Elegí un formato probado y la IA arma la historia lista para publicar, adaptada a tu cliente ideal.',
+    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
+    includedNote: 'Incluido con tu plan',
+    grad: 'linear-gradient(135deg, #db2777, #7c3aed)',
+    border: '#f472b644', glow: '#f472b614', iconGlow: '#f472b633',
+    unlockBorder: '#f472b655', unlockColor: '#f9a8d4',
+  },
   // Guiones y Teleprompter NO son cards del hub: viven DENTRO de ViralADN.
   // - Guiones: pestaña "📚 Guiones" en /app, con botón "Generar guion" → /guiones.
   // - Teleprompter (/teleprompter): se abre desde la pestaña "📚 Guiones" (botón

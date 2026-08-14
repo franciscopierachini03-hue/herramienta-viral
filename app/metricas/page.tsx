@@ -40,18 +40,30 @@ function comprimirImagen(file: File, maxLado = 1600, calidad = 0.85): Promise<st
 }
 
 type Accion = { que: string; porque: string };
+type Comparacion = { metrica: string; tuyo: string; sano: string; estado: 'bien' | 'justo' | 'mal' };
 type Analisis = {
   metricas?: Record<string, string | number | null>;
   veredicto?: string; nota?: number; loBueno?: string[];
+  lectura?: string;
+  dondeFallo?: { fase?: string; momento?: string; explicacion?: string };
+  comparacion?: Comparacion[];
   problema?: string; acciones?: Accion[]; ganchoSugerido?: string;
   conClienteIdeal?: boolean;
+};
+
+const FASES: Record<string, string> = {
+  gancho: '🪝 El gancho (primeros 3 segundos)',
+  desarrollo: '🎬 El desarrollo (el medio del video)',
+  cierre: '🎯 El cierre / CTA (el final)',
+  distribucion: '📡 La distribución (alcance)',
+  ninguna: '✅ No hay una falla clara',
 };
 
 const ETIQUETAS: Record<string, string> = {
   reproducciones: 'Reproducciones', alcance: 'Alcance', seguidores_pct: 'De seguidores',
   me_gusta: 'Me gusta', comentarios: 'Comentarios', guardados: 'Guardados',
   compartidos: 'Compartidos', tiempo_medio: 'Tiempo medio', retencion_3s: 'Retención 3s',
-  seguidores_nuevos: 'Seguidores nuevos',
+  duracion: 'Duración', visitas_perfil: 'Visitas al perfil', seguidores_nuevos: 'Seguidores nuevos',
 };
 
 export default function Metricas() {
@@ -165,6 +177,43 @@ export default function Metricas() {
                         {ETIQUETAS[k] || k}: <b style={{ color: '#fff' }}>{String(v)}</b>
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {res.lectura && (
+                  <div className="rounded-2xl p-4 mb-4" style={{ background: '#0a0a12', border: '1px solid #3a3a4a' }}>
+                    <p className="text-xs font-extrabold mb-2" style={{ color: '#c4b5fd' }}>🔍 Qué estoy viendo</p>
+                    <p className="text-sm leading-relaxed" style={{ color: '#d4d4de' }}>{res.lectura}</p>
+                  </div>
+                )}
+
+                {res.dondeFallo?.fase && res.dondeFallo.fase !== 'ninguna' && (
+                  <div className="rounded-2xl p-4 mb-4" style={{ background: '#12101f', border: '1px solid #7c3aed66' }}>
+                    <p className="text-xs font-extrabold mb-1.5" style={{ color: '#c4b5fd' }}>📍 Dónde se decidió</p>
+                    <p className="text-sm font-bold mb-1" style={{ color: '#fff' }}>
+                      {FASES[res.dondeFallo.fase] || res.dondeFallo.fase}
+                      {res.dondeFallo.momento ? <span style={{ color: '#fcd34d' }}> · {res.dondeFallo.momento}</span> : null}
+                    </p>
+                    <p className="text-sm" style={{ color: '#c9c9d4' }}>{res.dondeFallo.explicacion}</p>
+                  </div>
+                )}
+
+                {!!res.comparacion?.length && (
+                  <div className="rounded-2xl p-4 mb-4" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
+                    <p className="text-xs font-extrabold mb-2.5" style={{ color: '#c9c9d4' }}>📐 Tus números vs lo sano</p>
+                    {res.comparacion.map((c, i) => {
+                      const col = c.estado === 'bien' ? '#86efac' : c.estado === 'justo' ? '#fcd34d' : '#fca5a5';
+                      const ico = c.estado === 'bien' ? '✅' : c.estado === 'justo' ? '🟡' : '🔴';
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-2 py-1.5" style={{ borderBottom: i < res.comparacion!.length - 1 ? '1px solid #1c1c26' : 'none' }}>
+                          <span className="text-[13px]" style={{ color: '#c9c9d4' }}>{ico} {c.metrica}</span>
+                          <span className="text-[13px] text-right">
+                            <b style={{ color: col }}>{c.tuyo}</b>
+                            <span style={{ color: '#6a6a76' }}> · sano {c.sano}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
