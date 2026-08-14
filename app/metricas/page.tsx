@@ -6,6 +6,7 @@
 // Gate: plan ViralADN (ProductGate) · Navegación hub & spoke (ProductNav).
 
 import { useState } from 'react';
+import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
@@ -110,6 +111,8 @@ export default function Metricas() {
             <SessionGuard />
             <ProductGate product="viraladn" />
             <ProductNav active="viral" />
+        <Link href="/app" className="inline-block text-[13px] font-bold mb-1 mt-1"
+          style={{ color: '#c4b5fd' }}>← Volver a ViralADN</Link>
 
             <div className="text-center mb-6 mt-2">
               <h1 className="text-2xl md:text-3xl font-extrabold mb-2">📊 ¿Por qué no funcionó mi reel?</h1>

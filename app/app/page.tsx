@@ -987,22 +987,34 @@ export default function Home() {
       })()}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
+      <div className="flex flex-wrap gap-1 mb-8 p-1 rounded-2xl" style={{ background: '#101019', border: '1px solid #23232f' }}>
         {[
           { id: 'transcribir', label: '⚡ Transcribir' },
           { id: 'virales',     label: '🔥 Virales' },
           { id: 'analizar',    label: '🔍 Analizar' },
           { id: 'perfil',      label: '📸 Mi perfil' },
           { id: 'biblioteca',  label: `📚 Guiones${guiones.length > 0 ? ` · ${guiones.length}` : ''}` },
+          // Estas dos son páginas propias, pero se entra desde acá: ViralADN es
+          // una sola herramienta con pestañas (no cards sueltas en el hub).
+          { id: 'metricas',    label: '📊 Mis números', href: '/metricas' },
+          { id: 'historias',   label: '📖 Historias',   href: '/historias' },
         ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className="flex-1 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:text-white"
-            style={tab === t.id
-              ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', border: '1px solid transparent', boxShadow: '0 4px 20px #7c3aed55' }
-              : { background: 'transparent', color: '#8b8b96', border: '1px solid transparent' }
-            }>
-            {t.label}
-          </button>
+          t.href ? (
+            <Link key={t.id} href={t.href}
+              className="flex-1 py-3 rounded-xl text-xs sm:text-sm font-bold text-center transition-all duration-200 hover:text-white"
+              style={{ background: 'transparent', color: '#8b8b96', border: '1px solid transparent', minWidth: 120 }}>
+              {t.label}
+            </Link>
+          ) : (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className="flex-1 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:text-white"
+              style={{ minWidth: 120, ...(tab === t.id
+                ? { background: 'linear-gradient(135deg, #7c3aed, #c13584)', color: '#fff', border: '1px solid transparent', boxShadow: '0 4px 20px #7c3aed55' }
+                : { background: 'transparent', color: '#8b8b96', border: '1px solid transparent' })
+              }}>
+              {t.label}
+            </button>
+          )
         ))}
       </div>
 

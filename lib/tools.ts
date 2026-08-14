@@ -75,24 +75,8 @@ export const TOOLS: Tool[] = [
     border: '#10b98144', glow: '#10b98114', iconGlow: '#10b98133',
     unlockBorder: '#10b98155', unlockColor: '#6ee7b7',
   },
-  {
-    key: 'metricas', name: 'Analizar mi reel', href: '/metricas', icon: '📊',
-    desc: 'Subí la captura de tus estadísticas y la IA te dice por qué no funcionó y qué cambiar en el próximo.',
-    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
-    includedNote: 'Incluido con tu plan',
-    grad: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-    border: '#60a5fa44', glow: '#60a5fa14', iconGlow: '#60a5fa33',
-    unlockBorder: '#60a5fa55', unlockColor: '#93c5fd',
-  },
-  {
-    key: 'historias', name: 'Historias que venden', href: '/historias', icon: '📖',
-    desc: 'Elegí un formato probado y la IA arma la historia lista para publicar, adaptada a tu cliente ideal.',
-    needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
-    includedNote: 'Incluido con tu plan',
-    grad: 'linear-gradient(135deg, #db2777, #7c3aed)',
-    border: '#f472b644', glow: '#f472b614', iconGlow: '#f472b633',
-    unlockBorder: '#f472b655', unlockColor: '#f9a8d4',
-  },
+  // Analizar mi reel (/metricas), Historias que venden (/historias), Guiones y
+  // Teleprompter NO son cards del hub: viven DENTRO de ViralADN (pestañas de /app).
   // Guiones y Teleprompter NO son cards del hub: viven DENTRO de ViralADN.
   // - Guiones: pestaña "📚 Guiones" en /app, con botón "Generar guion" → /guiones.
   // - Teleprompter (/teleprompter): se abre desde la pestaña "📚 Guiones" (botón
