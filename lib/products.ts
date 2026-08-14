@@ -52,7 +52,7 @@ const NEW_PRODUCT_ENT: Record<string, Entitlement> = {
 const NEW_PRICE_ENT: Record<string, Entitlement> = {
   'price_1TrgNwBrwYizao1Ogz3hesBl': { viraladn: true,  topcut: false }, // ViralADN $47/mes
   'price_1TrgOUBrwYizao1OhEiFZzRA': { viraladn: true,  topcut: false }, // ViralADN $127/3m
-  'price_1TrgOtBrwYizao1Olm1t2Bl1': { viraladn: true,  topcut: false }, // ViralADN $451/año
+  'price_1TrgOtBrwYizao1Olm1t2BI1': { viraladn: true,  topcut: false }, // ViralADN $451/año
   'price_1TrgQWBrwYizao1Oz8hQaRUf': { viraladn: false, topcut: true  }, // TOPCUT $67/mes
   'price_1TrgQpBrwYizao1OByH7Vqwr': { viraladn: false, topcut: true  }, // TOPCUT $181/3m
   'price_1TrgRDBrwYizao1OOT8W9gPf': { viraladn: false, topcut: true  }, // TOPCUT $643/año
@@ -102,7 +102,7 @@ export const EVENT_CHECKOUT_PRICE: Record<ProductKey, Partial<Record<Ciclo, stri
   viraladn: {
     monthly:   'price_1TrgNwBrwYizao1Ogz3hesBl', // $47/mes
     quarterly: 'price_1TrgOUBrwYizao1OhEiFZzRA', // $127/3m
-    yearly:    'price_1TrgOtBrwYizao1Olm1t2Bl1', // $451/año
+    yearly:    'price_1TrgOtBrwYizao1Olm1t2BI1', // $451/año
   },
   topcut: {
     monthly:   'price_1TrgQWBrwYizao1Oz8hQaRUf', // $67/mes
@@ -126,9 +126,27 @@ export const EVENT_AMOUNTS: Record<ProductKey, Record<Ciclo, number>> = {
 };
 
 export async function resolvePriceId(producto: ProductKey, ciclo: Ciclo): Promise<string | null> {
-  // Evento: price id nuevo directo, manda sobre env override y match por monto.
+  // Evento: price id directo. Se VERIFICA contra Stripe antes de usarlo — si el
+  // id está mal (una I/l mal copiada rompe el checkout entero) seguimos con la
+  // búsqueda por monto de abajo, que siempre encuentra el precio correcto.
   const ev = EVENT_CHECKOUT_PRICE[producto]?.[ciclo];
-  if (ev) return ev;
+  if (ev) {
+    const keyV = process.env.STRIPE_SECRET_KEY;
+    if (!keyV) return ev;
+    const ck = `ok:${ev}`;
+    const cached = _cache.get(ck);
+    if (cached && Date.now() - cached.t < CACHE_MS) { if (cached.id) return cached.id; }
+    else {
+      try {
+        const r = await fetch(`https://api.stripe.com/v1/prices/${encodeURIComponent(ev)}`,
+          { headers: { Authorization: `Bearer ${keyV}` }, cache: 'no-store' });
+        const ok = r.ok && (await r.json())?.active !== false;
+        _cache.set(ck, { id: ok ? ev : '', t: Date.now() });
+        if (ok) return ev;
+        console.warn(`[products] price id inválido para ${producto}/${ciclo}: ${ev} — busco por monto`);
+      } catch { return ev; }
+    }
+  }
 
   const envId = (process.env[priceEnvName(producto, ciclo)] || '').trim();
   if (envId) return envId;
