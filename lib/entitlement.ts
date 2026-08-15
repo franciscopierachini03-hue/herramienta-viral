@@ -13,6 +13,11 @@ import { classifyPrice, EVENT_AMOUNTS, type Entitlement } from '@/lib/products';
 
 export type { Entitlement };
 
+// Entitlement + estado de cobro. `rebotada` = tiene una suscripción en past_due
+// (Stripe está reintentando el cobro). Sigue con acceso a las herramientas,
+// pero NO a las clases en vivo — regla de la casa (14-ago-2026).
+export type EntitlementConEstado = Entitlement & { rebotada: boolean };
+
 // Clasificación por MONTO (centavos, USD) según el catálogo del evento.
 // 47/127/451 → ViralADN · 67/181/643 → TOPCUT · 97/262/931 → las dos.
 function classifyByAmount(cents?: number | null): Entitlement {
@@ -36,8 +41,8 @@ type SubsPage = {
 };
 
 // Permisos según las subs de UNA cuenta (activas/trial/past_due).
-async function entFromAccount(key: string | undefined, customerId: string, porMonto: boolean): Promise<Entitlement> {
-  const out = { viraladn: false, topcut: false };
+async function entFromAccount(key: string | undefined, customerId: string, porMonto: boolean): Promise<EntitlementConEstado> {
+  const out = { viraladn: false, topcut: false, rebotada: false };
   if (!key) return out;
   try {
     const res = await fetch(
@@ -52,6 +57,8 @@ async function entFromAccount(key: string | undefined, customerId: string, porMo
         const e = porMonto ? classifyByAmount(it.price?.unit_amount) : classifyPrice(it.price);
         if (e.viraladn) out.viraladn = true;
         if (e.topcut) out.topcut = true;
+        // Si el acceso viene de una sub con la tarjeta rebotada, lo marcamos.
+        if ((e.viraladn || e.topcut) && sub.status === 'past_due') out.rebotada = true;
       }
     }
   } catch {
@@ -61,8 +68,8 @@ async function entFromAccount(key: string | undefined, customerId: string, porMo
 }
 
 // Permisos de un cliente Stripe (suma de sus suscripciones activas/trial).
-export async function entitlementForCustomer(customerId: string | null | undefined): Promise<Entitlement> {
-  const out = { viraladn: false, topcut: false };
+export async function entitlementForCustomer(customerId: string | null | undefined): Promise<EntitlementConEstado> {
+  const out = { viraladn: false, topcut: false, rebotada: false };
   if (!customerId) return out;
 
   const principal = await entFromAccount(process.env.STRIPE_SECRET_KEY, customerId, false);

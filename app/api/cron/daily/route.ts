@@ -47,5 +47,11 @@ export async function GET(req: NextRequest) {
     resultado.protegerAdmins = await r.json().catch(() => `HTTP ${r.status}`);
   } catch (e) { resultado.protegerAdmins = `error: ${(e as Error).message.slice(0, 80)}`; }
 
+  // 4) 💳 Tarjetas rebotadas: avisar (el corte de clases es automático en el gate).
+  try {
+    const r = await fetch(`${base}/api/cron/tarjetas-rebotadas`, interno);
+    resultado.tarjetasRebotadas = await r.json().catch(() => `HTTP ${r.status}`);
+  } catch (e) { resultado.tarjetasRebotadas = `error: ${(e as Error).message.slice(0, 80)}`; }
+
   return Response.json({ ok: true, ...resultado });
 }

@@ -11,8 +11,11 @@ import { getAccess } from '@/lib/access';
 export const dynamic = 'force-dynamic';
 
 export default async function ComunidadLayout({ children }: { children: ReactNode }) {
-  const { email, admin, ent } = await getAccess();
+  const { email, admin, ent, rebotada } = await getAccess();
   if (!email) redirect('/login?next=/comunidad');
   if (!admin && !ent.viraladn && !ent.topcut) redirect('/precios');
+  // Regla de la casa: con el cobro rebotado NO hay clases en vivo hasta
+  // regularizar. Las herramientas siguen (Stripe está reintentando el cobro).
+  if (!admin && rebotada) redirect('/cuenta?motivo=cobro');
   return <>{children}</>;
 }

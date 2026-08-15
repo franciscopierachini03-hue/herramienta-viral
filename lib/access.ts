@@ -33,10 +33,12 @@ export type Access = {
   name: string | null;
   admin: boolean;
   ent: Entitlement;
+  /** true = tiene el cobro rebotado (past_due). Sin clases en vivo hasta que regularice. */
+  rebotada: boolean;
 };
 
 export async function getAccess(): Promise<Access> {
-  const empty: Access = { email: null, name: null, admin: false, ent: { viraladn: false, topcut: false } };
+  const empty: Access = { email: null, name: null, admin: false, ent: { viraladn: false, topcut: false }, rebotada: false };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -52,7 +54,7 @@ export async function getAccess(): Promise<Access> {
   const name = profile?.name ?? null;
 
   if (isAdminEmail(email)) {
-    return { email, name, admin: true, ent: { viraladn: true, topcut: true } };
+    return { email, name, admin: true, ent: { viraladn: true, topcut: true }, rebotada: false };
   }
 
   // Entitlement por suscripción de Stripe (autoritativo para quien paga).
@@ -78,5 +80,5 @@ export async function getAccess(): Promise<Access> {
     if (CORTESIA_FULL.has(profile.redeemed_code.trim().toUpperCase())) ent.topcut = true;
   }
 
-  return { email, name, admin: false, ent };
+  return { email, name, admin: false, ent, rebotada: !!ent.rebotada };
 }
