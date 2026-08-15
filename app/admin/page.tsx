@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview, findPaidByEmail } from '@/lib/stripe-admin';
+import { getDinero } from '@/lib/dinero';
 import DailyRevenueChart from './DailyRevenueChart';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
@@ -22,6 +23,9 @@ import BalanceMes from './BalanceMes';
 // Render: server component. Stats arriba + tabla con búsqueda.
 
 export const dynamic = 'force-dynamic';
+// El panel lee suscripciones + escanea los cobros de las 2 cuentas; con el tope
+// de 10s por defecto la página se cortaba a mitad de camino.
+export const maxDuration = 60;
 
 type SearchParams = Promise<{ q?: string; status?: string; wrong?: string; revMonth?: string }>;
 
@@ -268,29 +272,27 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, stripe_subscription_id, created_at')
     .order('created_at', { ascending: false });
 
-  // Facturación: lee SOLO ViralADN desde Stripe, identificando las suscripciones
-  // por su Price ID (STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY). No mezcla con
-  // 2Clicks ni otros productos de la misma cuenta. Ver lib/stripe-admin.ts.
-  const billing = await getBillingOverview();
-
-  // Cobrado HOY en hora CDMX — ¡no UTC! De noche, en UTC ya es "mañana" y el
-  // contador marcaba $0 aunque hubiera ventas (bug visto el día del evento).
+  // ── Los dos lados del panel, en paralelo ────────────────────────────────
+  // · dinero  = LO QUE ENTRÓ (lib/dinero → cobrosRango): las 2 cuentas, pagos
+  //   únicos incluidos, en USD liquidado y neto de reembolsos. Misma fuente que
+  //   el "Balance del mes" y que el CSV → las cifras no pueden discrepar.
+  // · billing = LAS SUSCRIPCIONES (lib/stripe-admin): MRR, activas, lo que falta
+  //   cobrar este mes y la proyección del que viene.
   const diaMx = (d: Date) => new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(d);
   const hoyStr = diaMx(new Date());
-  const pagosHoy = billing.payments.filter(p => diaMx(new Date(p.date)) === hoyStr);
-  const cobradoHoy = pagosHoy.reduce((a, p) => a + p.amount, 0);
-  // Desglose por producto (hoy + mes en curso): responde "¿esto es ViralADN,
-  // TOPCUT o Combo?" sin abrir Stripe.
-  const pagosMesMx = billing.payments.filter(p => diaMx(new Date(p.date)).slice(0, 7) === hoyStr.slice(0, 7));
-  const porProducto = (arr: typeof billing.payments) => {
-    const m = new Map<string, number>();
-    for (const p of arr) m.set(p.product || '—', (m.get(p.product || '—') || 0) + p.amount);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  };
-  const prodHoy = porProducto(pagosHoy);
-  const prodMes = porProducto(pagosMesMx);
+  const defaultMonth = hoyStr.slice(0, 7);
+  const selMonth = /^\d{4}-\d{2}$/.test(revMonth || '') ? revMonth! : defaultMonth;
+
+  const [billing, dinero] = await Promise.all([
+    getBillingOverview(),
+    getDinero(selMonth),
+  ]);
+
+  const cobradoHoy = dinero.hoy.neto;
+  const prodHoy = dinero.hoy.porProducto;
+  const prodMes = dinero.mes.porProducto;
 
   // customer Stripe → email (de profiles), para completar el detalle de
   // suscriptores cuando la factura no trae email (ej. los que están en trial).
@@ -307,18 +309,15 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   }
 
   // ── Ingreso diario del mes seleccionado (gráfico de línea) ──
+  // Ya viene calculado del mismo escaneo que las tarjetas de arriba, en hora
+  // CDMX — así el gráfico suma exactamente lo que dice "Cobrado este mes".
   const nowD = new Date();
-  const defaultMonth = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
-  const selMonth = /^\d{4}-\d{2}$/.test(revMonth || '') ? revMonth! : defaultMonth;
   const selY = Number(selMonth.slice(0, 4));
   const selM = Number(selMonth.slice(5, 7)); // 1..12
   const daysInMonth = new Date(selY, selM, 0).getDate();
-  const daily = Array.from({ length: daysInMonth }, () => 0);
-  const selPrefix = `${selY}-${String(selM).padStart(2, '0')}`;
-  for (const p of billing.payments) {
-    const dm = diaMx(new Date(p.date)); // día en CDMX (no UTC) — mismo criterio que "HOY"
-    if (dm.slice(0, 7) === selPrefix) daily[Number(dm.slice(8, 10)) - 1] += p.amount;
-  }
+  const daily = dinero.diario.length === daysInMonth
+    ? dinero.diario
+    : Array.from({ length: daysInMonth }, (_, i) => dinero.diario[i] || 0);
   const dailyTotal = daily.reduce((a, b) => a + b, 0);
   const dailyCount = daily.filter(v => v > 0).length;
   // Últimos 6 meses para el selector (links que preservan q/status).
@@ -519,13 +518,22 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             )}
           </h2>
 
+          {/* Si el escaneo de cobros falla, avisamos: si no, las tarjetas de
+              plata marcarían $0 como si no hubiera entrado nada. */}
+          {dinero.error && (
+            <div className="rounded-2xl px-4 py-3 mb-3 text-xs"
+              style={{ background: '#1a0d0d', border: '1px solid #ef444455', color: '#fca5a5' }}>
+              ⚠️ No se pudieron leer los cobros de Stripe ({dinero.error}) — las cifras de plata de abajo están incompletas.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #0a1a12, #0d0d0d)', border: '1px solid #22c55e88' }}>
               <div className="text-xs mb-1 font-bold" style={{ color: '#86efac' }}>💚 Cobrado HOY</div>
               <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(cobradoHoy)}</div>
               <div className="text-[11px] mt-1" style={{ color: '#666' }}>
-                {pagosHoy.length} pago{pagosHoy.length === 1 ? '' : 's'} hoy (CDMX)
+                {dinero.hoy.cobros} pago{dinero.hoy.cobros === 1 ? '' : 's'} hoy (CDMX)
                 {prodHoy.length > 0 && <span style={{ color: '#86efac' }}> · {prodHoy.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ')}</span>}
               </div>
             </div>
@@ -537,7 +545,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e44' }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>Cobrado este mes</div>
-              <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(billing.totalRevenueThisMonth)}</div>
+              <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(dinero.mes.neto)}</div>
               <div className="text-[11px] mt-1" style={{ color: '#888' }}>
                 {prodMes.length ? prodMes.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ') : '—'}
               </div>
@@ -545,12 +553,15 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>Mes pasado</div>
-              <div className="text-2xl font-bold" style={{ color: '#888' }}>{fmtUSD(billing.totalRevenueLastMonth)}</div>
+              <div className="text-2xl font-bold" style={{ color: '#888' }}>{fmtUSD(dinero.mesPasado.neto)}</div>
             </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
               <div className="text-xs mb-1" style={{ color: '#666' }}>Total acumulado</div>
-              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.totalRevenueAllTime)}</div>
+              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(dinero.acumulado.neto)}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#666' }}>
+                {dinero.desdeLabel ? `desde ${dinero.desdeLabel}` : ''}
+              </div>
             </div>
             <div className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
@@ -571,9 +582,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-xl p-3" style={{ background: '#0a1a12', border: '1px solid #22c55e44' }}>
                   <div className="text-[11px] mb-1 capitalize" style={{ color: '#7dd3a8' }}>📅 {billing.mesActualLabel || 'Este mes'} completo (1 → último día)</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(billing.esperadoEsteMesCal)}</div>
+                  <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(dinero.mes.neto + billing.porCobrarEsteMes)}</div>
                   <div className="text-[10px] mt-1" style={{ color: '#5a8a6a' }}>
-                    cobrado {fmtUSD(billing.totalRevenueThisMonth)} (del 1 a hoy) + por cobrar {fmtUSD(billing.porCobrarEsteMes)} (de hoy al último día)
+                    cobrado {fmtUSD(dinero.mes.neto)} (del 1 a hoy) + por cobrar {fmtUSD(billing.porCobrarEsteMes)} (de hoy al último día)
                   </div>
                 </div>
                 <div className="rounded-xl p-3" style={{ background: '#1a1408', border: '1px solid #f59e0b44' }}>
@@ -596,31 +607,31 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           )}
 
           {/* Histórico mensual (mini-bar chart con divs) */}
-          {billing.monthlyRevenue.length > 0 && (
+          {dinero.meses.length > 0 && (
             <div className="rounded-2xl p-4 mb-4"
               style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
               <div className="text-xs mb-3" style={{ color: '#666' }}>Últimos 6 meses</div>
               <div className="flex items-end gap-2 h-24">
-                {billing.monthlyRevenue.map(m => {
-                  const max = Math.max(...billing.monthlyRevenue.map(x => x.revenue), 1);
-                  const h = Math.max(4, (m.revenue / max) * 100);
+                {dinero.meses.map(m => {
+                  const max = Math.max(...dinero.meses.map(x => x.neto), 1);
+                  const h = Math.max(4, (m.neto / max) * 100);
                   return (
-                    <div key={m.month} className="flex-1 flex flex-col items-center justify-end gap-1">
+                    <div key={m.label} className="flex-1 flex flex-col items-center justify-end gap-1">
                       <div className="text-[10px] font-semibold" style={{ color: '#888' }}>
-                        {m.revenue > 0 ? fmtUSD(m.revenue) : ''}
+                        {m.neto > 0 ? fmtUSD(m.neto) : ''}
                       </div>
                       <div
                         className="w-full rounded-t-lg"
                         style={{
                           height: `${h}%`,
-                          background: m.revenue > 0
+                          background: m.neto > 0
                             ? 'linear-gradient(180deg, #7c3aed, #c13584)'
                             : '#1a1a1a',
                           minHeight: '4px',
                         }}
-                        title={`${m.count} pago${m.count !== 1 ? 's' : ''}`}
+                        title={`${m.cobros} cobro${m.cobros !== 1 ? 's' : ''}`}
                       />
-                      <div className="text-[10px]" style={{ color: '#666' }}>{m.month}</div>
+                      <div className="text-[10px]" style={{ color: '#666' }}>{m.label}</div>
                     </div>
                   );
                 })}
@@ -661,12 +672,12 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
           </div>
 
           {/* Lista de pagos recientes */}
-          {billing.recentPayments.length > 0 && (
+          {dinero.ultimos.length > 0 && (
             <details className="rounded-2xl overflow-hidden"
               style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
               <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center justify-between"
                 style={{ color: '#aaa' }}>
-                <span>Historial de pagos ({billing.recentPayments.length})</span>
+                <span>Historial de pagos ({dinero.ultimos.length})</span>
                 <span className="text-xs" style={{ color: '#666' }}>Click para expandir ↓</span>
               </summary>
               <div className="overflow-x-auto" style={{ borderTop: '1px solid #1a1a1a' }}>
@@ -681,7 +692,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
                     </tr>
                   </thead>
                   <tbody>
-                    {billing.recentPayments.map(p => {
+                    {dinero.ultimos.map(p => {
                       const d = new Date(p.date);
                       return (
                         <tr key={p.id} style={{ borderBottom: '1px solid #141414' }}>
