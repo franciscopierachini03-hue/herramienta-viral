@@ -3,14 +3,14 @@ import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getBillingOverview, findPaidByEmail } from '@/lib/stripe-admin';
-import { getDinero } from '@/lib/dinero';
-import DailyRevenueChart from './DailyRevenueChart';
+
+import Dinero from './Dinero';
 import ReconcileButton from './ReconcileButton';
 import SendAccessPanel from './SendAccessPanel';
 import AdminResetPassword from './AdminResetPassword';
 import AdminFixAccess from './AdminFixAccess';
 import ExportVentasMes from './ExportVentasMes';
-import BalanceMes from './BalanceMes';
+
 
 // /admin — panel de control para ver y gestionar usuarios.
 //
@@ -23,8 +23,8 @@ import BalanceMes from './BalanceMes';
 // Render: server component. Stats arriba + tabla con búsqueda.
 
 export const dynamic = 'force-dynamic';
-// El panel lee suscripciones + escanea los cobros de las 2 cuentas; con el tope
-// de 10s por defecto la página se cortaba a mitad de camino.
+// Leer las suscripciones de Stripe (facturas + próxima factura de cada una) es
+// lento; el tope por defecto no alcanza. La plata NO se escanea acá (ver <Dinero/>).
 export const maxDuration = 60;
 
 type SearchParams = Promise<{ q?: string; status?: string; wrong?: string; revMonth?: string }>;
@@ -272,12 +272,13 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     .select('email, name, phone, subscription_status, trial_ends_at, activated_at, cancelled_at, redeemed_code, stripe_customer_id, stripe_subscription_id, created_at')
     .order('created_at', { ascending: false });
 
-  // ── Los dos lados del panel, en paralelo ────────────────────────────────
-  // · dinero  = LO QUE ENTRÓ (lib/dinero → cobrosRango): las 2 cuentas, pagos
-  //   únicos incluidos, en USD liquidado y neto de reembolsos. Misma fuente que
-  //   el "Balance del mes" y que el CSV → las cifras no pueden discrepar.
+  // ── Los dos lados del panel ─────────────────────────────────────────────
   // · billing = LAS SUSCRIPCIONES (lib/stripe-admin): MRR, activas, lo que falta
-  //   cobrar este mes y la proyección del que viene.
+  //   cobrar este mes y la proyección del que viene. Se lee acá, en el servidor.
+  // · LA PLATA (lo que entró) NO se lee acá: la carga el navegador desde
+  //   /api/admin/dinero (ver <Dinero/>). Escanear los cobros de las 2 cuentas
+  //   dentro de este render tumbaba la página por timeout de 60s al competir
+  //   con la lectura de suscripciones.
   const diaMx = (d: Date) => new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(d);
@@ -285,14 +286,7 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
   const defaultMonth = hoyStr.slice(0, 7);
   const selMonth = /^\d{4}-\d{2}$/.test(revMonth || '') ? revMonth! : defaultMonth;
 
-  const [billing, dinero] = await Promise.all([
-    getBillingOverview(),
-    getDinero(selMonth),
-  ]);
-
-  const cobradoHoy = dinero.hoy.neto;
-  const prodHoy = dinero.hoy.porProducto;
-  const prodMes = dinero.mes.porProducto;
+  const billing = await getBillingOverview();
 
   // customer Stripe → email (de profiles), para completar el detalle de
   // suscriptores cuando la factura no trae email (ej. los que están en trial).
@@ -308,19 +302,9 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     if (s.email) subByEmail.set(s.email.toLowerCase(), s);
   }
 
-  // ── Ingreso diario del mes seleccionado (gráfico de línea) ──
-  // Ya viene calculado del mismo escaneo que las tarjetas de arriba, en hora
-  // CDMX — así el gráfico suma exactamente lo que dice "Cobrado este mes".
+  // Últimos 6 meses para el selector del gráfico diario (links que preservan
+  // q/status). El gráfico lo dibuja <Dinero/> con los datos que trae del API.
   const nowD = new Date();
-  const selY = Number(selMonth.slice(0, 4));
-  const selM = Number(selMonth.slice(5, 7)); // 1..12
-  const daysInMonth = new Date(selY, selM, 0).getDate();
-  const daily = dinero.diario.length === daysInMonth
-    ? dinero.diario
-    : Array.from({ length: daysInMonth }, (_, i) => dinero.diario[i] || 0);
-  const dailyTotal = daily.reduce((a, b) => a + b, 0);
-  const dailyCount = daily.filter(v => v > 0).length;
-  // Últimos 6 meses para el selector (links que preservan q/status).
   const monthOptions = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1);
     return {
@@ -335,7 +319,8 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
     sp.set('revMonth', val);
     return `/admin?${sp.toString()}#ingreso-diario`;
   };
-  const monthLabel = new Date(selY, selM - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const monthLabel = new Date(Number(selMonth.slice(0, 4)), Number(selMonth.slice(5, 7)) - 1, 1)
+    .toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
 
   if (error) {
     console.error('[admin] fetch profiles:', error);
@@ -518,208 +503,20 @@ export default async function Admin({ searchParams }: { searchParams: SearchPara
             )}
           </h2>
 
-          {/* Si el escaneo de cobros falla, avisamos: si no, las tarjetas de
-              plata marcarían $0 como si no hubiera entrado nada. */}
-          {dinero.error && (
-            <div className="rounded-2xl px-4 py-3 mb-3 text-xs"
-              style={{ background: '#1a0d0d', border: '1px solid #ef444455', color: '#fca5a5' }}>
-              ⚠️ No se pudieron leer los cobros de Stripe ({dinero.error}) — las cifras de plata de abajo están incompletas.
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #0a1a12, #0d0d0d)', border: '1px solid #22c55e88' }}>
-              <div className="text-xs mb-1 font-bold" style={{ color: '#86efac' }}>💚 Cobrado HOY</div>
-              <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(cobradoHoy)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#666' }}>
-                {dinero.hoy.cobros} pago{dinero.hoy.cobros === 1 ? '' : 's'} hoy (CDMX)
-                {prodHoy.length > 0 && <span style={{ color: '#86efac' }}> · {prodHoy.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ')}</span>}
-              </div>
-            </div>
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #1a1030, #0d0d0d)', border: '1px solid #7c3aed66' }}>
-              <div className="text-xs mb-1 flex items-center gap-1" style={{ color: '#a78bfa' }}>MRR comprometido</div>
-              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.committedMrr ?? 0)}<span className="text-xs font-normal" style={{ color: '#666' }}>/mes</span></div>
-            </div>
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #22c55e44' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Cobrado este mes</div>
-              <div className="text-2xl font-bold" style={{ color: '#86efac' }}>{fmtUSD(dinero.mes.neto)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#888' }}>
-                {prodMes.length ? prodMes.map(([k, v]) => `${k} $${v.toFixed(0)}`).join(' · ') : '—'}
-              </div>
-            </div>
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Mes pasado</div>
-              <div className="text-2xl font-bold" style={{ color: '#888' }}>{fmtUSD(dinero.mesPasado.neto)}</div>
-            </div>
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Total acumulado</div>
-              <div className="text-2xl font-bold" style={{ color: '#c4b5fd' }}>{fmtUSD(dinero.acumulado.neto)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#666' }}>
-                {dinero.desdeLabel ? `desde ${dinero.desdeLabel}` : ''}
-              </div>
-            </div>
-            <div className="rounded-2xl p-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-1" style={{ color: '#666' }}>Suscripciones activas</div>
-              <div className="text-2xl font-bold" style={{ color: '#fff' }}>{billing.activeSubscriptions}</div>
-            </div>
-          </div>
-
-          {/* 💰 Balance del mes — las 2 cuentas, dato duro */}
-          <BalanceMes />
-
-          {/* 📆 Facturación por MES CALENDARIO (del día 1 al último día) */}
-          {billing.configured && !billing.error && (
-            <div className="rounded-2xl p-4 mb-4" style={{ background: 'linear-gradient(145deg, #12101f, #0d0d0d)', border: '1px solid #7c3aed44' }}>
-              <div className="text-xs mb-3 font-bold flex items-center gap-1" style={{ color: '#a78bfa' }}>
-                📆 Esperado a facturar — mes calendario (del 1 al último día)
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-xl p-3" style={{ background: '#0a1a12', border: '1px solid #22c55e44' }}>
-                  <div className="text-[11px] mb-1 capitalize" style={{ color: '#7dd3a8' }}>📅 {billing.mesActualLabel || 'Este mes'} completo (1 → último día)</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#86efac' }}>{fmtUSD(dinero.mes.neto + billing.porCobrarEsteMes)}</div>
-                  <div className="text-[10px] mt-1" style={{ color: '#5a8a6a' }}>
-                    cobrado {fmtUSD(dinero.mes.neto)} (del 1 a hoy) + por cobrar {fmtUSD(billing.porCobrarEsteMes)} (de hoy al último día)
-                  </div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: '#1a1408', border: '1px solid #f59e0b44' }}>
-                  <div className="text-[11px] mb-1" style={{ color: '#fcd34d' }}>En bono/descuento ahora</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#fcd34d' }}>{fmtUSD(billing.bonoMrr)}<span className="text-xs font-normal" style={{ color: '#a98b3a' }}>/mes</span></div>
-                  <div className="text-[10px] mt-1" style={{ color: '#a98b3a' }}>hoy paga $0 → entra full cuando el bono termina</div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: '#12101f', border: '1px solid #7c3aed66' }}>
-                  <div className="text-[11px] mb-1 capitalize" style={{ color: '#c4b5fd' }}>📅 {billing.mesProximoLabel || 'Mes que viene'} (1 → último día)</div>
-                  <div className="text-2xl font-extrabold" style={{ color: '#c4b5fd' }}>{fmtUSD(billing.esperadoMesQueVieneCal)}</div>
-                  <div className="text-[10px] mt-1" style={{ color: '#8b7fb0' }}>
-                    renovaciones que caen en {billing.mesProximoLabel || 'el próximo mes'}{billing.porCancelar > 0 ? ` · ${billing.porCancelar} por cancelar ya restadas` : ''}
-                  </div>
-                </div>
-              </div>
-              <div className="text-[10px] mt-3" style={{ color: '#666' }}>
-                💡 Cada tarjeta es un mes de calendario: lo del 1 a hoy es cobrado en serio (neto de reembolsos) y lo que falta sale de la PRÓXIMA factura exacta de cada suscripción (bonos y descuentos ya aplicados). Referencia: MRR comprometido {fmtUSD(billing.committedMrr)} (precio de lista, sin restar bonos).
-              </div>
-            </div>
-          )}
-
-          {/* Histórico mensual (mini-bar chart con divs) */}
-          {dinero.meses.length > 0 && (
-            <div className="rounded-2xl p-4 mb-4"
-              style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-              <div className="text-xs mb-3" style={{ color: '#666' }}>Últimos 6 meses</div>
-              <div className="flex items-end gap-2 h-24">
-                {dinero.meses.map(m => {
-                  const max = Math.max(...dinero.meses.map(x => x.neto), 1);
-                  const h = Math.max(4, (m.neto / max) * 100);
-                  return (
-                    <div key={m.label} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      <div className="text-[10px] font-semibold" style={{ color: '#888' }}>
-                        {m.neto > 0 ? fmtUSD(m.neto) : ''}
-                      </div>
-                      <div
-                        className="w-full rounded-t-lg"
-                        style={{
-                          height: `${h}%`,
-                          background: m.neto > 0
-                            ? 'linear-gradient(180deg, #7c3aed, #c13584)'
-                            : '#1a1a1a',
-                          minHeight: '4px',
-                        }}
-                        title={`${m.cobros} cobro${m.cobros !== 1 ? 's' : ''}`}
-                      />
-                      <div className="text-[10px]" style={{ color: '#666' }}>{m.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Ingreso diario del mes (gráfico de línea, eje X = días, eje Y = $) */}
-          <div id="ingreso-diario" className="rounded-2xl p-4 mb-4"
-            style={{ background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #1f1f1f' }}>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <div className="text-xs" style={{ color: '#666' }}>
-                📈 Ingreso diario — <span style={{ color: '#c4b5fd', textTransform: 'capitalize' }}>{monthLabel}</span>
-              </div>
-              <div className="text-xs" style={{ color: '#888' }}>
-                {fmtUSD(dailyTotal)} · {dailyCount} día{dailyCount === 1 ? '' : 's'} con pagos
-              </div>
-            </div>
-
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {monthOptions.map(o => {
-                const active = o.val === selMonth;
-                return (
-                  <a key={o.val} href={monthHref(o.val)} className="text-xs px-2.5 py-1 rounded-full transition-all"
-                    style={active
-                      ? { background: 'linear-gradient(135deg, #a855f7, #ec4899)', color: '#fff', fontWeight: 600 }
-                      : { background: '#141414', border: '1px solid #222', color: '#888' }}>
-                    {o.label}
-                  </a>
-                );
-              })}
-            </div>
-
-            <DailyRevenueChart daily={daily} year={selY} month={selM} daysInMonth={daysInMonth} />
-            {dailyTotal === 0 && (
-              <div className="text-center text-xs mt-1" style={{ color: '#555' }}>Sin ingresos cobrados en {monthLabel}.</div>
-            )}
-          </div>
-
-          {/* Lista de pagos recientes */}
-          {dinero.ultimos.length > 0 && (
-            <details className="rounded-2xl overflow-hidden"
-              style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
-              <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center justify-between"
-                style={{ color: '#aaa' }}>
-                <span>Historial de pagos ({dinero.ultimos.length})</span>
-                <span className="text-xs" style={{ color: '#666' }}>Click para expandir ↓</span>
-              </summary>
-              <div className="overflow-x-auto" style={{ borderTop: '1px solid #1a1a1a' }}>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs" style={{ color: '#666', borderBottom: '1px solid #1a1a1a' }}>
-                      <th className="px-4 py-3 font-semibold">Fecha</th>
-                      <th className="px-4 py-3 font-semibold">Email</th>
-                      <th className="px-4 py-3 font-semibold">Producto</th>
-                      <th className="px-4 py-3 font-semibold">Monto</th>
-                      <th className="px-4 py-3 font-semibold">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dinero.ultimos.map(p => {
-                      const d = new Date(p.date);
-                      return (
-                        <tr key={p.id} style={{ borderBottom: '1px solid #141414' }}>
-                          <td className="px-4 py-3 text-xs" style={{ color: '#888' }}>
-                            {d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}{' '}
-                            {d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td className="px-4 py-3" style={{ color: '#eee' }}>{p.email || '—'}</td>
-                          <td className="px-4 py-3 text-xs font-semibold" style={{ color: '#a78bfa' }}>{p.product}</td>
-                          <td className="px-4 py-3 font-bold" style={{ color: '#86efac' }}>
-                            {fmtUSD(p.amount)} {p.currency}
-                          </td>
-                          <td className="px-4 py-3">
-                            {p.refunded ? (
-                              <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#7f1d1d33', color: '#fca5a5' }}>Reembolsado</span>
-                            ) : (
-                              <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#22c55e22', color: '#86efac' }}>Pagado</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          )}
+          <Dinero
+            mesSel={selMonth}
+            monthLabel={monthLabel}
+            monthOptions={monthOptions.map(o => ({ ...o, href: monthHref(o.val) }))}
+            committedMrr={billing.committedMrr}
+            activeSubscriptions={billing.activeSubscriptions}
+            porCobrarEsteMes={billing.porCobrarEsteMes}
+            bonoMrr={billing.bonoMrr}
+            esperadoMesQueVieneCal={billing.esperadoMesQueVieneCal}
+            mesActualLabel={billing.mesActualLabel}
+            mesProximoLabel={billing.mesProximoLabel}
+            porCancelar={billing.porCancelar}
+            mostrarEsperado={billing.configured && !billing.error}
+          />
 
           {/* Detalle por suscriptor: cuánto paga c/u + renovación (para reconciliar) */}
           {billing.subscribers && billing.subscribers.length > 0 && (
