@@ -45,6 +45,35 @@ function emailMovida(hora: string, fechaTxt: string, C: ClaseInfo): { subject: s
   return { subject, html };
 }
 
+// 🔴 "YA EMPEZAMOS" — se manda con la clase EN VIVO. Nada de agendar: un solo
+// botón grande para entrar ahora mismo.
+function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
+  const subject = `🔴 Ya empezamos — entrá a la clase ahora`;
+  const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+<div style="max-width:520px;margin:0 auto;background:#101018;border:1px solid #23232e;border-radius:18px;padding:28px;">
+  <div style="background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:8px;padding:8px 14px;display:inline-block;">
+    <span style="color:#fff;font-weight:800;font-size:15px;">ViralADN</span>
+  </div>
+  <div style="margin:18px 0 0;display:inline-block;background:#7f1d1d55;border:1px solid #ef4444;border-radius:999px;padding:5px 12px;">
+    <span style="color:#fca5a5;font-weight:800;font-size:12px;letter-spacing:1px;">● EN VIVO AHORA</span>
+  </div>
+  <h1 style="margin:12px 0 8px;font-size:27px;color:#fff;line-height:1.2;">Ya arrancamos ${C.nombre}</h1>
+  <p style="margin:0 0 18px;font-size:16px;color:#c8c8d4;line-height:1.55;">
+    Estamos adentro revisando cuentas. <b style="color:#fff;">Entrá ahora</b> — todavía llegás a la parte buena.
+  </p>
+  <a href="${C.zoomUrl}" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:18px;padding:17px;border-radius:14px;text-decoration:none;">
+    🔴 ENTRAR A LA CLASE
+  </a>
+  <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:18px 0 0;">
+    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
+    <p style="margin:0;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+  </div>
+  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Si el botón no abre, entrá desde <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a>.</p>
+</div>
+</body></html>`;
+  return { subject, html };
+}
+
 function emailHtml(hora: string, fechaTxt: string, C: ClaseInfo): { subject: string; html: string } {
   const subject = `🕗 Cambio de horario: la clase de mañana es a las ${hora}`;
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
@@ -105,14 +134,21 @@ export async function GET(req: NextRequest) {
   const manana = new Date(Date.now() + 24 * 3600 * 1000);
   const fechaTxt = 'Mañana ' + new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', day: 'numeric', month: 'long' }).format(manana);
   const mananaCDMX = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(manana);
-  const C = claseEnFecha(mananaCDMX); // la ESPECIAL si mañana es su día (link/sala correctos)
-  const horaFinal = C.esEspecial ? C.horaCDMX : hora;
-  // ?tipo=movida → "la clase de HOY se mueve para mañana" (default: cambio de horario)
+  const hoyCDMX = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  // ?tipo=envivo → "ya empezamos" (clase de HOY) · movida → se pasa a mañana ·
+  // default → cambio de horario de mañana.
   const tipo = sp.get('tipo') || '';
+  const enVivo = tipo === 'envivo';
+  // El aviso EN VIVO usa la clase de HOY; los otros, la de mañana.
+  const C = claseEnFecha(enVivo ? hoyCDMX : mananaCDMX);
+  const horaFinal = C.esEspecial ? C.horaCDMX : hora;
   const fechaManana = new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', day: 'numeric', month: 'long' }).format(manana);
-  const { subject, html } = tipo === 'movida'
-    ? emailMovida(sp.get('hora') || C.horaCDMX, `mañana ${fechaManana}`, C)
-    : emailHtml(horaFinal, fechaTxt, C);
+  const { subject, html } = enVivo
+    ? emailEnVivo(C)
+    : tipo === 'movida'
+      ? emailMovida(sp.get('hora') || C.horaCDMX, `mañana ${fechaManana}`, C)
+      : emailHtml(horaFinal, fechaTxt, C);
+  const resumen = enVivo ? `EN VIVO · ${C.sala} · ID ${C.zoomId}` : fechaTxt + ' · ' + horaFinal;
 
   const sb = createServiceClient();
   const { data } = await sb.from('profiles')
@@ -122,11 +158,15 @@ export async function GET(req: NextRequest) {
 
   if (test) {
     const r = await enviar([OWNER], `[PRUEBA] ${subject}`, html);
-    return Response.json({ modo: 'test', para: OWNER, ...r, aviso: fechaTxt + ' · ' + horaFinal });
+    return Response.json({ modo: 'test', para: OWNER, ...r, aviso: resumen, zoom: C.zoomUrl });
   }
 
   if (!mandar) {
-    return Response.json({ modo: 'dry', recibirian: emails.length, aviso: fechaTxt + ' · ' + horaFinal, siguiente: 'agregá &test=1 para verlo vos, o &enviar=1 para mandarlo a todos' });
+    return Response.json({
+      modo: 'dry', recibirian: emails.length, aviso: resumen,
+      sala: C.sala, zoomId: C.zoomId, zoom: C.zoomUrl,
+      siguiente: 'agregá &test=1 para verlo vos, o &enviar=1 para mandarlo a todos',
+    });
   }
 
   // Candado anti doble-clic: 1 envío por día (marca en ai_credits si existe).
@@ -145,6 +185,6 @@ export async function GET(req: NextRequest) {
   } catch { /* best-effort */ }
 
   const r = await enviar(emails, subject, html);
-  console.log(`[aviso-clase] enviado a ${r.enviados} miembros (${fechaTxt} · ${horaFinal})`);
-  return Response.json({ modo: 'enviado', destinatarios: emails.length, ...r, aviso: fechaTxt + ' · ' + horaFinal });
+  console.log(`[aviso-clase] enviado a ${r.enviados} miembros (${resumen})`);
+  return Response.json({ modo: 'enviado', destinatarios: emails.length, ...r, aviso: resumen, zoom: C.zoomUrl });
 }

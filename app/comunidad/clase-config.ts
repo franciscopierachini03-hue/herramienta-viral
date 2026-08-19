@@ -26,11 +26,11 @@ export const HORARIOS: Array<[string, string, string]> = [
 // (CDMX): /comunidad y el aviso por correo la toman solos; después, todo
 // vuelve a la clase semanal normal sin tocar nada.
 export const CLASE_ESPECIAL = {
-  fecha: '2026-08-14',
+  fecha: '2026-08-19',
   hora: '10:00 AM',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us02web.zoom.us/j/84285002353?pwd=bhioRJpJeTJ1eoyghCtHMi4UF7aHNw.1',
-  zoomId: '842 8500 2353',
+  zoomUrl: 'https://us02web.zoom.us/j/83597583355?pwd=LaCf8yUfO6rPFOqlJ27u46J6WNYMMu.1',
+  zoomId: '835 9758 3355',
   zoomCodigo: 'C123',
 };
 
@@ -47,10 +47,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-08-14',
-  hasta: '2026-08-14',
+  desde: '2026-08-19',
+  hasta: '2026-08-19',
   titulo: '🔴 La clase está EN VIVO — entrá ahora',
-  texto: 'Usamos una sala nueva: ID 842 8500 2353 · código C123. Tocá el botón de abajo para entrar.',
+  texto: 'Usamos una sala nueva: ID 835 9758 3355 · código C123. Tocá el botón de abajo para entrar.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
