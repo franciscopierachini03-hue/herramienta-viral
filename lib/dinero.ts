@@ -43,6 +43,20 @@ export type PagoLinea = {
   product: string; refunded: boolean; cuenta: string;
 };
 
+// Un mes de la comparación. La clave del asunto es `hastaDia`: el mes en curso
+// va por la mitad, así que compararlo contra meses CERRADOS miente. Se compara
+// el mismo tramo (del 1 al día de hoy) y aparte se muestra cómo cerró cada uno.
+export type MesComparado = {
+  key: string;             // '2026-07'
+  label: string;           // 'julio'
+  completo: number;        // lo que entró en TODO el mes (el actual: lo que va)
+  cobrosCompleto: number;
+  hastaDia: number;        // lo que había entrado al MISMO día del mes
+  cobrosHastaDia: number;
+  diasDelMes: number;
+  enCurso: boolean;
+};
+
 export type Dinero = {
   ok: boolean;
   error?: string;
@@ -51,6 +65,8 @@ export type Dinero = {
   mesPasado: Tramo;
   acumulado: Tramo;
   meses: Array<{ label: string; neto: number; cobros: number }>; // últimos 6
+  comparativa: MesComparado[];  // los 2 meses anteriores + el actual
+  diaHoy: number;               // día del mes de hoy (CDMX) — el corte de la comparación
   diario: number[];        // ingreso por día del mes pedido (índice 0 = día 1)
   ultimos: PagoLinea[];    // historial (los últimos 60 cobros)
   desdeLabel: string;      // "abril de 2026" — desde cuándo mira el acumulado
@@ -62,7 +78,7 @@ function vacio(error?: string): Dinero {
   return {
     ok: !error, error,
     hoy: TRAMO_VACIO, mes: TRAMO_VACIO, mesPasado: TRAMO_VACIO, acumulado: TRAMO_VACIO,
-    meses: [], diario: [], ultimos: [], desdeLabel: '',
+    meses: [], comparativa: [], diaHoy: 0, diario: [], ultimos: [], desdeLabel: '',
   };
 }
 
@@ -121,6 +137,28 @@ export async function getDinero(mesSel: string): Promise<Dinero> {
     return { label: etiqueta(d.getUTCFullYear(), d.getUTCMonth()), neto: t.neto, cobros: t.cobros };
   });
 
+  // ── Comparativa: los 2 meses anteriores contra el actual ──────────────────
+  // El mes en curso va por la mitad, así que ponerlo al lado de meses CERRADOS
+  // engaña. Se compara el MISMO tramo (del 1 al día de hoy) y aparte se muestra
+  // cómo cerró cada mes.
+  const nombreMes = (y: number, m: number) =>
+    new Date(Date.UTC(y, m, 1)).toLocaleDateString('es-AR', { month: 'long', timeZone: 'UTC' });
+  const comparativa: MesComparado[] = Array.from({ length: 3 }, (_, i) => {
+    const d = new Date(Date.UTC(ay, am - 1 - (2 - i), 1));
+    const y = d.getUTCFullYear(), m = d.getUTCMonth();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    const delMes = mios.filter(c => c.fecha.slice(0, 7) === key);
+    const alDia = delMes.filter(c => Number(c.fecha.slice(8, 10)) <= hd);
+    const t = tramo(delMes), td = tramo(alDia);
+    return {
+      key, label: nombreMes(y, m),
+      completo: t.neto, cobrosCompleto: t.cobros,
+      hastaDia: td.neto, cobrosHastaDia: td.cobros,
+      diasDelMes: new Date(Date.UTC(y, m + 1, 0)).getUTCDate(),
+      enCurso: key === mesStr,
+    };
+  });
+
   // Ingreso diario del mes elegido.
   const sel = /^\d{4}-\d{2}$/.test(mesSel) ? mesSel : mesStr;
   const [sy, sm] = sel.split('-').map(Number);
@@ -147,6 +185,8 @@ export async function getDinero(mesSel: string): Promise<Dinero> {
     mesPasado: tramo(mios.filter(c => c.fecha.slice(0, 7) === mesPasadoStr)),
     acumulado: tramo(mios),
     meses,
+    comparativa,
+    diaHoy: hd,
     diario: diario.map(r2),
     ultimos,
     desdeLabel: new Date(INICIO * 1000).toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'America/Mexico_City' }),

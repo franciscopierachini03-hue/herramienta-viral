@@ -19,10 +19,15 @@ const fmtUSD = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionD
 
 type Tramo = { neto: number; bruto: number; reembolsado: number; cobros: number; porProducto: Array<[string, number]> };
 type PagoLinea = { id: string; email: string; date: string; amount: number; currency: string; product: string; refunded: boolean; cuenta: string };
+type MesComparado = {
+  key: string; label: string; completo: number; cobrosCompleto: number;
+  hastaDia: number; cobrosHastaDia: number; diasDelMes: number; enCurso: boolean;
+};
 type Resp = {
   ok: boolean; error?: string;
   hoy: Tramo; mes: Tramo; mesPasado: Tramo; acumulado: Tramo;
   meses: Array<{ label: string; neto: number; cobros: number }>;
+  comparativa: MesComparado[]; diaHoy: number;
   diario: number[]; ultimos: PagoLinea[]; desdeLabel: string;
 };
 
@@ -54,9 +59,11 @@ export default function Dinero(p: Props) {
   const [d, setD] = useState<Resp | null>(null);
   const [error, setError] = useState('');
 
+  // El selector de mes son links de verdad (<a href>) → la página se recarga y
+  // el componente se vuelve a montar. Por eso alcanza con pedir los datos una
+  // vez, sin resetear el estado a mano.
   useEffect(() => {
     let vivo = true;
-    setD(null); setError('');
     fetch(`/api/admin/dinero?mes=${encodeURIComponent(p.mesSel)}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(x => { if (!vivo) return; if (x.error && !x.hoy) setError(x.error); else setD(x); })
@@ -160,6 +167,83 @@ export default function Dinero(p: Props) {
           </div>
         </div>
       )}
+
+      {/* 📊 Este mes contra los 2 anteriores, en el MISMO tramo del mes */}
+      {d && d.comparativa.length === 3 && (() => {
+        const [a, b, actual] = d.comparativa;
+        const max = Math.max(a.hastaDia, b.hastaDia, actual.hastaDia, 1);
+        const cierre = actual.completo + p.porCobrarEsteMes;
+        const delta = (previo: MesComparado) => {
+          if (previo.hastaDia <= 0) return null;
+          return Math.round(((actual.hastaDia - previo.hastaDia) / previo.hastaDia) * 100);
+        };
+        return (
+          <div className="rounded-2xl p-4 mb-4" style={{ background: 'linear-gradient(145deg, #12101f, #0d0d0d)', border: '1px solid #7c3aed44' }}>
+            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+              <div className="text-xs font-bold" style={{ color: '#a78bfa' }}>
+                📊 <span className="capitalize">{actual.label}</span> contra los 2 meses anteriores
+              </div>
+              <div className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#8b8b96' }}>
+                mismo tramo: del 1 al {d.diaHoy}
+              </div>
+            </div>
+            <div className="text-[10px] mb-3" style={{ color: '#666' }}>
+              <span className="capitalize">{actual.label}</span> va por el día {d.diaHoy} de {actual.diasDelMes} — compararlo contra meses cerrados diría cualquier cosa, así que se mide contra el mismo tramo de cada mes.
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {d.comparativa.map(m => {
+                const alto = Math.max(6, (m.hastaDia / max) * 100);
+                const dif = m.enCurso ? null : delta(m);
+                return (
+                  <div key={m.key} className="rounded-xl p-3"
+                    style={m.enCurso
+                      ? { background: '#0a1a12', border: '1px solid #22c55e66' }
+                      : { background: '#0a0a12', border: '1px solid #23232e' }}>
+                    <div className="text-[11px] mb-1 font-semibold" style={{ color: m.enCurso ? '#86efac' : '#8b8b96' }}>
+                      <span className="capitalize">{m.label}</span>{m.enCurso ? ' (hoy)' : ''}
+                    </div>
+                    <div className="text-xl font-extrabold" style={{ color: m.enCurso ? '#86efac' : '#c9c9d4' }}>{fmtUSD(m.hastaDia)}</div>
+                    <div className="text-[10px] mb-2" style={{ color: '#666' }}>
+                      {m.cobrosHastaDia} cobro{m.cobrosHastaDia === 1 ? '' : 's'} al día {d.diaHoy}
+                    </div>
+
+                    <div className="w-full rounded-full mb-2" style={{ height: 8, background: '#1a1a24' }}>
+                      <div className="rounded-full" style={{
+                        width: `${alto}%`, height: 8,
+                        background: m.enCurso ? 'linear-gradient(90deg, #22c55e, #86efac)' : 'linear-gradient(90deg, #7c3aed, #c13584)',
+                      }} />
+                    </div>
+
+                    {m.enCurso ? (
+                      <div className="text-[10px]" style={{ color: '#5a8a6a' }}>
+                        cierre estimado <b style={{ color: '#86efac' }}>{fmtUSD(cierre)}</b>
+                        <br />faltan {m.diasDelMes - d.diaHoy} día{m.diasDelMes - d.diaHoy === 1 ? '' : 's'}
+                      </div>
+                    ) : (
+                      <div className="text-[10px]" style={{ color: '#8b8b96' }}>
+                        cerró en <b style={{ color: '#c9c9d4' }}>{fmtUSD(m.completo)}</b>
+                        {dif !== null && (
+                          // El sujeto es el mes EN CURSO: "agosto está 69% abajo
+                          // que junio a esta altura" — no al revés.
+                          <><br /><span className="capitalize">{actual.label}</span> está{' '}
+                            <span style={{ color: dif >= 0 ? '#86efac' : '#fca5a5', fontWeight: 700 }}>
+                              {dif >= 0 ? '▲' : '▼'} {Math.abs(dif)}%
+                            </span></>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="text-[10px] mt-3" style={{ color: '#666' }}>
+              💡 El número grande de cada mes es lo que había entrado <b style={{ color: '#8b8b96' }}>al día {d.diaHoy}</b> — comparable entre sí. Abajo, cómo cerró el mes completo. El cierre estimado de {actual.label} suma lo cobrado + las renovaciones que faltan.
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Histórico mensual (mini-bar chart con divs) */}
       {d && d.meses.length > 0 && (
