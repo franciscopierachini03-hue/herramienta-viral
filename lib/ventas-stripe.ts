@@ -45,6 +45,13 @@ export type CobroRango = {
   suscripcion: string;      // sub_… si vino de una suscripción
   recibo: string;           // link al recibo de Stripe
   chargeId: string;
+  // POR QUÉ se contó como nuestro. Sirve para auditar un mes que "da mucho":
+  //   producto  → la factura es de un producto NUESTRO. Es prueba dura.
+  //   metadata  → pago suelto etiquetado app=viraladn (ligas de pago). Flojo:
+  //               si algo ajeno quedó etiquetado así, se cuela.
+  //   elevation → viene de la cuenta Elevation, donde TODO cuenta como nuestro.
+  //   ajeno     → otro negocio de la cuenta compartida (no suma).
+  motivo: 'producto' | 'metadata' | 'elevation' | 'ajeno';
 };
 
 type ChargeRaw = {
@@ -186,6 +193,7 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
       estado: String(c.status || ''), producto: etiqueta,
       plataforma: plat || (metaApp === 'viraladn' ? ((metaProd === 'topcut' || metaProd === 'combo') ? metaProd as 'topcut' | 'combo' : 'viraladn') : null),
       viralAdn: esNuestro, cuenta: '2CLICKS',
+      motivo: plat ? 'producto' : esNuestro ? 'metadata' : 'ajeno',
       suscripcion: String(inv?.subscription || ''),
       ...extra,
     });
@@ -199,7 +207,7 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
       ts: c.created ?? 0, fecha: fechaCDMX(c.created), hora: horaCDMX(c.created), email: emailDe(c),
       monto, refund, comision, netoBanco: r2(monto - refund - comision),
       estado: String(c.status || ''), producto: 'ViralADN (Elevation)', plataforma: 'viraladn',
-      viralAdn: true, cuenta: 'Elevation', suscripcion: String(invE?.subscription || ''),
+      viralAdn: true, cuenta: 'Elevation', motivo: 'elevation', suscripcion: String(invE?.subscription || ''),
       ...extra,
     });
   }

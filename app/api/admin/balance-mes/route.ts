@@ -48,6 +48,32 @@ export async function GET(req: NextRequest) {
       return { cobros: a.length, neto: r2(sum(a, c => c.monto) - sum(a, c => c.refund)) };
     };
 
+    // 🔍 DE DÓNDE SALE el número: por qué se contó cada cobro como nuestro.
+    // Un mes que "da mucho" casi siempre es plata que entró por la puerta
+    // floja (metadata suelta o la cuenta Elevation entera), no por producto.
+    const deMotivo = (m: CobroRango['motivo']) => {
+      const a = mios.filter(c => c.motivo === m);
+      return { cobros: a.length, neto: r2(sum(a, c => c.monto) - sum(a, c => c.refund)) };
+    };
+    const de_donde_sale = {
+      producto: deMotivo('producto'),    // prueba dura: la factura es de un producto nuestro
+      metadata: deMotivo('metadata'),    // pagos sueltos etiquetados app=viraladn
+      elevation: deMotivo('elevation'),  // TODA la cuenta Elevation cuenta como nuestra
+    };
+
+    // Los cobros más grandes del mes — para ver de un vistazo si hay uno que
+    // no debería estar (un ajeno colado, un anual que no es tuyo, etc.).
+    const mas_grandes = [...mios]
+      .sort((a, b) => (b.monto - b.refund) - (a.monto - a.refund))
+      .slice(0, 12)
+      .map(c => ({
+        fecha: c.fecha, email: c.email, nombre: c.nombre,
+        neto: r2(c.monto - c.refund), producto: c.producto,
+        cuenta: c.cuenta, motivo: c.motivo,
+        moneda: c.monedaOriginal !== 'USD' ? `${c.montoOriginal} ${c.monedaOriginal}` : '',
+        recibo: c.recibo,
+      }));
+
     return Response.json({
       mes,
       ventana: `del 1 al último día de ${mes} (hora CDMX)`,
@@ -57,6 +83,8 @@ export async function GET(req: NextRequest) {
         bruto, reembolsado: devuelto, neto,
         por_cuenta: { clicks: deCuenta('2CLICKS'), elevation: { ...deCuenta('Elevation'), configurada: elevationConfigurada } },
         por_producto: porProducto,
+        de_donde_sale,
+        mas_grandes,
       },
       otros_negocios: { cobros: otros.length, neto: r2(sum(otros, c => c.monto) - sum(otros, c => c.refund)) },
       csv: `/api/admin/export?type=ventas&mes=${mes}`,
