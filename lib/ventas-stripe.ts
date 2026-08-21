@@ -113,6 +113,9 @@ export type CobroRango = {
   //   elevation → viene de la cuenta Elevation, donde TODO cuenta como nuestro.
   //   ajeno     → otro negocio de la cuenta compartida (no suma).
   motivo: 'producto' | 'metadata' | 'elevation' | 'ajeno';
+  // Producto de Stripe de la factura (prod_…). Sirve para auditar: si un cobro
+  // NUESTRO está cayendo como ajeno, acá se ve con qué producto entró.
+  productoId: string;
 };
 
 type ChargeRaw = {
@@ -234,10 +237,11 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
 
   for (const c of chClicks) {
     let plat: 'viraladn' | 'topcut' | 'combo' | undefined;
+    let prodId = '';
     const inv = typeof c.invoice === 'object' ? c.invoice : null;
     for (const l of inv?.lines?.data || []) {
       const pid = l.price?.product;
-      if (pid) { const pf = platformOf.get(pid); if (pf) { plat = pf; break; } }
+      if (pid) { if (!prodId) prodId = pid; const pf = platformOf.get(pid); if (pf) { plat = pf; break; } }
     }
     const pi = typeof c.payment_intent === 'object' ? c.payment_intent : null;
     const metaApp = pi?.metadata?.app || c.metadata?.app;
@@ -257,6 +261,7 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
       plataforma: plat || (metaApp === 'viraladn' ? ((metaProd === 'topcut' || metaProd === 'combo') ? metaProd as 'topcut' | 'combo' : 'viraladn') : null),
       viralAdn: esNuestro, cuenta: '2CLICKS',
       motivo: plat ? 'producto' : esNuestro ? 'metadata' : 'ajeno',
+      productoId: prodId,
       suscripcion: String(inv?.subscription || ''),
       ...extra,
     });
@@ -272,7 +277,9 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
       estado: String(c.status || ''), producto: 'Vendido por Elevation (no es tu plata)', plataforma: 'viraladn',
       // viralAdn:false → NO suma a ningún ingreso. Se guarda igual para saber
       // quién compró (acceso) y para poder ver el volumen de la comunidad.
-      viralAdn: false, cuenta: 'Elevation', motivo: 'elevation', suscripcion: String(invE?.subscription || ''),
+      viralAdn: false, cuenta: 'Elevation', motivo: 'elevation',
+      productoId: String(invE?.lines?.data?.[0]?.price?.product || ''),
+      suscripcion: String(invE?.subscription || ''),
       ...extra,
     });
   }
