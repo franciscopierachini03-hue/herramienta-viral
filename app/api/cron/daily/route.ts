@@ -53,5 +53,17 @@ export async function GET(req: NextRequest) {
     resultado.tarjetasRebotadas = await r.json().catch(() => `HTTP ${r.status}`);
   } catch (e) { resultado.tarjetasRebotadas = `error: ${(e as Error).message.slice(0, 80)}`; }
 
+  // 5) 📖 Libro de cobros al día: sincroniza el mes en curso y el anterior.
+  //    Dos meses alcanzan para que entren los reembolsos tardíos sin escanear
+  //    todo el historial cada noche.
+  try {
+    const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit' }).format(new Date());
+    const [y, m] = hoy.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 2, 1));
+    const anterior = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    const r = await fetch(`${base}/api/admin/sincronizar-cobros?desde=${anterior}&hasta=${hoy}`, interno);
+    resultado.libroCobros = await r.json().catch(() => `HTTP ${r.status}`);
+  } catch (e) { resultado.libroCobros = `error: ${(e as Error).message.slice(0, 80)}`; }
+
   return Response.json({ ok: true, ...resultado });
 }

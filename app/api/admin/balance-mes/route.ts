@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
 import { cobrosRango, type CobroRango } from '@/lib/ventas-stripe';
+import { leerMes } from '@/lib/libro-cobros';
 
 // GET /api/admin/balance-mes?mes=YYYY-MM — BALANCE DE VERDAD de un mes calendario.
 // Suma LAS DOS cuentas (2CLICKS clasificada + Elevation completa) + pagos únicos,
@@ -38,6 +39,53 @@ export async function GET(req: NextRequest) {
   const [y, m] = mes.split('-').map(Number);
   const desde = Math.floor(Date.UTC(y, m - 1, 1, 6, 0, 0) / 1000);   // 1° 00:00 CDMX
   const hasta = Math.floor(Date.UTC(y, m, 1, 6, 0, 0) / 1000);       // 1° del siguiente
+
+  // ── Camino rápido: si el mes ya está en el LIBRO, sale de ahí ────────────
+  // Instantáneo y siempre el mismo número. Solo para meses que NO son el actual
+  // (el actual sigue vivo: entran cobros y reembolsos durante el día).
+  // Se puede forzar la lectura de Stripe con ?fresco=1.
+  const esMesActual = mes === hoy;
+  if (!esMesActual && sp.get('fresco') !== '1') {
+    try {
+      const L = await leerMes(mes);
+      if (L) {
+        // El corte al día N sale del detalle diario que ya tenemos.
+        const hasta_dia = corte > 0
+          ? { dia: corte, cobros: 0, neto: r2(L.diario.slice(0, corte).reduce((a, b) => a + b, 0)) }
+          : null;
+        const cz = (k: string) => L.porCerteza[k] || { cobros: 0, neto: 0 };
+        return Response.json({
+          mes, dias_del_mes: L.diario.length,
+          fuente: L.cerrado ? 'libro · mes cerrado' : 'libro',
+          ventana: `del 1 al último día de ${mes} (hora CDMX)`,
+          moneda: 'USD liquidado (los cobros en otra moneda entran convertidos)',
+          tuyo: {
+            cobros: L.cobros, bruto: L.bruto, reembolsado: L.reembolsado, neto: L.neto,
+            comision: L.comision,
+            por_cuenta: { clicks: { cobros: L.cobros, neto: L.neto }, elevation: { cobros: 0, neto: 0, configurada: true } },
+            por_producto: Object.fromEntries(Object.entries(L.porProducto).map(([k, v]) => [k, { cobros: 0, neto: v }])),
+            por_plataforma: L.porProducto,
+            de_donde_sale: { producto: cz('producto'), metadata: cz('metadata'), elevation: cz('monto') },
+            mas_grandes: detalle ? L.masGrandes.map(c => ({
+              fecha: c.fecha, email: c.email, nombre: c.nombre, neto: c.neto,
+              producto: c.producto, cuenta: c.cuenta,
+              motivo: c.certeza === 'producto' ? 'producto' : c.certeza === 'metadata' ? 'metadata' : 'elevation',
+              moneda: c.moneda, recibo: '',
+            })) : [],
+            ultimos: detalle ? L.ultimos.map(c => ({
+              id: c.charge_id, email: c.email, fecha: c.fecha,
+              hora: c.ts.slice(11, 16), neto: c.neto, reembolsado: c.reembolsado,
+              producto: c.producto, cuenta: c.cuenta,
+            })) : [],
+            diario: L.diario,
+            hasta_dia,
+          },
+          otros_negocios: { cobros: 0, neto: 0 },
+          csv: `/api/admin/export?type=ventas&mes=${mes}`,
+        });
+      }
+    } catch { /* si el libro falla, seguimos contra Stripe */ }
+  }
 
   try {
     const { cobros, elevationConfigurada } = await cobrosRango(desde, hasta);
