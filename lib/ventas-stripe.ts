@@ -27,9 +27,59 @@ const ANCHORS: Array<[string, 'viraladn' | 'topcut' | 'combo']> = [
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-async function sGet(path: string, key: string) {
-  const r = await fetch(`https://api.stripe.com/v1/${path}`, { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
-  return r.ok ? r.json() : null;
+const dormir = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ── Semáforo: cuántas consultas a Stripe pueden ir a la vez ────────────────
+// Sin tope, sincronizar varios meses en paralelo disparaba ~60 consultas
+// simultáneas y Stripe empezaba a devolver 429. Con 10 no llegamos al límite.
+let enVuelo = 0;
+const cola: Array<() => void> = [];
+async function turno<T>(fn: () => Promise<T>): Promise<T> {
+  if (enVuelo >= 10) await new Promise<void>(r => cola.push(r));
+  enVuelo++;
+  try { return await fn(); }
+  finally { enVuelo--; cola.shift()?.(); }
+}
+
+// ⚠️ REGLA DE LA CASA: un error de Stripe NUNCA puede parecer "no hay cobros".
+//
+// Esta función devolvía `null` cuando Stripe fallaba, y quien la llamaba leía
+// ese null como una lista vacía. Resultado: un 429 (demasiadas consultas) o un
+// 5xx pasajero hacían que un mes entero valiera CERO, sin una sola señal. Era
+// la causa de que el panel mostrara plata de menos y de que los números
+// cambiaran entre una carga y otra.
+//
+// Ahora: reintenta con espera creciente (respetando el Retry-After de Stripe)
+// y, si aun así no puede, LANZA el error. Preferimos romper fuerte y visible
+// antes que devolver un número mentiroso.
+async function sGet(path: string, key: string, opcional = false): Promise<Record<string, unknown> | null> {
+  const intentos = 4;
+  let ultimo = 'sin respuesta';
+  for (let i = 0; i < intentos; i++) {
+    let r: Response;
+    try {
+      r = await turno(() => fetch(`https://api.stripe.com/v1/${path}`, {
+        headers: { Authorization: `Bearer ${key}` }, cache: 'no-store',
+      }));
+    } catch (e) {
+      ultimo = (e as Error).message.slice(0, 80);
+      await dormir(400 * 2 ** i);
+      continue;
+    }
+    if (r.ok) return r.json();
+    // 429 = pasate de consultas · 5xx = Stripe con problemas → reintentar.
+    if (r.status === 429 || r.status >= 500) {
+      const espera = Number(r.headers.get('retry-after') || 0);
+      ultimo = `HTTP ${r.status}`;
+      await dormir(espera > 0 ? espera * 1000 : 500 * 2 ** i);
+      continue;
+    }
+    // Otro 4xx (no existe, sin permiso): reintentar no cambia nada.
+    if (opcional) return null;
+    throw new Error(`Stripe respondió ${r.status} en ${path.split('?')[0]}`);
+  }
+  if (opcional) return null;
+  throw new Error(`Stripe no respondió tras ${intentos} intentos (${ultimo})`);
 }
 
 export type CobroRango = {
@@ -84,7 +134,8 @@ async function paginaCobros(key: string, desde: number, hasta: number): Promise<
     const q = `charges?limit=100&created[gte]=${desde}&created[lt]=${hasta}`
       + `&expand[]=data.invoice&expand[]=data.payment_intent&expand[]=data.balance_transaction`
       + (after ? `&starting_after=${after}` : '');
-    const d = await sGet(q, key);
+    // Si Stripe falla, sGet lanza: NO seguimos como si no hubiera cobros.
+    const d = await sGet(q, key) as { data?: ChargeRaw[]; has_more?: boolean } | null;
     const data: ChargeRaw[] = d?.data || [];
     out.push(...data);
     if (!d?.has_more || !data.length) break;
@@ -170,7 +221,8 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
   // Anchors + las dos cuentas, TODO en paralelo.
   const [anchors, chClicks, chElev] = await Promise.all([
     Promise.all(ANCHORS.map(async ([a, plat]) => {
-      const p = await sGet(`prices/${encodeURIComponent(a)}`, key);
+      // opcional: si un precio ancla fue archivado, seguimos con los demás.
+      const p = await sGet(`prices/${encodeURIComponent(a)}`, key, true) as { product?: string } | null;
       return [p?.product as string | undefined, plat] as const;
     })),
     cobrosDeCuenta(key, desde, hasta),
