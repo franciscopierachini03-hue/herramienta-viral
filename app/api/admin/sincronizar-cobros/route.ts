@@ -60,21 +60,37 @@ export async function GET(req: NextRequest) {
   else if (mesValido(desde)) meses = listaMeses(desde, mesValido(hasta) ? hasta : hoy);
   else meses = [hoy];
 
-  // Un mes por vez: cada uno tiene su propio presupuesto de tiempo y, si uno
-  // falla, los demás igual quedan guardados.
+  // Los meses van EN PARALELO, en tandas. Uno detrás de otro tardaba ~17s por
+  // mes (la cuenta 2CLICKS es compartida: hay que barrer cientos de cobros
+  // ajenos para encontrar los nuestros) y 3 meses ya se comían los 60s.
+  // En tandas de 4 el reloj es el del mes más lento, no la suma.
+  const TANDA = 4;
   const detalle: Record<string, unknown> = {};
   let totalEscritos = 0;
   const t0 = Date.now();
-  for (const mes of meses) {
-    // Si nos estamos quedando sin tiempo, cortamos y avisamos QUÉ faltó — nunca
-    // en silencio (mejor un resultado parcial declarado que un 504 mudo).
-    if (Date.now() - t0 > 50_000) {
-      detalle.corte = `Se acabó el tiempo. Faltaron: ${meses.slice(meses.indexOf(mes)).join(', ')}. Volvé a llamar con ?desde=${mes}`;
+
+  for (let i = 0; i < meses.length; i += TANDA) {
+    // Si no alcanza el tiempo para otra tanda, cortamos y decimos QUÉ faltó —
+    // nunca en silencio (mejor un parcial declarado que un 504 mudo).
+    if (i > 0 && Date.now() - t0 > 35_000) {
+      const faltan = meses.slice(i);
+      detalle.corte = `Se acabó el tiempo. Faltaron: ${faltan.join(', ')}. Volvé a llamar con ?desde=${faltan[0]}`;
       break;
     }
-    const r = await sincronizar(inicioMes(mes), finMes(mes));
-    detalle[mes] = r.error ? `error: ${r.error}` : `${r.escritos} cobros${r.respetados ? ` · ${r.respetados} excluidos a mano, respetados` : ''}`;
-    totalEscritos += r.escritos;
+    const tanda = meses.slice(i, i + TANDA);
+    const rs = await Promise.all(tanda.map(m => sincronizar(inicioMes(m), finMes(m))));
+    tanda.forEach((mes, j) => {
+      const r = rs[j];
+      if (r.error) { detalle[mes] = `error: ${r.error}`; return; }
+      // Un mes en cero se explica solo: ¿no hubo movimiento, o lo hubo y nada
+      // era tuyo? Así no hay que abrir Stripe para entenderlo.
+      detalle[mes] = r.escritos > 0
+        ? `${r.escritos} cobros tuyos${r.respetados ? ` · ${r.respetados} excluidos a mano, respetados` : ''}`
+        : r.enLaCuenta === 0 && r.elevation === 0
+          ? 'sin movimiento en Stripe ese mes'
+          : `0 tuyos · ${r.ajenos} de otros negocios${r.elevation ? ` · ${r.elevation} de Elevation (no es tu plata)` : ''}`;
+      totalEscritos += r.escritos;
+    });
   }
 
   return Response.json({

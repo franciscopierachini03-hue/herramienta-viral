@@ -29,6 +29,11 @@ export type ResultadoSync = {
   leidos: number;      // cobros nuestros encontrados en Stripe
   escritos: number;    // filas insertadas o actualizadas
   respetados: number;  // filas excluidas a mano que NO se tocaron
+  // Contexto para entender un mes que da CERO sin tener que abrir Stripe:
+  // ¿no hubo movimiento, o hubo pero nada era nuestro?
+  enLaCuenta: number;  // cobros exitosos en la cuenta 2CLICKS (todos los negocios)
+  ajenos: number;      // de esos, cuántos son de otros negocios
+  elevation: number;   // cobros de Elevation (dan acceso, no son tu plata)
   error?: string;
 };
 
@@ -75,17 +80,25 @@ function aFila(c: CobroRango) {
 // Lee Stripe en [desde, hasta) y deja el libro al día. Idempotente.
 export async function sincronizar(desde: number, hasta: number): Promise<ResultadoSync> {
   const sb = createServiceClient();
+  const vacio = { leidos: 0, escritos: 0, respetados: 0, enLaCuenta: 0, ajenos: 0, elevation: 0 };
   let cobros: CobroRango[];
   try {
     ({ cobros } = await cobrosRango(desde, hasta));
   } catch (e) {
-    return { leidos: 0, escritos: 0, respetados: 0, error: (e as Error).message.slice(0, 160) };
+    return { ...vacio, error: (e as Error).message.slice(0, 160) };
   }
+
+  const ok = cobros.filter(c => c.estado === 'succeeded');
+  const ctx = {
+    enLaCuenta: ok.filter(c => c.cuenta === '2CLICKS').length,
+    ajenos: ok.filter(c => c.cuenta === '2CLICKS' && !c.viralAdn).length,
+    elevation: ok.filter(c => c.cuenta === 'Elevation').length,
+  };
 
   // Solo lo NUESTRO y solo lo que se cobró de verdad. Elevation queda afuera
   // (cobra en su cuenta: da acceso, no da plata).
-  const mios = cobros.filter(c => c.viralAdn && c.estado === 'succeeded' && c.chargeId);
-  if (!mios.length) return { leidos: 0, escritos: 0, respetados: 0 };
+  const mios = ok.filter(c => c.viralAdn && c.chargeId);
+  if (!mios.length) return { ...vacio, ...ctx };
 
   // Las filas marcadas a mano no se tocan: esa decisión gana siempre.
   const ids = mios.map(c => c.chargeId);
@@ -101,11 +114,11 @@ export async function sincronizar(desde: number, hasta: number): Promise<Resulta
   for (let i = 0; i < filas.length; i += 200) {
     const tanda = filas.slice(i, i + 200);
     const { error } = await sb.from('cobros_viraladn').upsert(tanda, { onConflict: 'charge_id' });
-    if (error) return { leidos: mios.length, escritos, respetados: excluidos.size, error: error.message.slice(0, 160) };
+    if (error) return { leidos: mios.length, escritos, respetados: excluidos.size, ...ctx, error: error.message.slice(0, 160) };
     escritos += tanda.length;
   }
 
-  return { leidos: mios.length, escritos, respetados: excluidos.size };
+  return { leidos: mios.length, escritos, respetados: excluidos.size, ...ctx };
 }
 
 export type CobroLibro = {
