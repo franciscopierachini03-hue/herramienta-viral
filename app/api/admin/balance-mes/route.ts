@@ -63,6 +63,15 @@ export async function GET(req: NextRequest) {
       return { cobros: a.length, neto: r2(sum(a, c => c.monto) - sum(a, c => c.refund)) };
     };
 
+    // Elevation vende ViralADN pero cobra en SU cuenta: la plata es de ellos.
+    // Se muestra aparte, a modo informativo — nunca suma al ingreso.
+    const elev = ok.filter(c => c.cuenta === 'Elevation');
+    const elevation_ajeno = {
+      cobros: elev.length,
+      neto: r2(sum(elev, c => c.monto) - sum(elev, c => c.refund)),
+      configurada: elevationConfigurada,
+    };
+
     // 🔍 DE DÓNDE SALE el número: por qué se contó cada cobro como nuestro.
     // Un mes que "da mucho" casi siempre es plata que entró por la puerta
     // floja (metadata suelta o la cuenta Elevation entera), no por producto.
@@ -137,7 +146,11 @@ export async function GET(req: NextRequest) {
         ultimos,
         hasta_dia,
       },
-      otros_negocios: { cobros: otros.length, neto: r2(sum(otros, c => c.monto) - sum(otros, c => c.refund)) },
+      elevation_ajeno,
+      otros_negocios: {
+        cobros: otros.filter(c => c.cuenta === '2CLICKS').length,
+        neto: r2(sum(otros.filter(c => c.cuenta === '2CLICKS'), c => c.monto) - sum(otros.filter(c => c.cuenta === '2CLICKS'), c => c.refund)),
+      },
       csv: `/api/admin/export?type=ventas&mes=${mes}`,
     });
   } catch (e) {

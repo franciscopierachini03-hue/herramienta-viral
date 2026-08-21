@@ -2,7 +2,18 @@
 // Única fuente para /api/admin/pagos-dia (día) y /api/admin/export?mes= (mes):
 //   · 2CLICKS (STRIPE_SECRET_KEY, compartida): cada cobro se etiqueta NUESTRO
 //     (producto de su factura, o metadata.app=viraladn en pagos únicos) u otro.
-//   · Elevation (STRIPE_SECRET_KEY_ELEVATION, dedicada): todo es nuestro.
+//   · Elevation (STRIPE_SECRET_KEY_ELEVATION): NO es plata nuestra.
+//
+// ── Elevation: da acceso, no da plata (21-ago-2026) ────────────────────────
+// Las comunidades (/adama, /unete) venden ViralADN cobrando por SU cuenta de
+// Stripe. Esa cuenta es de ellos: el dinero entra a su banco, no al nuestro.
+// Antes se contaba el 100% como ingreso propio y eso inflaba los meses
+// (Francisco: "hay meses que aparece de 4 mil USD y no se generó eso" ·
+//  "elevation no lo usemos, no es mía").
+// Ahora sus cobros se leen igual — para saber quién compró y darle acceso
+// (lib/entitlement) y para poder mirar el volumen — pero entran como AJENOS:
+// no suman a ninguna cifra de ingreso.
+//
 // Montos en USD LIQUIDADO (balance_transaction): los MXN entran convertidos.
 // Solo server (usa las keys de Vercel).
 
@@ -206,8 +217,10 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
     cobros.push({
       ts: c.created ?? 0, fecha: fechaCDMX(c.created), hora: horaCDMX(c.created), email: emailDe(c),
       monto, refund, comision, netoBanco: r2(monto - refund - comision),
-      estado: String(c.status || ''), producto: 'ViralADN (Elevation)', plataforma: 'viraladn',
-      viralAdn: true, cuenta: 'Elevation', motivo: 'elevation', suscripcion: String(invE?.subscription || ''),
+      estado: String(c.status || ''), producto: 'Vendido por Elevation (no es tu plata)', plataforma: 'viraladn',
+      // viralAdn:false → NO suma a ningún ingreso. Se guarda igual para saber
+      // quién compró (acceso) y para poder ver el volumen de la comunidad.
+      viralAdn: false, cuenta: 'Elevation', motivo: 'elevation', suscripcion: String(invE?.subscription || ''),
       ...extra,
     });
   }

@@ -21,6 +21,7 @@ type Resp = {
     de_donde_sale?: Record<Motivo, { cobros: number; neto: number }>;
     mas_grandes?: Grande[];
   };
+  elevation_ajeno?: { cobros: number; neto: number; configurada: boolean };
   otros_negocios: { cobros: number; neto: number };
   csv: string;
   error?: string;
@@ -39,7 +40,7 @@ const MOTIVOS: Record<Motivo, { icono: string; titulo: string; explica: string; 
   },
   elevation: {
     icono: '🔵', titulo: 'Cuenta Elevation', color: '#93c5fd',
-    explica: 'TODO lo que cobra la cuenta Elevation se cuenta como tuyo, sin mirar el producto. Si esa cuenta vende otra cosa, se suma igual.',
+    explica: 'Ya no suma: Elevation cobra en su propia cuenta, así que esa plata no es tuya. Si ves algo acá, avisame.',
   },
 };
 
@@ -106,11 +107,17 @@ export default function BalanceMes() {
           </div>
 
           <div className="text-[11px] mb-2" style={{ color: '#7dd3a8' }}>
-            2CLICKS {usd(data.tuyo.por_cuenta.clicks.neto)} ({data.tuyo.por_cuenta.clicks.cobros})
-            {' · '}Elevation {data.tuyo.por_cuenta.elevation.configurada === false
-              ? <span style={{ color: '#fcd34d' }}>sin llave ⚠️</span>
-              : <>{usd(data.tuyo.por_cuenta.elevation.neto)} ({data.tuyo.por_cuenta.elevation.cobros})</>}
+            Todo de la cuenta 2CLICKS · {data.tuyo.por_cuenta.clicks.cobros} cobro{data.tuyo.por_cuenta.clicks.cobros === 1 ? '' : 's'}
           </div>
+
+          {/* Elevation cobra en SU cuenta: da acceso, pero la plata es de ellos. */}
+          {data.elevation_ajeno && data.elevation_ajeno.cobros > 0 && (
+            <div className="text-[11px] mb-2 px-2.5 py-1.5 rounded-lg"
+              style={{ background: '#0a1626', border: '1px solid #2AABEE55', color: '#9ec9e4' }}>
+              🔵 Elevation vendió <b style={{ color: '#cde7f7' }}>{usd(data.elevation_ajeno.neto)}</b> ({data.elevation_ajeno.cobros} cobro{data.elevation_ajeno.cobros === 1 ? '' : 's'}) —
+              esa gente tiene acceso, pero <b style={{ color: '#cde7f7' }}>la plata entró a la cuenta de ellos</b>, no a la tuya. No suma arriba.
+            </div>
+          )}
 
           {prods.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
