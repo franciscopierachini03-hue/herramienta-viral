@@ -38,6 +38,8 @@ export type ResultadoSync = {
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+// Día CDMX de un unix (mismo criterio que ventas-stripe).
+const fechaCDMX = (ts: number) => new Date((ts - 6 * 3600) * 1000).toISOString().slice(0, 10);
 
 // El producto tal cual lo guarda el libro (minúscula, estable).
 function productoDe(c: CobroRango): string {
@@ -98,7 +100,20 @@ export async function sincronizar(desde: number, hasta: number): Promise<Resulta
   // Solo lo NUESTRO y solo lo que se cobró de verdad. Elevation queda afuera
   // (cobra en su cuenta: da acceso, no da plata).
   const mios = ok.filter(c => c.viralAdn && c.chargeId);
-  if (!mios.length) return { ...vacio, ...ctx };
+
+  // Un mes SIN cobros tuyos hay que dejarlo anotado igual. Si no, no queda
+  // rastro de que ya lo miramos, el panel lo sigue yendo a buscar a Stripe en
+  // cada carga — y Stripe termina cortando por exceso de consultas. Un cero
+  // verificado es un dato, no la ausencia de uno.
+  if (!mios.length) {
+    try {
+      await sb.from('meses_cerrados').upsert(
+        { mes: fechaCDMX(desde).slice(0, 7), neto_usd: 0, cobros: 0, nota: 'sincronizado: sin cobros tuyos ese mes' },
+        { onConflict: 'mes' },
+      );
+    } catch { /* best-effort */ }
+    return { ...vacio, ...ctx };
+  }
 
   // Las filas marcadas a mano no se tocan: esa decisión gana siempre.
   const ids = mios.map(c => c.chargeId);
@@ -155,7 +170,21 @@ export async function leerMes(mes: string): Promise<MesLibro | null> {
     .select('charge_id, fecha, ts, email, nombre, producto, certeza, cuenta, moneda_origen, monto_origen, bruto_usd, reembolsado_usd, comision_usd')
     .gte('fecha', `${mes}-01`).lte('fecha', `${mes}-${String(ultimo).padStart(2, '0')}`)
     .eq('excluir', false);
-  if (error || !data || data.length === 0) return null;
+  if (error) return null;
+
+  const { data: cerrado } = await sb.from('meses_cerrados').select('mes, nota').eq('mes', mes).maybeSingle();
+
+  // Sin filas: puede ser "todavía no lo miramos" (→ null, que va a Stripe) o
+  // "ya lo miramos y no hubo nada tuyo" (→ un cero de verdad, sin ir a Stripe).
+  if (!data || data.length === 0) {
+    if (!cerrado) return null;
+    return {
+      mes, neto: 0, bruto: 0, reembolsado: 0, comision: 0, cobros: 0,
+      porProducto: {}, porCerteza: {},
+      diario: Array.from({ length: ultimo }, () => 0),
+      masGrandes: [], ultimos: [], cerrado: true,
+    };
+  }
 
   const diario = Array.from({ length: ultimo }, () => 0);
   const porProducto: Record<string, number> = {};
@@ -185,8 +214,6 @@ export async function leerMes(mes: string): Promise<MesLibro | null> {
       reembolsado: d >= b && b > 0,
     });
   }
-
-  const { data: cerrado } = await sb.from('meses_cerrados').select('mes').eq('mes', mes).maybeSingle();
 
   return {
     mes,
