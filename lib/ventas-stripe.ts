@@ -18,6 +18,27 @@
 // Solo server (usa las keys de Vercel).
 
 import { PRODUCT_IDS } from '@/lib/products';
+import { createServiceClient } from '@/lib/supabase/server';
+
+// Productos NUESTROS que Francisco agregó a mano (tabla productos_viraladn).
+// Existe porque cada liga de pago creada a mano en Stripe genera un PRODUCTO
+// NUEVO que el código no conoce: esa venta entra al banco pero no al panel.
+// Con la tabla, la lista deja de vivir en el código y se corrige sin deploy.
+let _extra: { ts: number; map: Map<string, 'viraladn' | 'topcut' | 'combo'> } | null = null;
+async function productosAgregados(): Promise<Map<string, 'viraladn' | 'topcut' | 'combo'>> {
+  if (_extra && Date.now() - _extra.ts < 60_000) return _extra.map;
+  const map = new Map<string, 'viraladn' | 'topcut' | 'combo'>();
+  try {
+    const sb = createServiceClient();
+    const { data } = await sb.from('productos_viraladn').select('producto_id, plataforma');
+    for (const p of data || []) {
+      const plat = String(p.plataforma);
+      if (plat === 'viraladn' || plat === 'topcut' || plat === 'combo') map.set(String(p.producto_id), plat);
+    }
+  } catch { /* sin tabla todavía → seguimos con la lista del código */ }
+  _extra = { ts: Date.now(), map };
+  return map;
+}
 
 const ANCHORS: Array<[string, 'viraladn' | 'topcut' | 'combo']> = [
   ['price_1TrgNwBrwYizao1Ogz3hesBl', 'viraladn'],
@@ -221,17 +242,19 @@ export async function cobrosRango(desde: number, hasta: number): Promise<{ cobro
   platformOf.set(PRODUCT_IDS.combo, 'combo');
   const nombre = (plat?: string) => plat === 'viraladn' ? 'ViralADN' : plat === 'topcut' ? 'TOPCUT' : plat === 'combo' ? 'Combo' : 'otro negocio';
 
-  // Anchors + las dos cuentas, TODO en paralelo.
-  const [anchors, chClicks, chElev] = await Promise.all([
+  // Anchors + los agregados a mano + las dos cuentas, TODO en paralelo.
+  const [anchors, extra, chClicks, chElev] = await Promise.all([
     Promise.all(ANCHORS.map(async ([a, plat]) => {
       // opcional: si un precio ancla fue archivado, seguimos con los demás.
       const p = await sGet(`prices/${encodeURIComponent(a)}`, key, true) as { product?: string } | null;
       return [p?.product as string | undefined, plat] as const;
     })),
+    productosAgregados(),
     cobrosDeCuenta(key, desde, hasta),
     keyElev ? cobrosDeCuenta(keyElev, desde, hasta) : Promise.resolve([] as ChargeRaw[]),
   ]);
   for (const [prod, plat] of anchors) if (prod) platformOf.set(prod, plat);
+  for (const [prod, plat] of extra) platformOf.set(prod, plat);
 
   const cobros: CobroRango[] = [];
 

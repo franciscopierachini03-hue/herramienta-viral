@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         ajenos: ok.filter(c => !c.viralAdn).length,
         ajenos_usd: sum(ok.filter(c => !c.viralAdn)),
       },
-      instruccion: 'Mirá la lista: si reconocés un producto TUYO con "cuenta_como":"❌ AJENO", ese es el que falta agregar al código.',
+      instruccion: 'Si reconocés un producto TUYO marcado ❌ AJENO, abrí su "marcar_como_mio" y el panel lo empieza a contar. Pasa sobre todo con las ligas de pago creadas a mano en Stripe: cada una crea un producto nuevo que el código no conoce.',
       productos: lista.map((g, i) => ({
         producto: nombres[i],
         producto_id: g.productoId,
@@ -80,6 +80,9 @@ export async function GET(req: NextRequest) {
         usd: g.usd,
         precios: Object.entries(g.montos).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([p, n]) => `${p} ×${n}`),
         un_email: g.ejemplo,
+        // Enlace listo para marcarlo como tuyo (solo para los que no lo son).
+        marcar_como_mio: g.nuestro || !g.productoId.startsWith('prod_') ? undefined
+          : `https://www.viraladn.com/api/admin/marcar-producto?id=${g.productoId}&plataforma=viraladn`,
       })),
     });
   } catch (e) {
