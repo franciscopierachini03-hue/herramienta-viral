@@ -90,7 +90,26 @@ export default function BalanceMes() {
       </div>
 
       {cargando && <div className="text-xs" style={{ color: '#5a8a6a' }}>sumando cobros de las dos cuentas…</div>}
-      {error && <div className="text-xs" style={{ color: '#fca5a5' }}>{error}</div>}
+      {error && (
+        <div className="text-xs leading-relaxed" style={{ color: '#fca5a5' }}>
+          {error}
+          {/* 429 = Stripe corta por exceso de consultas. Pasa cuando el mes no
+              está en el libro y hay que ir a buscarlo. Decimos qué hacer. */}
+          {error.includes('429') && (
+            <>
+              <br />
+              <span style={{ color: '#fcd34d' }}>
+                Stripe cortó por exceso de consultas. Este mes todavía no está en el libro —{' '}
+                <a href={`/api/admin/sincronizar-cobros?mes=${mes}`} target="_blank" rel="noreferrer"
+                  style={{ color: '#fde68a', textDecoration: 'underline', fontWeight: 700 }}>
+                  guardalo en el libro ↗
+                </a>{' '}
+                y no vuelve a pasar.
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       {data && !cargando && (
         <>

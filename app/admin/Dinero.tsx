@@ -104,24 +104,44 @@ export default function Dinero(p: Props) {
 
   useEffect(() => {
     let vivo = true;
-    const meses = [...new Set([...mesesDesdeInicio(mesActual), p.mesSel])];
     // Con detalle: el mes en curso, los 2 anteriores (comparativa) y el que
     // está mirando en el gráfico. El resto, solo el total.
     const conDetalle = new Set([mesActual, mesAntes(mesActual, 1), mesAntes(mesActual, 2), p.mesSel]);
 
-    for (const mes of meses) {
-      const qs = new URLSearchParams({ mes, corte: String(diaHoy) });
-      if (!conDetalle.has(mes)) qs.set('detalle', '0');
-      fetch(`/api/admin/balance-mes?${qs}`, { cache: 'no-store' })
-        .then(r => r.json())
-        .then((d: MesResp) => {
-          if (!vivo) return;
-          if (d.error || !d.tuyo) setFallaron(f => [...f, mes]);
-          else setDatos(prev => ({ ...prev, [mes]: d }));
-        })
-        .catch(() => { if (vivo) setFallaron(f => [...f, mes]); })
-        .finally(() => { if (vivo) setListo(true); });
-    }
+    // ORDEN: primero lo que se ve arriba (mes actual, los 2 de la comparativa
+    // y el del gráfico); los meses viejos después. Así los números que mirás
+    // aparecen enseguida aunque el resto tarde.
+    const importantes = [mesActual, mesAntes(mesActual, 1), mesAntes(mesActual, 2), p.mesSel];
+    const resto = mesesDesdeInicio(mesActual).filter(m => !importantes.includes(m));
+    const meses = [...new Set([...importantes, ...resto.reverse()])];
+
+    // DE A DOS, no todos juntos. Cada pedido corre en su propio servidor con su
+    // propio tope de consultas a Stripe: pedir los 8 meses a la vez disparaba
+    // ~80 consultas simultáneas y Stripe respondía 429 (demasiadas consultas).
+    // Los meses que ya están en el libro no tocan Stripe, así que una vez
+    // rellenado el histórico esto vuela igual.
+    (async () => {
+      const pendientes = [...meses];
+      const obrero = async () => {
+        while (vivo) {
+          const mes = pendientes.shift();
+          if (!mes) return;
+          const qs = new URLSearchParams({ mes, corte: String(diaHoy) });
+          if (!conDetalle.has(mes)) qs.set('detalle', '0');
+          try {
+            const d: MesResp = await (await fetch(`/api/admin/balance-mes?${qs}`, { cache: 'no-store' })).json();
+            if (!vivo) return;
+            if (d.error || !d.tuyo) setFallaron(f => [...f, mes]);
+            else setDatos(prev => ({ ...prev, [mes]: d }));
+          } catch {
+            if (vivo) setFallaron(f => [...f, mes]);
+          }
+          if (vivo) setListo(true);
+        }
+      };
+      await Promise.all([obrero(), obrero()]);
+    })();
+
     return () => { vivo = false; };
   }, [p.mesSel, mesActual, diaHoy]);
 
@@ -165,10 +185,17 @@ export default function Dinero(p: Props) {
   return (
     <>
       {listo && fallaron.length > 0 && (
-        <div className="rounded-2xl px-4 py-3 mb-3 text-xs"
+        <div className="rounded-2xl px-4 py-3 mb-3 text-xs leading-relaxed"
           style={{ background: '#1a1408', border: '1px solid #f59e0b55', color: '#fcd34d' }}>
-          ⚠️ Stripe tardó de más en {fallaron.length === 1 ? 'un mes' : `${fallaron.length} meses`} ({fallaron.map(nombreCorto).join(', ')}).
-          Todo lo demás es correcto; el <b>Total acumulado</b> queda corto hasta que recargues.
+          ⚠️ <b>Faltan {fallaron.length === 1 ? 'un mes' : `${fallaron.length} meses`}</b> ({fallaron.map(nombreCorto).join(', ')}) —
+          esos todavía no están en el libro, así que hay que ir a buscarlos a Stripe y Stripe corta por exceso de consultas.
+          <br />
+          Los meses que <b>sí</b> ves son correctos. Para que dejen de faltar, llená el libro una vez:{' '}
+          <a href="/api/admin/sincronizar-cobros?desde=2026-04&hasta=2026-08" target="_blank" rel="noreferrer"
+            style={{ color: '#fde68a', textDecoration: 'underline', fontWeight: 700 }}>
+            sincronizar cobros ↗
+          </a>{' '}
+          y volvé a cargar esta página.
         </div>
       )}
 
