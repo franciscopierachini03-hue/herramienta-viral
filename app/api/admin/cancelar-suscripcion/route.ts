@@ -111,18 +111,37 @@ export async function POST(req: NextRequest) {
   if (!c) return Response.json({ error: 'Cuenta desconocida.' }, { status: 400 });
   if (!c.key) return Response.json({ error: `Falta la llave de Stripe de ${c.label}.` }, { status: 503 });
 
+  // Dos formas de cortar, según el caso:
+  //   alFinal=true  → deja de cobrar, pero la persona conserva el acceso hasta
+  //                   la fecha que YA PAGÓ. Es lo correcto cuando alguien pide
+  //                   dar de baja: no le sacás lo que ya abonó.
+  //   alFinal=false → corte inmediato. Para errores (una suscripción duplicada
+  //                   que nunca debió existir), donde no hay nada que respetar.
+  const alFinal = body.alFinal === true;
+
   try {
-    // Corte inmediato del cobro recurrente.
-    const r = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${c.key}` },
-      cache: 'no-store',
-    });
+    const r = alFinal
+      ? await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'cancel_at_period_end=true',
+          cache: 'no-store',
+        })
+      : await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${c.key}` },
+          cache: 'no-store',
+        });
     const d = await r.json();
     if (!r.ok) return Response.json({ error: d?.error?.message || `Stripe HTTP ${r.status}` }, { status: 502 });
 
-    console.log(`[cancelar-suscripcion] ${adminEmail} canceló ${subscriptionId} en ${c.label} → ${d.status}`);
-    return Response.json({ ok: true, id: subscriptionId, cuenta: c.label, status: d.status });
+    const hasta = d.current_period_end ? new Date(d.current_period_end * 1000).toISOString().slice(0, 10) : null;
+    console.log(`[cancelar-suscripcion] ${adminEmail} ${alFinal ? 'programó baja' : 'canceló YA'} ${subscriptionId} en ${c.label} → ${d.status}`);
+    return Response.json({
+      ok: true, id: subscriptionId, cuenta: c.label, status: d.status,
+      modo: alFinal ? 'no se le cobra más; conserva el acceso hasta el final del período pagado' : 'corte inmediato',
+      accesoHasta: alFinal ? hasta : null,
+    });
   } catch (e) {
     return Response.json({ error: (e as Error).message.slice(0, 200) }, { status: 502 });
   }

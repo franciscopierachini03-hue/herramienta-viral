@@ -52,14 +52,20 @@ export default function CancelarSuscripcion() {
       .finally(() => setCargando(false));
   }
 
-  async function cancelar(s: Sub) {
+  // alFinal = deja de cobrar pero la persona conserva el acceso hasta la fecha
+  // que ya pagó. Es lo correcto cuando alguien pide la baja. El corte inmediato
+  // queda para los errores (una suscripción duplicada que nunca debió existir).
+  async function cancelar(s: Sub, alFinal: boolean) {
     const dinero = s.monto != null ? `${s.monto} ${s.moneda}/${s.ciclo}` : 'este cobro';
-    if (!confirm(`¿Cortar el cobro de ${dinero} en ${s.cuentaLabel}?\n\nDeja de facturar desde ya. Si es una cuenta admin, NO pierde el acceso.`)) return;
+    const aviso = alFinal
+      ? `¿Dar de baja ${dinero} en ${s.cuentaLabel}?\n\nNo se le cobra nunca más. Conserva el acceso hasta el ${s.proximoCobro || 'final del período que ya pagó'}.`
+      : `¿CORTAR YA ${dinero} en ${s.cuentaLabel}?\n\nDeja de facturar Y le saca el acceso en este momento, aunque haya pagado hasta el ${s.proximoCobro || '—'}.\n\nUsá esto solo para una suscripción duplicada o un error.`;
+    if (!confirm(aviso)) return;
     setCancelando(s.id); setError('');
     try {
       const r = await fetch('/api/admin/cancelar-suscripcion', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscriptionId: s.id, cuenta: s.cuenta }),
+        body: JSON.stringify({ subscriptionId: s.id, cuenta: s.cuenta, alFinal }),
       });
       const d = await r.json();
       if (d.error) setError(d.error);
@@ -153,11 +159,20 @@ export default function CancelarSuscripcion() {
                 {yaHecho ? (
                   <span className="text-xs font-bold" style={{ color: '#86efac' }}>✅ cobro cortado</span>
                 ) : s.cancelable ? (
-                  <button onClick={() => cancelar(s)} disabled={cancelando === s.id}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap"
-                    style={{ background: cancelando === s.id ? '#3f1515' : '#7f1d1d', border: '1px solid #b91c1c', color: '#fecaca', opacity: cancelando === s.id ? 0.6 : 1 }}>
-                    {cancelando === s.id ? 'cancelando…' : 'Cortar cobro'}
-                  </button>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {/* Lo normal: no se le cobra más, conserva lo que pagó. */}
+                    <button onClick={() => cancelar(s, true)} disabled={cancelando === s.id}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap"
+                      style={{ background: cancelando === s.id ? '#3f1515' : '#7c2d12', border: '1px solid #ea580c', color: '#fed7aa', opacity: cancelando === s.id ? 0.6 : 1 }}>
+                      {cancelando === s.id ? 'dando de baja…' : 'Dar de baja'}
+                    </button>
+                    <button onClick={() => cancelar(s, false)} disabled={cancelando === s.id}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap"
+                      style={{ background: '#7f1d1d', border: '1px solid #b91c1c', color: '#fecaca', opacity: cancelando === s.id ? 0.6 : 1 }}
+                      title="Corta el cobro Y le saca el acceso ahora mismo. Solo para duplicados o errores.">
+                      Cortar YA (duplicado)
+                    </button>
+                  </div>
                 ) : (
                   <span className="text-[11px]" style={{ color: '#555' }}>sin cobro activo</span>
                 )}
