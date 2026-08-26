@@ -213,7 +213,28 @@ export async function GET(req: NextRequest) {
   const { data } = await sb.from('profiles')
     .select('email, subscription_status')
     .in('subscription_status', ['active', 'trialing']);
-  const emails = [...new Set((data || []).map(p => (p.email || '').toLowerCase()).filter(e => e.includes('@')))];
+  let emails = [...new Set((data || []).map(p => (p.email || '').toLowerCase()).filter(e => e.includes('@')))];
+
+  // ?solo=pagan → únicamente quienes tienen un cobro registrado en el libro.
+  // Hay ~247 cuentas con acceso pero solo ~46 pagaron: el resto son cortesías,
+  // códigos y activaciones a mano. Para Francisco "usuario activo" es el que
+  // PAGA, así que este filtro existe para poder respetarlo sin adivinar.
+  // El libro cubre desde ene-2026 (y ene→may quedaron verificados en cero), o
+  // sea que tiene TODOS los cobros del negocio: nadie que haya pagado queda
+  // afuera por un hueco de datos.
+  const universo = emails.length;
+  if (sp.get('solo') === 'pagan') {
+    const pagaron = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const { data: c } = await sb.from('cobros_viraladn')
+        .select('email').eq('excluir', false).not('email', 'is', null)
+        .range(i * 1000, i * 1000 + 999);
+      if (!c || !c.length) break;
+      for (const f of c) pagaron.add(String(f.email).toLowerCase());
+      if (c.length < 1000) break;
+    }
+    emails = emails.filter(e => pagaron.has(e));
+  }
 
   if (test) {
     const r = await enviar([OWNER], `[PRUEBA] ${subject}`, html);
@@ -222,7 +243,12 @@ export async function GET(req: NextRequest) {
 
   if (!mandar) {
     return Response.json({
-      modo: 'dry', recibirian: emails.length, aviso: resumen,
+      modo: 'dry', recibirian: emails.length,
+      grupo: sp.get('solo') === 'pagan'
+        ? 'SOLO los que pagaron (tienen cobro en el libro)'
+        : 'todos los que tienen acceso — incluye cortesías y códigos',
+      con_acceso_en_total: universo,
+      aviso: resumen,
       sala: C.sala, zoomId: C.zoomId, zoom: C.zoomUrl,
       siguiente: 'agregá &test=1 para verlo vos, o &enviar=1 para mandarlo a todos',
     });
