@@ -61,14 +61,19 @@ function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
   <p style="margin:0 0 18px;font-size:16px;color:#c8c8d4;line-height:1.55;">
     Estamos adentro revisando cuentas. <b style="color:#fff;">Entrá ahora</b> — todavía llegás a la parte buena.
   </p>
-  <a href="${C.zoomUrl}" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:18px;padding:17px;border-radius:14px;text-decoration:none;">
+  <a href="${APP}/comunidad" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:18px;padding:17px;border-radius:14px;text-decoration:none;">
     🔴 ENTRAR A LA CLASE
   </a>
+  <p style="margin:10px 0 0;font-size:13px;color:#9a9aa6;text-align:center;">
+    Te lleva a <b style="color:#c8c8d4;">viraladn.com/comunidad</b>, donde el link <b style="color:#fff;">siempre</b> está actualizado.
+  </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:18px 0 0;">
+    <p style="margin:0 0 8px;font-size:12px;color:#6a6a76;">¿Preferís entrar directo a Zoom?</p>
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
-    <p style="margin:0;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+    <p style="margin:0 0 10px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+    <a href="${C.zoomUrl}" style="font-size:13px;color:#fcd34d;">Abrir Zoom directamente →</a>
   </div>
-  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Si el botón no abre, entrá desde <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a>.</p>
+  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Guardá <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> en favoritos: si cambiamos de sala, ahí siempre está la buena.</p>
 </div>
 </body></html>`;
   return { subject, html };
