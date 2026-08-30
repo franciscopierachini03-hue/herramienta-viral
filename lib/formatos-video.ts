@@ -26,6 +26,8 @@ export type Formato = {
   salida: Salida;
   receta: string;        // el esqueleto que la IA DEBE respetar
   ejemplo: string;       // una línea de muestra, para que se entienda de un vistazo
+  queRecibes: string;    // qué le llega a la persona, en criollo
+  ojo: string;           // el error que arruina ESE formato
 };
 
 export const FORMATOS: Formato[] = [
@@ -41,6 +43,8 @@ export const FORMATOS: Formato[] = [
 una por frase corta · cierre con UNA sola acción.
 Todo va HABLADO, de corrido, como si se lo contaras a un amigo.`,
     ejemplo: '"Deja de cobrar por hora. Te explico por qué te está costando dinero."',
+    queRecibes: 'Un texto corrido para leer de principio a fin.',
+    ojo: 'Si arrancas con "hola, soy...", ya perdiste. Empieza por lo que le sirve.',
   },
   {
     key: 'ranking',
@@ -55,6 +59,8 @@ una línea corta para leer en pantalla (máximo 8 palabras) y una o dos frases
 habladas que la explican · cierre pidiendo guardar.
 El punto más fuerte va PRIMERO, no último: en 3 segundos se van.`,
     ejemplo: '"5 negocios que empiezas con menos de $500. Número uno…"',
+    queRecibes: 'Cada punto separado: lo que dices y lo que va escrito en pantalla.',
+    ojo: 'Guarda el mejor punto para el final y nadie lo ve. Va primero.',
   },
   {
     key: 'vs',
@@ -69,6 +75,8 @@ vs "El que cobra por resultado"). CADA línea de A tiene su espejo exacto en B,
 mismo tema y misma longitud. Entre 4 y 6 pares. Sin narrador.
 El remate lo dice el personaje que gana, sin moraleja explicada.`,
     ejemplo: '"El empleado: necesito que me aprueben. — El dueño: necesito que funcione."',
+    queRecibes: 'Dos columnas, A y B, línea por línea enfrentadas.',
+    ojo: 'Si los dos personajes hablan parecido, no funciona. Tienen que ser opuestos.',
   },
   {
     key: 'pov',
@@ -83,6 +91,8 @@ Arriba va un texto tipo "POV: …" que ubica al espectador en 8 palabras.
 Después, la escena: qué se dice y qué se hace, en presente.
 Máximo 6 momentos. Nadie explica nada. El final es un golpe, no una conclusión.`,
     ejemplo: '"POV: tu cliente te pide descuento por quinta vez."',
+    queRecibes: 'Una escena: lo que se dice y lo que se hace, momento a momento.',
+    ojo: 'En cuanto explicas lo que está pasando, se rompe. Se muestra, no se cuenta.',
   },
   {
     key: 'podcast',
@@ -97,6 +107,8 @@ arriba, corta y filosa. La respuesta arranca a mitad de idea ("…y eso es lo qu
 nadie te dice") para que parezca un recorte.
 Sin saludo, sin presentación, sin cierre de despedida.`,
     ejemplo: 'En pantalla: "¿Cuánto deberías cobrar?" — Hablado: "Mira, el error es…"',
+    queRecibes: 'La pregunta para poner arriba y la respuesta para decir.',
+    ojo: 'Si saludas o te presentas, deja de parecer un recorte.',
   },
   {
     key: 'broll',
@@ -111,6 +123,8 @@ qué se LEE en pantalla (máximo 6 palabras, nunca lo mismo que se escucha) y
 qué IMAGEN va detrás (concreta y fácil de conseguir).
 El texto en pantalla remata lo que dice la voz, no lo repite.`,
     ejemplo: 'Voz: "nadie empieza con dinero" · Pantalla: "0 pesos." · Imagen: billetera vacía',
+    queRecibes: 'Tres columnas: qué se escucha, qué se lee y qué imagen va detrás.',
+    ojo: 'Si el texto en pantalla repite lo que dices, sobra. Tiene que rematar.',
   },
 ];
 

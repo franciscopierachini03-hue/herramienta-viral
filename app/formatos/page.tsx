@@ -93,10 +93,37 @@ export default function Formatos() {
         <ProductNav active="viral" />
         <Link href="/app" className="inline-block text-[13px] font-bold mb-1 mt-1" style={{ color: '#c4b5fd' }}>← Volver a ViralADN</Link>
 
-        <div className="text-center mb-6 mt-2">
+        <div className="text-center mb-5 mt-2">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">🎬 Guiones por formato</h1>
-          <p className="text-sm" style={{ color: '#b4b4c0' }}>
-            El formato no es solo cómo se filma: <b style={{ color: '#fff' }}>es cómo se escribe</b>. Elige uno y el guion sale con su forma.
+          <p className="text-sm max-w-xl mx-auto" style={{ color: '#b4b4c0' }}>
+            Un mismo tema se escribe distinto según cómo lo vayas a grabar.
+            Aquí eliges el formato primero y el guion sale <b style={{ color: '#fff' }}>con la forma exacta de ese formato</b> —
+            listo para grabar, no un texto genérico.
+          </p>
+        </div>
+
+        {/* Cómo funciona — para que nadie se quede mirando las tarjetas sin saber qué sigue */}
+        <div className="rounded-2xl p-4 mb-6" style={{ background: 'linear-gradient(145deg,#12101f,#0d0d0d)', border: '1px solid #7c3aed44' }}>
+          <p className="text-[11px] font-extrabold mb-3 tracking-widest" style={{ color: '#a78bfa' }}>CÓMO FUNCIONA · 3 PASOS</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {[
+              ['1', '¿Cómo lo vas a grabar?', 'Hablando a cámara, actuando dos personajes, sin salir tú… Eso cambia todo el guion.'],
+              ['2', '¿Qué historia cuentas?', 'El mismo tema puede ir como opinión que incomoda, como lista o como algo que te pasó.'],
+              ['3', 'Eliges el gancho', 'Te damos 5 arranques distintos. Escoges uno y recién ahí escribimos el resto.'],
+            ].map(([n, t, d]) => (
+              <div key={n} className="rounded-xl p-3" style={{ background: '#0a0a12', border: '1px solid #23232e' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#c13584)', color: '#fff' }}>{n}</span>
+                  <span className="text-[13px] font-bold">{t}</span>
+                </div>
+                <p className="text-[11px] leading-snug" style={{ color: '#8b8b96' }}>{d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] mt-3 leading-relaxed" style={{ color: '#6f6f7b' }}>
+            💡 Si es tu primera vez: <b style={{ color: '#9a9aa6' }}>A cámara + Enseñanza directa</b> es el camino más corto.
+            Cuando le agarres la mano, prueba <b style={{ color: '#9a9aa6' }}>VS</b> o <b style={{ color: '#9a9aa6' }}>POV</b>, que son los que más se comparten.
           </p>
         </div>
 
@@ -113,11 +140,26 @@ export default function Formatos() {
                   {f.dificultad === 1 ? 'fácil' : f.dificultad === 2 ? 'medio' : 'hay que actuar'}
                 </span>
               </div>
-              <p className="text-[12px] leading-snug mb-1" style={{ color: '#9a9aa6' }}>{f.cuando}</p>
-              <p className="text-[11px] leading-snug" style={{ color: '#5f5f6b' }}>📹 {f.comoSeGraba}</p>
+              <p className="text-[12px] leading-snug mb-1.5" style={{ color: '#9a9aa6' }}>{f.cuando}</p>
+              <p className="text-[11px] leading-snug mb-2" style={{ color: '#5f5f6b' }}>📹 {f.comoSeGraba}</p>
+              <p className="text-[11px] leading-snug italic px-2 py-1.5 rounded" style={{ background: '#0a0a12', color: '#8b8b96' }}>
+                {f.ejemplo}
+              </p>
             </button>
           ))}
         </div>
+
+        {/* Qué te va a llegar con ese formato + en qué se suele fallar */}
+        {F && (
+          <div className="rounded-2xl p-4 mb-6" style={{ background: '#0a1a12', border: '1px solid #22c55e55' }}>
+            <p className="text-[13px] mb-2" style={{ color: '#cbead6' }}>
+              <b style={{ color: '#86efac' }}>Vas a recibir:</b> {F.queRecibes}
+            </p>
+            <p className="text-[12px]" style={{ color: '#9ab5a6' }}>
+              <b style={{ color: '#fcd34d' }}>⚠️ Ojo:</b> {F.ojo}
+            </p>
+          </div>
+        )}
 
         {/* 2 · ESTRUCTURA */}
         {F && (
@@ -131,7 +173,8 @@ export default function Formatos() {
                            border: estructura === e.key ? '1px solid transparent' : '1px solid #23232e',
                            color: estructura === e.key ? '#fff' : '#9a9aa6' }}>
                   <span className="text-[13px] font-bold">{e.nombre}</span>
-                  <span className="block text-[10px]" style={{ color: estructura === e.key ? '#ffffffaa' : '#5f5f6b' }}>{e.peso}</span>
+                  <span className="block text-[11px] max-w-[230px] leading-snug" style={{ color: estructura === e.key ? '#ffffffcc' : '#7a7a86' }}>{e.angulo}</span>
+                  <span className="block text-[10px] mt-0.5" style={{ color: estructura === e.key ? '#ffffff88' : '#5f5f6b' }}>{e.peso}</span>
                 </button>
               ))}
             </div>
@@ -141,15 +184,39 @@ export default function Formatos() {
         {/* 3 · TEMA */}
         {F && estructura && (
           <div className="rounded-3xl p-5 mb-6" style={card}>
-            <p className="text-[11px] font-extrabold mb-2 tracking-widest" style={{ color: '#8b8b96' }}>3 · ¿DE QUÉ VA?</p>
+            <p className="text-[11px] font-extrabold mb-1 tracking-widest" style={{ color: '#8b8b96' }}>3 · ¿DE QUÉ VA?</p>
+            <p className="text-[12px] mb-2.5 leading-relaxed" style={{ color: '#8b8b96' }}>
+              No pongas solo el tema: pon <b style={{ color: '#c9c9d4' }}>la idea que quieres defender</b>.
+              Mientras más concreto, menos genérico sale.
+            </p>
+
+            {/* Un ejemplo flojo al lado de uno bueno enseña más que cualquier instrucción */}
+            <div className="grid sm:grid-cols-2 gap-2 mb-3">
+              <div className="rounded-xl p-2.5" style={{ background: '#1a0d0d', border: '1px solid #ef444433' }}>
+                <p className="text-[10px] font-extrabold mb-1" style={{ color: '#fca5a5' }}>ASÍ NO</p>
+                <p className="text-[12px]" style={{ color: '#c0a0a0' }}>&ldquo;marketing digital&rdquo;</p>
+                <p className="text-[10px] mt-1" style={{ color: '#7a5a5a' }}>Demasiado amplio: sale un guion que le sirve a cualquiera y no le habla a nadie.</p>
+              </div>
+              <div className="rounded-xl p-2.5" style={{ background: '#0a1a12', border: '1px solid #22c55e44' }}>
+                <p className="text-[10px] font-extrabold mb-1" style={{ color: '#86efac' }}>ASÍ SÍ</p>
+                <p className="text-[12px]" style={{ color: '#cbead6' }}>&ldquo;cobrar por hora te hace ganar menos mientras mejor eres&rdquo;</p>
+                <p className="text-[10px] mt-1" style={{ color: '#5a8a6a' }}>Una idea con filo. De ahí sale un gancho que incomoda.</p>
+              </div>
+            </div>
+
             <textarea value={tema} onChange={e => setTema(e.target.value)} maxLength={400}
-              placeholder="Ej: por qué cobrar por hora te está costando plata"
+              placeholder="Ej: cobrar por hora te hace ganar menos mientras mejor eres"
               className="w-full text-sm rounded-xl px-3 py-2.5 outline-none mb-3" style={{ ...input, minHeight: 64, resize: 'vertical' }} />
+
             <details>
               <summary className="text-[12px] cursor-pointer" style={{ color: '#8b8b96' }}>+ Pega algo tuyo para que copie tu forma de hablar (opcional)</summary>
+              <p className="text-[11px] mt-2 mb-1 leading-relaxed" style={{ color: '#6f6f7b' }}>
+                Un texto que hayas escrito o dicho: un pie de foto, un audio transcrito, cómo se lo contarías a un amigo.
+                Con 3 o 4 líneas alcanza. Sin esto el guion sale correcto pero no suena a ti.
+              </p>
               <textarea value={estilo} onChange={e => setEstilo(e.target.value)} maxLength={900}
-                placeholder='Ej: "che, me pasó algo que me cambió la cabeza..."'
-                className="w-full text-sm rounded-xl px-3 py-2.5 outline-none mt-2" style={{ ...input, minHeight: 70, resize: 'vertical' }} />
+                placeholder={'Ej: "te voy a ser honesto, esto me costó entenderlo..."'}
+                className="w-full text-sm rounded-xl px-3 py-2.5 outline-none mt-1" style={{ ...input, minHeight: 70, resize: 'vertical' }} />
             </details>
 
             {error && <p className="text-sm mt-3 font-bold" style={{ color: '#fca5a5' }}>{error}</p>}
@@ -166,7 +233,11 @@ export default function Formatos() {
         {ganchos.length > 0 && (
           <div className="mb-6">
             <p className="text-[11px] font-extrabold mb-1 tracking-widest" style={{ color: '#8b8b96' }}>4 · ELIGE EL GANCHO</p>
-            <p className="text-[12px] mb-3" style={{ color: '#6f6f7b' }}>Son los 3 segundos que deciden si te ven. Elige el que más te incomode.</p>
+            <p className="text-[12px] mb-3 leading-relaxed" style={{ color: '#6f6f7b' }}>
+              Estos son los <b style={{ color: '#c9c9d4' }}>3 segundos que deciden si te ven o te pasan de largo</b>.
+              Por eso te damos cinco y no uno: elige el que más te incomode decir — ese suele ser el que funciona.
+              El guion se escribe después, alrededor del que elijas.
+            </p>
             <div className="grid gap-2.5">
               {ganchos.map((g, i) => (
                 <button key={i} onClick={() => { setElegido(g.texto); pedir('guion', g.texto); }}
