@@ -24,8 +24,15 @@ Reglas de la casa:
 - Siempre termina pidiendo UNA acción simple (responder, comentar una palabra).
 - El objetivo no son los likes: es que te ESCRIBAN.
 - Nunca prometas lo que la persona no dijo que vende.
+- ESPAÑOL NEUTRO LATINOAMERICANO. Es lo más importante de todo.
+  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tenés"),
+  "quieres" (no "querés"), "puedes" (no "podés"), "elige" (no "elegí"),
+  "mira" (no "mirá"), "cuéntame" (no "contame").
+  Tampoco modismos de un solo país: ni "che", ni "güey", ni "parcero",
+  ni "tío", ni "chevere". Tiene que sonar natural en México, Colombia,
+  Perú, Chile y Argentina por igual.
 
-Respondé SOLO en JSON con esta forma:
+Responde SOLO en JSON con esta forma:
 {
   "historia": {
     "encabezado": "<etiqueta corta o null>",
@@ -47,7 +54,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return Response.json({ error: 'Formato inválido.' }, { status: 400 }); }
 
   const formato = getFormato(String(body.formato || ''));
-  if (!formato) return Response.json({ error: 'Elegí un formato.', formatos: FORMATOS.map(f => f.key) }, { status: 400 });
+  if (!formato) return Response.json({ error: 'Elige un formato.', formatos: FORMATOS.map(f => f.key) }, { status: 400 });
 
   // Su cliente ideal, definido una vez en ViralADN.
   let clienteIdeal = '';
@@ -84,13 +91,13 @@ export async function POST(req: NextRequest) {
     `ESTRUCTURA QUE TENÉS QUE RESPETAR:\n${formato.receta}`,
     formato.opciones > 0
       ? `OPCIONES: este formato lleva EXACTAMENTE ${formato.opciones}, con el prefijo "A · ", "B · ", "C · ", "D · " (punto medio, como el ejemplo).`
-      : 'OPCIONES: este formato NO lleva opciones. Devolvé "opciones": [] vacío. No inventes listas ni rangos.',
+      : 'OPCIONES: este formato NO lleva opciones. Devuelve "opciones": [] vacío. No inventes listas ni rangos.',
     `EJEMPLO ORIGINAL DE LA CLASE (respetá su estructura y su tono, NO copies el contenido):\n${ej.encabezado ? `[${ej.encabezado}]\n` : ''}${ej.pregunta}${ej.opciones ? '\n' + ej.opciones.join('\n') : ''}\n→ ${ej.cta}`,
     `A QUIÉN LE HABLA: ${cliente}`,
     r0.oferta ? `QUÉ VENDE: ${String(r0.oferta).slice(0, 500)}` : '',
     r0.dolor ? `QUÉ FRENA A ESA PERSONA HOY: ${String(r0.dolor).slice(0, 500)}` : '',
     r0.transformacion ? `CÓMO QUEDA DESPUÉS: ${String(r0.transformacion).slice(0, 500)}` : '',
-    'Armá la historia lista para publicar + 2 variantes del texto principal.',
+    'Arma la historia lista para publicar + 2 variantes del texto principal.',
   ].filter(Boolean).join('\n\n');
 
   try {

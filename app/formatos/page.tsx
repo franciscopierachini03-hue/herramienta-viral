@@ -96,7 +96,7 @@ export default function Formatos() {
         <div className="text-center mb-6 mt-2">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">🎬 Guiones por formato</h1>
           <p className="text-sm" style={{ color: '#b4b4c0' }}>
-            El formato no es solo cómo se filma: <b style={{ color: '#fff' }}>es cómo se escribe</b>. Elegí uno y el guion sale con su forma.
+            El formato no es solo cómo se filma: <b style={{ color: '#fff' }}>es cómo se escribe</b>. Elige uno y el guion sale con su forma.
           </p>
         </div>
 
@@ -122,7 +122,7 @@ export default function Formatos() {
         {/* 2 · ESTRUCTURA */}
         {F && (
           <>
-            <p className="text-[11px] font-extrabold mb-2 tracking-widest" style={{ color: '#8b8b96' }}>2 · ¿QUÉ HISTORIA CONTÁS?</p>
+            <p className="text-[11px] font-extrabold mb-2 tracking-widest" style={{ color: '#8b8b96' }}>2 · ¿QUÉ HISTORIA CUENTAS?</p>
             <div className="flex flex-wrap gap-2 mb-6">
               {ESTRUCTURAS.map(e => (
                 <button key={e.key} onClick={() => setEstructura(e.key)} title={e.angulo}
@@ -146,7 +146,7 @@ export default function Formatos() {
               placeholder="Ej: por qué cobrar por hora te está costando plata"
               className="w-full text-sm rounded-xl px-3 py-2.5 outline-none mb-3" style={{ ...input, minHeight: 64, resize: 'vertical' }} />
             <details>
-              <summary className="text-[12px] cursor-pointer" style={{ color: '#8b8b96' }}>+ Pegá algo tuyo para que copie tu forma de hablar (opcional)</summary>
+              <summary className="text-[12px] cursor-pointer" style={{ color: '#8b8b96' }}>+ Pega algo tuyo para que copie tu forma de hablar (opcional)</summary>
               <textarea value={estilo} onChange={e => setEstilo(e.target.value)} maxLength={900}
                 placeholder='Ej: "che, me pasó algo que me cambió la cabeza..."'
                 className="w-full text-sm rounded-xl px-3 py-2.5 outline-none mt-2" style={{ ...input, minHeight: 70, resize: 'vertical' }} />
@@ -165,8 +165,8 @@ export default function Formatos() {
         {/* 4 · ELEGIR GANCHO */}
         {ganchos.length > 0 && (
           <div className="mb-6">
-            <p className="text-[11px] font-extrabold mb-1 tracking-widest" style={{ color: '#8b8b96' }}>4 · ELEGÍ EL GANCHO</p>
-            <p className="text-[12px] mb-3" style={{ color: '#6f6f7b' }}>Son los 3 segundos que deciden si te ven. Elegí el que más te incomode.</p>
+            <p className="text-[11px] font-extrabold mb-1 tracking-widest" style={{ color: '#8b8b96' }}>4 · ELIGE EL GANCHO</p>
+            <p className="text-[12px] mb-3" style={{ color: '#6f6f7b' }}>Son los 3 segundos que deciden si te ven. Elige el que más te incomode.</p>
             <div className="grid gap-2.5">
               {ganchos.map((g, i) => (
                 <button key={i} onClick={() => { setElegido(g.texto); pedir('guion', g.texto); }}

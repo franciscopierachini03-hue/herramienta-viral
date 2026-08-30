@@ -29,7 +29,7 @@ export const FORMATOS: Formato[] = [
     icono: '📝',
     cuando: 'Lunes · 1 vez por semana',
     paraQue: 'Segmentar a tu audiencia: cada respuesta te dice en qué punto está esa persona.',
-    comoFunciona: 'Hacés una pregunta sobre lo que los frena y das 4 opciones (A, B, C, D). Cada quien responde con una letra y vos sabés exactamente qué venderle.',
+    comoFunciona: 'Haces una pregunta sobre lo que los frena y das 4 opciones (A, B, C, D). Cada quien responde con una letra y tú sabes exactamente qué venderle.',
     ejemplo: {
       pregunta: '¿Qué te detiene HOY para tener libertad financiera?',
       opciones: [
@@ -56,7 +56,7 @@ CTA: pedir que respondan con la letra + prometer algo concreto a cambio (el prim
       pregunta: 'Si dejara de cambiar mi tiempo por dinero, lo primero que haría sería ______',
       cta: 'Respóndeme esto y te muestro cómo empezar a construir ingresos que no dependan de ti.',
     },
-    receta: `FRASE incompleta en PRIMERA persona (habla el seguidor, no vos), que lo haga proyectar el DESEO o la transformación que vende tu oferta. Termina en un espacio en blanco "______".
+    receta: `FRASE incompleta en PRIMERA persona (habla el seguidor, no tú), que lo haga proyectar el DESEO o la transformación que vende tu oferta. Termina en un espacio en blanco "______".
 La frase tiene que ser fácil de completar en 3-6 palabras.
 CTA: pedir que respondan + prometer mostrarles el camino hacia eso que acaban de escribir.`,
   },
@@ -66,8 +66,8 @@ CTA: pedir que respondan + prometer mostrarles el camino hacia eso que acaban de
     nombre: 'Leadmagnet',
     icono: '🎁',
     cuando: 'Jueves · 2-3 veces por semana',
-    paraQue: 'Convertir seguidores en conversaciones: piden algo con una palabra clave y entrás al chat con ellos.',
-    comoFunciona: 'Anunciás que vas a revelar algo valioso y pedís que comenten UNA palabra para recibirlo. Cada comentario es un lead con nombre y apellido.',
+    paraQue: 'Convertir seguidores en conversaciones: piden algo con una palabra clave y entras al chat con ellos.',
+    comoFunciona: 'Anuncias que vas a revelar algo valioso y pides que comenten UNA palabra para recibirlo. Cada comentario es un lead con nombre y apellido.',
     ejemplo: {
       pregunta: '🚨 Voy a revelar EN VIVO la estrategia con la que dejé de cambiar tiempo por dinero y hoy mi negocio trabaja para mí. 🚨',
       cta: 'Comenta LIBERTAD y te doy acceso al entrenamiento.',
@@ -82,16 +82,16 @@ CTA: "Comenta <PALABRA>" — UNA sola palabra, en mayúsculas, corta y ligada al
     nombre: 'Dime X y te digo X',
     icono: '🔮',
     cuando: 'Viernes · 1 vez por semana',
-    paraQue: 'Demostrar autoridad uno a uno: te cuentan su caso y vos respondés con criterio. Ahí nace la venta.',
-    comoFunciona: 'Pedís un dato simple sobre ellos y prometés devolverles un diagnóstico personalizado a cambio.',
+    paraQue: 'Demostrar autoridad uno a uno: te cuentan su caso y tú respondes con criterio. Ahí nace la venta.',
+    comoFunciona: 'Pides un dato simple sobre ellos y prometes devolverles un diagnóstico personalizado a cambio.',
     ejemplo: {
       encabezado: 'EMPRENDEDOR',
       pregunta: 'Dime en qué trabajas…',
       cta: '…y te digo cómo escalarlo para que deje de depender de ti.',
     },
-    receta: `ETIQUETA arriba con a quién le hablás en UNA palabra (EMPRENDEDOR, COACH, DUEÑA DE MARCA…).
-PEDIDO simple y de una línea: "Dime <dato fácil de contestar>…" (en qué trabajas, cuántos seguidores tenés, qué vendés).
-CTA que cierra la frase: "…y te digo <la transformación concreta que ofrecés>". El intercambio tiene que sonar irresistible y fácil.`,
+    receta: `ETIQUETA arriba con a quién le hablas en UNA palabra (EMPRENDEDOR, COACH, DUEÑA DE MARCA…).
+PEDIDO simple y de una línea: "Dime <dato fácil de contestar>…" (en qué trabajas, cuántos seguidores tienes, qué vendes).
+CTA que cierra la frase: "…y te digo <la transformación concreta que ofreces>". El intercambio tiene que sonar irresistible y fácil.`,
   },
 ];
 

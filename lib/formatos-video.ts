@@ -34,34 +34,34 @@ export const FORMATOS: Formato[] = [
     icono: '🎤',
     nombre: 'A cámara',
     cuando: 'Tu opinión, una idea, una enseñanza. El más rápido de todos.',
-    comoSeGraba: 'Vos hablando al teléfono. Nada más.',
+    comoSeGraba: 'Tú hablando al teléfono. Nada más.',
     dificultad: 1,
     salida: 'hablado',
     receta: `Gancho de 1-2 frases que frene el dedo · desarrollo de máximo 3 ideas,
 una por frase corta · cierre con UNA sola acción.
 Todo va HABLADO, de corrido, como si se lo contaras a un amigo.`,
-    ejemplo: '"Dejá de cobrar por hora. Te explico por qué te está costando plata."',
+    ejemplo: '"Deja de cobrar por hora. Te explico por qué te está costando dinero."',
   },
   {
     key: 'ranking',
     icono: '🔢',
     nombre: 'Ranking / Lista',
-    cuando: 'Cuando tenés varias cosas que enseñar. Fácil de consumir y de guardar.',
-    comoSeGraba: 'Vos hablando + un número grande en pantalla por cada punto.',
+    cuando: 'Cuando tienes varias cosas que enseñar. Fácil de consumir y de guardar.',
+    comoSeGraba: 'Tú hablando + un número grande en pantalla por cada punto.',
     dificultad: 1,
     salida: 'pantalla',
     receta: `Título que promete el número exacto ("5 X que…") · luego CADA punto con:
 una línea corta para leer en pantalla (máximo 8 palabras) y una o dos frases
 habladas que la explican · cierre pidiendo guardar.
 El punto más fuerte va PRIMERO, no último: en 3 segundos se van.`,
-    ejemplo: '"5 negocios que arrancás con menos de $500. Número uno…"',
+    ejemplo: '"5 negocios que empiezas con menos de $500. Número uno…"',
   },
   {
     key: 'vs',
     icono: '⚔️',
     nombre: 'VS — dos personajes',
     cuando: 'Para marcar un contraste fuerte. De los más virales que hay.',
-    comoSeGraba: 'Vos hacés los dos personajes: cambiás de lado y de gesto.',
+    comoSeGraba: 'Tú haces los dos personajes: cambias de lado y de gesto.',
     dificultad: 3,
     salida: 'columnas',
     receta: `Dos personajes enfrentados, con nombre claro (ej. "El que cobra por hora"
@@ -75,10 +75,10 @@ El remate lo dice el personaje que gana, sin moraleja explicada.`,
     icono: '🎭',
     nombre: 'POV — una escena',
     cuando: 'Para que se vean reflejados. No explica: hace sentir.',
-    comoSeGraba: 'Actuás una escena. La cámara es los ojos de alguien.',
+    comoSeGraba: 'Actúas una escena. La cámara es los ojos de alguien.',
     dificultad: 3,
     salida: 'escena',
-    receta: `NO lleva gancho: entrás en medio de la acción, ya empezada.
+    receta: `NO lleva gancho: entras en medio de la acción, ya empezada.
 Arriba va un texto tipo "POV: …" que ubica al espectador en 8 palabras.
 Después, la escena: qué se dice y qué se hace, en presente.
 Máximo 6 momentos. Nadie explica nada. El final es un golpe, no una conclusión.`,
@@ -89,20 +89,20 @@ Máximo 6 momentos. Nadie explica nada. El final es un golpe, no una conclusión
     icono: '🎙️',
     nombre: 'Clip de podcast',
     cuando: 'Da autoridad. Parece un pedazo de algo más grande.',
-    comoSeGraba: 'Vos hablando sentado, como respondiendo. Subtítulos grandes.',
+    comoSeGraba: 'Tú hablando sentado, como respondiendo. Subtítulos grandes.',
     dificultad: 2,
     salida: 'respuesta',
     receta: `Se escribe LA RESPUESTA, no la pregunta. La pregunta va SOLO como texto
 arriba, corta y filosa. La respuesta arranca a mitad de idea ("…y eso es lo que
 nadie te dice") para que parezca un recorte.
 Sin saludo, sin presentación, sin cierre de despedida.`,
-    ejemplo: 'En pantalla: "¿Cuánto deberías cobrar?" — Hablado: "Mirá, el error es…"',
+    ejemplo: 'En pantalla: "¿Cuánto deberías cobrar?" — Hablado: "Mira, el error es…"',
   },
   {
     key: 'broll',
     icono: '🎞️',
     nombre: 'B-roll + texto',
-    cuando: 'Cuando no querés salir en cámara. El más fácil de producir.',
+    cuando: 'Cuando no quieres salir en cámara. El más fácil de producir.',
     comoSeGraba: 'Imágenes de archivo + tu voz en off + texto en pantalla.',
     dificultad: 2,
     salida: 'pantalla',
@@ -110,7 +110,7 @@ Sin saludo, sin presentación, sin cierre de despedida.`,
 qué se LEE en pantalla (máximo 6 palabras, nunca lo mismo que se escucha) y
 qué IMAGEN va detrás (concreta y fácil de conseguir).
 El texto en pantalla remata lo que dice la voz, no lo repite.`,
-    ejemplo: 'Voz: "nadie empieza con plata" · Pantalla: "0 pesos." · Imagen: billetera vacía',
+    ejemplo: 'Voz: "nadie empieza con dinero" · Pantalla: "0 pesos." · Imagen: billetera vacía',
   },
 ];
 

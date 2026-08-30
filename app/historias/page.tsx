@@ -47,7 +47,7 @@ export default function Historias() {
 
   async function armar() {
     const faltan = preguntas.filter(p => !(resp[p.key] || '').trim());
-    if (faltan.length) { setError('Completá todas las preguntas para que quede bien hecha.'); return; }
+    if (faltan.length) { setError('Completa todas las preguntas para que quede bien hecha.'); return; }
     setError(''); setCargando(true); setRes(null);
     try {
       const r = await fetch('/api/historias', {
@@ -82,7 +82,7 @@ export default function Historias() {
         <div className="text-center mb-6 mt-2">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">📖 Historias que venden</h1>
           <p className="text-sm" style={{ color: '#b4b4c0' }}>
-            Elegí un formato, contame de tu negocio y te armo la historia <b style={{ color: '#fff' }}>lista para publicar</b>.
+            Elige un formato, cuéntame de tu negocio y te armo la historia <b style={{ color: '#fff' }}>lista para publicar</b>.
           </p>
         </div>
 

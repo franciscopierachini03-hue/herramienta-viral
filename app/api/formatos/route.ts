@@ -28,7 +28,13 @@ Reglas de la casa, sin excepción:
 - Cero relleno: si una palabra no gana nada, se cae.
 - Ejemplos concretos con números y cosas que se ven. Nada abstracto.
 - Nunca uses las palabras "real" ni "reales".
-- Hablá de vos a la persona, en singular.`;
+- ESPAÑOL NEUTRO LATINOAMERICANO. Es lo más importante de todo.
+  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tenés"),
+  "quieres" (no "querés"), "puedes" (no "podés"), "elige" (no "elegí"),
+  "mira" (no "mirá"), "cuéntame" (no "contame").
+  Tampoco modismos de un solo país: ni "che", ni "güey", ni "parcero",
+  ni "tío", ni "chevere". Tiene que sonar natural en México, Colombia,
+  Perú, Chile y Argentina por igual.`;
 
 function pedido(f: NonNullable<ReturnType<typeof getFormato>>, e: NonNullable<ReturnType<typeof getEstructura>>, tema: string, cliente: string, estilo: string) {
   return [
@@ -58,8 +64,8 @@ export async function POST(req: NextRequest) {
   const f = getFormato(String(body.formato || ''));
   const e = getEstructura(String(body.estructura || ''));
   const tema = String(body.tema || '').trim().slice(0, 400);
-  if (!f) return Response.json({ error: 'Elegí un formato.' }, { status: 400 });
-  if (!e) return Response.json({ error: 'Elegí una estructura.' }, { status: 400 });
+  if (!f) return Response.json({ error: 'Elige un formato.' }, { status: 400 });
+  if (!e) return Response.json({ error: 'Elige una estructura.' }, { status: 400 });
   if (!tema) return Response.json({ error: 'Contanos de qué va el video.' }, { status: 400 });
 
   const key = process.env.OPENAI_API_KEY;
@@ -79,14 +85,14 @@ export async function POST(req: NextRequest) {
 Tu tarea: escribir CINCO ganchos distintos para el mismo video. No cinco maneras
 de decir lo mismo: cinco ÁNGULOS de entrada diferentes.
 Cada uno se dice en menos de 4 segundos. Ninguno explica nada — solo frena el dedo.
-Respondé en JSON: {"ganchos":[{"texto":"...","porQueFunciona":"en una línea, qué resorte toca"}]}`
+Responde en JSON: {"ganchos":[{"texto":"...","porQueFunciona":"en una línea, qué resorte toca"}]}`
     : `${BASE}
 
 Tu tarea: escribir el guion COMPLETO respetando el esqueleto del formato al pie
 de la letra. Si el formato pide columnas, van columnas. Si pide escena, va escena.
 Si separa lo hablado de lo que se lee en pantalla, van separados.
 
-Respondé en JSON con esta forma:
+Responde en JSON con esta forma:
 {
   "titulo": "<nombre corto para guardarlo>",
   "textoEnPantalla": "<el texto fijo de arriba, o null si el formato no lleva>",
@@ -108,7 +114,7 @@ Respondé en JSON con esta forma:
 
   const user = esGanchos
     ? `${pedido(f, e, tema, cliente, estilo)}\n\nDame 5 ganchos en JSON.`
-    : `${pedido(f, e, tema, cliente, estilo)}\n\nEL GANCHO YA ESTÁ ELEGIDO, usalo tal cual y construí todo alrededor:\n"${String(body.gancho || '').slice(0, 300)}"\n\nDevolvé el guion completo en JSON.`;
+    : `${pedido(f, e, tema, cliente, estilo)}\n\nEL GANCHO YA ESTÁ ELEGIDO, usalo tal cual y construí todo alrededor:\n"${String(body.gancho || '').slice(0, 300)}"\n\nDevuelve el guion completo en JSON.`;
 
   try {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
