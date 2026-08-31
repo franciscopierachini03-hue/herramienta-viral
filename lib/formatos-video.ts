@@ -67,16 +67,25 @@ El punto más fuerte va PRIMERO, no último: en 3 segundos se van.`,
     icono: '⚔️',
     nombre: 'VS — dos personajes',
     cuando: 'Para marcar un contraste fuerte. De los más virales que hay.',
-    comoSeGraba: 'Tú haces los dos personajes: cambias de lado y de gesto.',
+    comoSeGraba: 'Te paras debajo del cartel de cada personaje y lo interpretas. Mismo encuadre, cambias de lado.',
     dificultad: 3,
     salida: 'columnas',
-    receta: `Dos personajes enfrentados, con nombre claro (ej. "El que cobra por hora"
-vs "El que cobra por resultado"). CADA línea de A tiene su espejo exacto en B,
-mismo tema y misma longitud. Entre 4 y 6 pares. Sin narrador.
-El remate lo dice el personaje que gana, sin moraleja explicada.`,
-    ejemplo: '"El empleado: necesito que me aprueben. — El dueño: necesito que funcione."',
+    receta: `Dos personajes enfrentados, cada uno con su cartel arriba
+(ej. "EL QUE COBRA POR HORA" vs "EL QUE COBRA POR RESULTADO").
+
+⚠️ REGLA QUE NO SE ROMPE: la persona se para DEBAJO del cartel e INTERPRETA a
+ese personaje. Entonces cada línea va en PRIMERA PERSONA y en presente, dicha
+por el personaje. Nunca en tercera persona, nunca un narrador describiendo.
+  ✅ "Me enfermo cada dos años."     ❌ "Se enfermó una vez en dos años."
+  ✅ "Yo lo pienso dos días."        ❌ "Lo piensa dos días."
+  ✅ "Llevo ocho lunes esperando."   ❌ "Lleva ocho lunes esperando."
+
+CADA línea de A tiene su espejo exacto en B: mismo tema, misma longitud.
+Entre 4 y 6 pares. El remate lo dice el personaje que gana, también en primera
+persona, sin moraleja explicada.`,
+    ejemplo: '"EL EMPLEADO: necesito que me aprueben. — EL DUEÑO: necesito que funcione."',
     queRecibes: 'Dos columnas, A y B, línea por línea enfrentadas.',
-    ojo: 'Si los dos personajes hablan parecido, no funciona. Tienen que ser opuestos.',
+    ojo: 'Cada línea la DICE el personaje, en primera persona. Si suena a narrador ("ella compró..."), se rompe la actuación.',
   },
   {
     key: 'pov',
