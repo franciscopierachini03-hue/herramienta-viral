@@ -7,10 +7,10 @@ export const CLASE = {
   horaCDMX: '10:00 AM',
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
-  sala: 'SALA Z3',
-  zoomUrl: 'https://us06web.zoom.us/j/86409934643?pwd=Wwft6TDU52fhFAEuiK8hiHA1HmuCoD.1',
-  zoomId: '864 0993 4643',
-  zoomCodigo: 'C123',
+  sala: 'Mañanas de Viralidad',
+  zoomUrl: 'https://us06web.zoom.us/j/84057164882?pwd=amBiYEBG0M2Znfg8XlmHTuaLzvRKGb.1',
+  zoomId: '840 5716 4882',
+  zoomCodigo: '340537',
 };
 
 // Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
@@ -26,12 +26,12 @@ export const HORARIOS: Array<[string, string, string]> = [
 // (CDMX): /comunidad y el aviso por correo la toman solos; después, todo
 // vuelve a la clase semanal normal sin tocar nada.
 export const CLASE_ESPECIAL = {
-  fecha: '2026-08-28',   // viernes: la clase del miércoles se corrió por el evento de Spencer
+  fecha: '2026-09-02',   // miércoles: sala nueva, y el código dejó de ser C123
   hora: '10:00 AM',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/86409934643?pwd=Wwft6TDU52fhFAEuiK8hiHA1HmuCoD.1',
-  zoomId: '864 0993 4643',
-  zoomCodigo: 'C123',
+  zoomUrl: 'https://us06web.zoom.us/j/84057164882?pwd=amBiYEBG0M2Znfg8XlmHTuaLzvRKGb.1',
+  zoomId: '840 5716 4882',
+  zoomCodigo: '340537',
 };
 
 // La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
@@ -47,10 +47,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-08-28',
-  hasta: '2026-08-28',
-  titulo: '🔴 La clase es HOY — entrá ahora',
-  texto: 'Sala nueva: ID 864 0993 4643 · código C123. Tocá el botón de abajo para entrar.',
+  desde: '2026-09-02',
+  hasta: '2026-09-02',
+  titulo: '🔴 La clase es HOY a las 10:00 — entra ahora',
+  texto: 'Sala nueva: ID 840 5716 4882 · el código cambió, ahora es 340537. Toca el botón de abajo para entrar.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
