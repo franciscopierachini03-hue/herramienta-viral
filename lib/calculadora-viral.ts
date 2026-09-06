@@ -208,7 +208,7 @@ export function medirForma(guionRaw: string): ChequeoForma[] {
       key: 'molde', nombre: 'Repite un molde tres veces o más', peso: 1,
       cumple: molde.hay,
       detalle: molde.hay ? `Repite "${molde.molde}…" y eso engancha.` : 'No hay una estructura que se repita.',
-      arreglo: 'Prueba un molde que vuelva 3 o 4 veces ("Si X… se llama A. Si Y… se llama B."). Es el patrón de un video de 11.4M y casi nadie lo usa.',
+      arreglo: 'Toma UNO de tus bloques y reescríbelo como TRES frases seguidas que empiecen con LAS MISMAS DOS PALABRAS. No parecidas: idénticas. Ejemplo: "Si cobras por hora, vendes tiempo. Si cobras por proyecto, vendes resultado. Si cobras por resultado, vendes criterio." Es el patrón de un video de 11.4M y casi nadie lo usa.',
     },
   ];
 }
