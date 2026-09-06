@@ -997,6 +997,7 @@ export default function Home() {
           // Estas dos son páginas propias, pero se entra desde acá: ViralADN es
           // una sola herramienta con pestañas (no cards sueltas en el hub).
           { id: 'formatos',    label: '🎬 Formatos',    href: '/formatos' },
+          { id: 'calculadora', label: '🧮 Calculadora viral', href: '/calculadora' },
           { id: 'metricas',    label: '📊 Mis números', href: '/metricas' },
           { id: 'historias',   label: '📖 Historias',   href: '/historias' },
         ].map(t => (
