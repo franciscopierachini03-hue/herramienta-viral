@@ -8,6 +8,7 @@
 // Tocar un chip 🔎 dispara la búsqueda (via onPick). El ⭐ guarda/quita.
 
 import { useState, useRef, useEffect } from 'react';
+import { noSabeSuCliente, MENSAJE_NO_SABE } from '@/lib/cliente-ideal';
 
 type Msg = { role: 'user' | 'assistant'; content: string; terms?: string[] };
 
@@ -77,6 +78,15 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
         body: JSON.stringify({ clienteIdeal: ci, exclude: shownRef.current, extra }),
       });
       const j = await r.json();
+      // El servidor avisa que lo guardado no describe a nadie: en vez de un
+      // error rojo, se le ofrece armarlo con preguntas.
+      if (j?.necesitaDefinir) {
+        setAyudando(true);
+        const conAviso: Msg[] = [...messages, { role: 'assistant', content: MENSAJE_NO_SABE }];
+        setMessages(conAviso);
+        await ayudarADefinir(conAviso);
+        return;
+      }
       if (!r.ok) throw new Error(j.error || 'error');
       const terms: string[] = Array.isArray(j.terms) ? j.terms : [];
       shownRef.current = [...shownRef.current, ...terms];
@@ -97,6 +107,15 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
         body: JSON.stringify({ modo: 'definir', messages: historial.map(m => ({ role: m.role, content: m.content })) }),
       });
       const j = await r.json();
+      // El servidor avisa que lo guardado no describe a nadie: en vez de un
+      // error rojo, se le ofrece armarlo con preguntas.
+      if (j?.necesitaDefinir) {
+        setAyudando(true);
+        const conAviso: Msg[] = [...messages, { role: 'assistant', content: MENSAJE_NO_SABE }];
+        setMessages(conAviso);
+        await ayudarADefinir(conAviso);
+        return;
+      }
       if (!r.ok) throw new Error(j.error || 'error');
       setMessages(m => [...m, { role: 'assistant', content: j.reply || '¿Qué vendes?' }]);
       setPropuesta(typeof j.propuesta === 'string' ? j.propuesta : '');
@@ -132,6 +151,17 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
     if (ayudando) {
       await ayudarADefinir(nuevos);
     } else if (definiendo) {
+      // Si dijo "no sé" (o puso algo que no describe a nadie), NO se guarda:
+      // se pasa al modo que le hace preguntas. Antes se guardaba tal cual y
+      // todas las herramientas quedaban apuntando a "no se cual es mi cliente".
+      if (noSabeSuCliente(t)) {
+        setDefiniendo(false);
+        setAyudando(true);
+        const conAviso: Msg[] = [...nuevos, { role: 'assistant', content: MENSAJE_NO_SABE }];
+        setMessages(conAviso);
+        await ayudarADefinir(conAviso);
+        return;
+      }
       setClienteIdeal(t);
       setDefiniendo(false);
       persistir(t, saved);

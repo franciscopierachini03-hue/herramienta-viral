@@ -7,6 +7,7 @@
 // rehacer el proceso cada vez.
 
 import { createClient } from '@/lib/supabase/server';
+import { noSabeSuCliente } from '@/lib/cliente-ideal';
 
 // ⚠️ Groq retira modelos sin avisar. En sep-2026 'llama-3.3-70b-versatile'
 // devolvió 404 ("does not exist") y el chat de palabras clave se cayó en
@@ -132,6 +133,12 @@ export async function POST(req: Request) {
   const exclude = Array.isArray(body.exclude) ? body.exclude.filter(x => typeof x === 'string').slice(0, 80) : [];
   const extra = (body.extra || '').toString().slice(0, 300).trim();
   if (!clienteIdeal) return Response.json({ error: 'Falta el cliente ideal' }, { status: 400 });
+  // Segunda barrera: si lo que llegó es un "no sé", generar palabras sobre eso
+  // devuelve términos para buscar "cómo definir un avatar" — inútil para
+  // encontrar virales de su nicho. Se avisa y se manda al modo de preguntas.
+  if (noSabeSuCliente(clienteIdeal)) {
+    return Response.json({ necesitaDefinir: true, error: 'Todavía no sabemos a quién le hablas.' }, { status: 422 });
+  }
 
   try {
     const raw = await chatIA({
