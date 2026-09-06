@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
 import { getNicho } from '@/lib/nicho-store';
 import { rateLimit } from '@/lib/ratelimit';
-import { CRITERIOS, puntuar, veredicto, TOTAL } from '@/lib/calculadora-viral';
+import { CRITERIOS, puntuar, veredicto, TOTAL, medirForma, puntuarForma, TOTAL_FORMA, puntajeFinal, rangoSegundos } from '@/lib/calculadora-viral';
 
 // POST /api/calculadora — le pones tu guion y te dice cuánto puntúa.
 //
@@ -135,9 +135,19 @@ export async function POST(req: NextRequest) {
     // Cuánto sube si arregla lo que falta, ordenado por lo que más pesa.
     const faltantes = detalle.filter(d => !d.cumple).sort((a, b) => b.peso - a.peso);
 
+    // ── La otra mitad: la FORMA, medida por el código ─────────────────────
+    // No pasa por la IA. Duración, apertura, tuteo, relleno y molde repetido
+    // se cuentan, así que el resultado es el mismo siempre y no cuesta nada.
+    const forma = medirForma(guion);
+    const puntosForma = puntuarForma(forma);
+    const final = puntajeFinal(puntos, puntosForma);
+
     return Response.json({
-      puntos, total: TOTAL,
-      veredicto: veredicto(puntos),
+      // El número grande y sus dos mitades.
+      puntos: final, total: 10,
+      idea: { puntos, total: TOTAL },
+      forma: { puntos: puntosForma, total: TOTAL_FORMA, chequeos: forma, segundos: rangoSegundos(guion) },
+      veredicto: veredicto(final),
       criterios: detalle,
       pierdePor: faltantes.reduce((a, f) => a + f.peso, 0),
       prioridad: faltantes.slice(0, 2).map(f => f.key),

@@ -82,3 +82,129 @@ export function veredicto(p: number): { nivel: string; color: string; frase: str
   if (p >= 4) return { nivel: 'Flojo', color: '#f59e0b', frase: 'Así como está, se va a quedar entre tus seguidores de siempre.' };
   return { nivel: 'No lo grabes todavía', color: '#ef4444', frase: 'Le faltan las bases. Arregla lo de abajo y vuelve a medirlo.' };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BLOQUE 2 · LA FORMA — otros 10 puntos, medidos por el CÓDIGO
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Los seis criterios de arriba juzgan la IDEA y los contesta la IA. Estos seis
+// juzgan cómo está ARMADO el guion, y no necesitan IA: se cuentan. Por eso el
+// resultado no cambia entre una corrida y otra, y no cuesta un centavo.
+//
+// Salen de medir 389 virales (12 creadores, de 100K a 20.7M de vistas): 67
+// bajados con su contenido y los 10 más vistos transcritos palabra por palabra.
+// Los pesos siguen a qué tan parejo apareció cada patrón:
+//
+//   ·  0 de 67 duran menos de 15s · la mediana fue 52s
+//   · 10 de 10 hablan de "tú" · 0 de 10 se presentan
+//   ·  6 de 10 abren con una pregunta o la voz de otra persona
+//   ·  3 de 10 repiten un molde tres o más veces
+//   · hablan a ~235 palabras por minuto: sin pausas y sin relleno
+
+export type ChequeoForma = {
+  key: string; nombre: string; peso: number; cumple: boolean;
+  detalle: string;      // qué se encontró en ESTE guion
+  arreglo: string;      // qué hacer si no cumple
+};
+
+// ⚠️ La duración NO se puntúa sobre una estimación. Al medir los 10 virales,
+// el ritmo iba de 146 a 265 palabras por minuto (mediana 205): convertir
+// palabras a segundos falla hasta un 40%, y no se puede jugar 2.5 puntos a eso.
+// Se puntúa el LARGO EN PALABRAS, que es exacto, y los segundos se muestran
+// como un rango, honestamente.
+const PPM_LENTO = 150, PPM_RAPIDO = 250;
+export const palabrasDe = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
+export const rangoSegundos = (t: string) => {
+  const p = palabrasDe(t);
+  return { min: Math.round(p / PPM_RAPIDO * 60), max: Math.round(p / PPM_LENTO * 60) };
+};
+// Los 10 virales tenían entre 55 y 443 palabras, con mediana 174. La zona de
+// 130 a 260 es donde cae la mayoría a un ritmo de reel.
+const PAL_MIN = 130, PAL_MAX = 260;
+
+const RELLENO = /\b(en conclusión|cabe destacar|es importante (que|mencionar)|como (ya )?sabemos|sin más preámbulos|antes de empezar|bienvenidos a un nuevo|no olvides suscribirte|espero que les guste)\b/i;
+const PRESENTARSE = /^[^.!?]{0,80}\b(hola|qué tal|que tal|bienvenid\w+|mi nombre es|soy \w+ y|les habla)\b/i;
+const SEGUNDA = /\b(tú|tu|te|tus|ti|contigo|tienes|puedes|quieres|sabes)\b/i;
+
+// ¿Abre con la voz de otro, una pregunta o un diálogo?
+function abreConOtro(t: string): boolean {
+  const primera = t.split(/(?<=[.?!])\s/)[0] || t.slice(0, 140);
+  if (/\?/.test(primera)) return true;                              // pregunta
+  if (/^[—-]\s|^"|^«/.test(t.trim())) return true;                  // guion de diálogo
+  // "Cristian, ¿qué es mejor?" — alguien llamando por su nombre. Pero NO un
+  // saludo: "Hola," entraba por acá y daba el punto de gratis.
+  if (/^(?!hola|buenas|hey|oigan|amigos|chicos|gente)[A-ZÁÉÍÓÚÑ][\wáéíóúñ]{2,15},\s/i.test(t.trim())) return true;
+  if (/\b(me (dijo|preguntó|dice)|le dije|disculp\w+|oye,)\b/i.test(primera)) return true;
+  return false;
+}
+
+// ¿Hay un molde que se repite 3+ veces? (el patrón del video de 11.4M)
+function moldeRepetido(t: string): { hay: boolean; molde: string } {
+  const fr = t.toLowerCase().split(/[.?!;]/).map(x => x.trim()).filter(x => x.split(' ').length >= 3);
+  const ini: Record<string, number> = {};
+  for (const f of fr) { const k = f.split(' ').slice(0, 3).join(' '); ini[k] = (ini[k] || 0) + 1; }
+  const par = Object.entries(ini).sort((a, b) => b[1] - a[1])[0];
+  return { hay: !!par && par[1] >= 3, molde: par ? par[0] : '' };
+}
+
+export function medirForma(guionRaw: string): ChequeoForma[] {
+  const t = guionRaw.replace(/\s+/g, ' ').trim();
+  const palabras = palabrasDe(t);
+  const rango = rangoSegundos(t);
+  const arranque = t.split(' ').slice(0, 30).join(' ');
+  const molde = moldeRepetido(t);
+  const sePresenta = PRESENTARSE.test(t);
+  const abre = abreConOtro(t);
+  const tuteo = SEGUNDA.test(arranque);
+  const relleno = RELLENO.test(t);
+
+  return [
+    {
+      key: 'duracion', nombre: 'Tiene el largo de un viral', peso: 2.5,
+      cumple: palabras >= PAL_MIN && palabras <= PAL_MAX,
+      detalle: `${palabras} palabras → entre ${rango.min}s y ${rango.max}s según qué tan rápido hables. De 67 virales medidos ninguno bajaba de 15s, la mediana fue 52s, y los 10 más grandes tenían entre 55 y 443 palabras.`,
+      arreglo: palabras < PAL_MIN
+        ? `Se queda corto (${palabras} palabras). Súmale una historia, un ejemplo o un tercer punto hasta llegar a unas 150-200.`
+        : `Se pasa de largo (${palabras} palabras). Corta lo que no aporte hasta dejarlo cerca de 200.`,
+    },
+    {
+      key: 'apertura', nombre: 'Abre con una pregunta o la voz de otro', peso: 2,
+      cumple: abre,
+      detalle: abre ? 'Arranca con una pregunta o un diálogo.' : 'Arranca contigo afirmando algo.',
+      arreglo: 'Prueba abrir con una pregunta, o con alguien preguntándote. 6 de los 10 videos más vistos lo hacen: escuchar preguntar engancha más que escuchar afirmar.',
+    },
+    {
+      key: 'sin_presentacion', nombre: 'No te presentas: entras directo', peso: 2,
+      cumple: !sePresenta,
+      detalle: sePresenta ? 'Empieza saludando o presentándose.' : 'Entra directo al tema.',
+      arreglo: 'Borra el saludo. De los 10 videos más vistos, CERO se presentan. Ese segundo es el que te cuesta media audiencia.',
+    },
+    {
+      key: 'segunda_persona', nombre: 'Le hablas a la persona desde el arranque', peso: 1.5,
+      cumple: tuteo,
+      detalle: tuteo ? 'Usa "tú" o "te" en las primeras palabras.' : 'Las primeras frases no le hablan a nadie en particular.',
+      arreglo: 'Mete un "tú" o un "te" en la primera frase. 10 de los 10 más vistos lo hacen, sin una sola excepción.',
+    },
+    {
+      key: 'sin_relleno', nombre: 'Sin muletillas ni relleno', peso: 1,
+      cumple: !relleno,
+      detalle: relleno ? `Tiene relleno: "${(t.match(RELLENO) || [''])[0]}".` : 'No hay frases de relleno.',
+      arreglo: 'Quita las frases que no dicen nada. Los virales hablan a ~235 palabras por minuto: sin pausas y sin adornos.',
+    },
+    {
+      key: 'molde', nombre: 'Repite un molde tres veces o más', peso: 1,
+      cumple: molde.hay,
+      detalle: molde.hay ? `Repite "${molde.molde}…" y eso engancha.` : 'No hay una estructura que se repita.',
+      arreglo: 'Prueba un molde que vuelva 3 o 4 veces ("Si X… se llama A. Si Y… se llama B."). Es el patrón de un video de 11.4M y casi nadie lo usa.',
+    },
+  ];
+}
+
+export const TOTAL_FORMA = 10;
+export const puntuarForma = (ch: ChequeoForma[]) =>
+  Math.round(ch.reduce((a, c) => a + (c.cumple ? c.peso : 0), 0) * 10) / 10;
+
+// El número grande: el promedio de las dos mitades. Una idea buena mal armada
+// no explota, y una idea floja perfectamente armada tampoco.
+export const puntajeFinal = (idea: number, forma: number) =>
+  Math.round(((idea + forma) / 2) * 10) / 10;

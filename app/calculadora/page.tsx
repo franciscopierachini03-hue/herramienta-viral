@@ -12,8 +12,11 @@ import ProductGate from '../_components/ProductGate';
 import { CRITERIOS } from '@/lib/calculadora-viral';
 
 type Crit = { key: string; pregunta: string; peso: number; cumple: boolean; porque: string; arreglo: string };
+type Forma = { key: string; nombre: string; peso: number; cumple: boolean; detalle: string; arreglo: string };
 type Res = {
   puntos: number; total: number;
+  idea: { puntos: number; total: number };
+  forma: { puntos: number; total: number; chequeos: Forma[]; segundos: { min: number; max: number } };
   veredicto: { nivel: string; color: string; frase: string };
   criterios: Crit[]; pierdePor: number; prioridad: string[];
   loMejor: string; elProblema: string; reescritura: string;
@@ -56,15 +59,15 @@ export default function Calculadora() {
         <div className="text-center mb-5 mt-2">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">🧮 Calculadora viral</h1>
           <p className="text-sm max-w-lg mx-auto" style={{ color: '#b4b4c0' }}>
-            Pega tu guion antes de grabarlo. Te decimos <b style={{ color: '#fff' }}>cuánto puntúa del 1 al 10</b>,
-            qué le falta y cómo arreglarlo.
+            Pega tu guion antes de grabarlo. Medimos <b style={{ color: '#fff' }}>la idea y cómo está armado</b>,
+            te decimos qué le falta y cómo arreglarlo.
           </p>
         </div>
 
         {/* Qué se mide — para que el número no sea una caja negra */}
         <details className="rounded-2xl mb-5 overflow-hidden" style={card}>
           <summary className="px-4 py-3 cursor-pointer text-[13px] font-bold" style={{ color: '#c9c9d4' }}>
-            ¿Cómo se calcula? · 6 criterios, 10 puntos
+            ¿Cómo se calcula? · dos mitades de 10 puntos
           </summary>
           <div className="px-4 pb-4" style={{ borderTop: '1px solid #23232e' }}>
             {CRITERIOS.map(c => (
@@ -80,8 +83,14 @@ export default function Calculadora() {
               </div>
             ))}
             <p className="text-[11px] mt-4 leading-relaxed" style={{ color: '#6f6f7b' }}>
-              💡 Que se entienda fácil y que se apoye en algo conocido pesan <b style={{ color: '#9a9aa6' }}>4.5 de los 10</b>.
+              💡 Que se entienda fácil y que se apoye en algo conocido pesan <b style={{ color: '#9a9aa6' }}>4.5 de los 10</b> de la idea.
               La controversia, que es lo que todos persiguen, es lo que menos pesa.
+            </p>
+            <p className="text-[11px] mt-3 pt-3 leading-relaxed" style={{ color: '#6f6f7b', borderTop: '1px solid #23232e' }}>
+              🎬 Y aparte se miden <b style={{ color: '#9a9aa6' }}>otros 10 puntos de FORMA</b>: cuánto dura, si abres con
+              una pregunta, si te presentas, si le hablas de tú y si repites un molde. Eso no lo opina nadie —
+              se cuenta, y sale de analizar <b style={{ color: '#9a9aa6' }}>389 videos virales</b> (los 10 más grandes
+              transcritos palabra por palabra).
             </p>
           </div>
         </details>
@@ -119,9 +128,27 @@ export default function Calculadora() {
               <div className="w-full rounded-full" style={{ height: 10, background: '#1a1a24' }}>
                 <div className="rounded-full transition-all" style={{ width: `${pct}%`, height: 10, background: res.veredicto.color }} />
               </div>
+              {/* Las dos mitades: se ve de un vistazo cuál falla */}
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                {[
+                  { t: '💡 LA IDEA', p: res.idea.puntos, tot: res.idea.total, d: 'Vale la pena hacerlo', c: '#c4b5fd' },
+                  { t: '🎬 LA FORMA', p: res.forma.puntos, tot: res.forma.total, d: 'Está bien armado', c: '#7dd3a8' },
+                ].map(m => (
+                  <div key={m.t} className="rounded-xl p-3" style={{ background: '#0a0a12', border: '1px solid #23232e' }}>
+                    <p className="text-[10px] font-extrabold tracking-wider mb-1" style={{ color: m.c }}>{m.t}</p>
+                    <p className="text-2xl font-extrabold" style={{ color: m.c }}>
+                      {m.p}<span className="text-sm" style={{ color: '#5f5f6b' }}>/{m.tot}</span>
+                    </p>
+                    <div className="w-full rounded-full my-1.5" style={{ height: 5, background: '#1a1a24' }}>
+                      <div className="rounded-full" style={{ width: `${(m.p / m.tot) * 100}%`, height: 5, background: m.c }} />
+                    </div>
+                    <p className="text-[10px]" style={{ color: '#6f6f7b' }}>{m.d}</p>
+                  </div>
+                ))}
+              </div>
               {res.pierdePor > 0 && (
                 <p className="text-[12px] mt-3" style={{ color: '#fcd34d' }}>
-                  Está dejando <b>{res.pierdePor} puntos</b> en la mesa. Abajo está cómo recuperarlos.
+                  Está dejando <b>{res.pierdePor} puntos</b> de idea en la mesa. Abajo está cómo recuperarlos.
                 </p>
               )}
             </div>
@@ -164,6 +191,35 @@ export default function Calculadora() {
                 </div>
               ))}
             </div>
+
+            {/* 🎬 LA FORMA — medido por el código, sin IA de por medio */}
+            {res.forma?.chequeos?.length > 0 && (
+              <div className="rounded-2xl p-4 mb-4" style={{ background: 'linear-gradient(145deg,#0a1a12,#0d0d0d)', border: '1px solid #22c55e44' }}>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <p className="text-[11px] font-extrabold tracking-widest" style={{ color: '#7dd3a8' }}>🎬 CÓMO ESTÁ ARMADO</p>
+                  <span className="text-[11px]" style={{ color: '#5a8a6a' }}>~{res.forma.segundos.min}–{res.forma.segundos.max}s al leerlo</span>
+                </div>
+                <p className="text-[11px] mb-3" style={{ color: '#6f8a78' }}>
+                  Esto no lo opina una IA: se mide. Sale de analizar 389 videos virales.
+                </p>
+                {res.forma.chequeos.map(f => (
+                  <div key={f.key} className="rounded-xl p-3 mb-2" style={{ background: '#0a0a12', border: `1px solid ${f.cumple ? '#22c55e33' : '#ef444433'}` }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[13px] font-bold">{f.cumple ? '✅' : '❌'} {f.nombre}</p>
+                      <span className="text-[11px] font-extrabold shrink-0" style={{ color: f.cumple ? '#86efac' : '#6f6f7b' }}>
+                        {f.cumple ? `+${f.peso}` : `0 / ${f.peso}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] mt-1" style={{ color: '#8b8b96' }}>{f.detalle}</p>
+                    {!f.cumple && (
+                      <p className="text-[11px] mt-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: '#1a1206', color: '#fcd34d' }}>
+                        🔧 {f.arreglo}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {res.reescritura && (
               <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg,#12101f,#0d0d0d)', border: '1px solid #7c3aed66' }}>
