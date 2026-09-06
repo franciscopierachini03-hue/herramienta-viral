@@ -72,14 +72,23 @@ export function puntuar(respuestas: Record<string, boolean>): number {
   return Math.round(s * 10) / 10;
 }
 
-// Qué significa el número. Los cortes salen de la propia escala: sin los dos
-// criterios más pesados (niño + referencia = 4.5) el techo es 5.5, así que
-// pasar de 6 ya implica tener al menos uno de los dos.
+// Qué significa el número — CALIBRADO CONTRA LA REALIDAD, no contra el 10.
+//
+// Se corrieron 11 virales de 4.6M a 13.3M por la calculadora completa:
+//   mínimo 4.5 · mediana 7 · máximo 7.5
+// Y un guion motivacional genérico saca 3.5.
+//
+// O sea: NINGÚN video de millones llegó a 8. Los cortes viejos (9 = listo,
+// 7 = muy bueno) eran imposibles y hacían que un viral de 7 millones se
+// mostrara como mediocre. Ahora la referencia es lo que de verdad explota.
+export const REFERENCIA = { min: 4.5, mediana: 7, max: 7.5, n: 11 };
+
 export function veredicto(p: number): { nivel: string; color: string; frase: string } {
-  if (p >= 9) return { nivel: 'Listo para grabar', color: '#22c55e', frase: 'Tiene todo lo que hace falta. Grábalo hoy.' };
-  if (p >= 7) return { nivel: 'Muy bueno', color: '#86efac', frase: 'Va a funcionar. Si arreglas lo que falta, sube a 10.' };
-  if (p >= 6) return { nivel: 'Sirve', color: '#fcd34d', frase: 'Funciona, pero le queda techo. Mira lo que falta antes de grabar.' };
-  if (p >= 4) return { nivel: 'Flojo', color: '#f59e0b', frase: 'Así como está, se va a quedar entre tus seguidores de siempre.' };
+  if (p >= 7.5) return { nivel: 'Mejor que los virales que medimos', color: '#22c55e', frase: 'Ninguno de los 11 videos de millones que analizamos llegó tan alto. Grábalo.' };
+  if (p >= 7)   return { nivel: 'En la mediana de los virales', color: '#86efac', frase: 'Puntúa igual que los videos de 4 a 13 millones que medimos. Está listo.' };
+  if (p >= 5.5) return { nivel: 'Dentro del rango viral', color: '#a3e635', frase: 'Varios videos de millones puntúan aquí. Si arreglas lo de abajo, subes al techo.' };
+  if (p >= 4.5) return { nivel: 'En el piso de lo que funciona', color: '#fcd34d', frase: 'Justo en el mínimo de los virales medidos. Le queda mucho por ganar.' };
+  if (p >= 3.5) return { nivel: 'Flojo', color: '#f59e0b', frase: 'Por debajo de todo lo que llegó a millones. Arregla lo de abajo antes de grabar.' };
   return { nivel: 'No lo grabes todavía', color: '#ef4444', frase: 'Le faltan las bases. Arregla lo de abajo y vuelve a medirlo.' };
 }
 
@@ -124,7 +133,11 @@ const PAL_MIN = 130, PAL_MAX = 260;
 
 const RELLENO = /\b(en conclusión|cabe destacar|es importante (que|mencionar)|como (ya )?sabemos|sin más preámbulos|antes de empezar|bienvenidos a un nuevo|no olvides suscribirte|espero que les guste)\b/i;
 const PRESENTARSE = /^[^.!?]{0,80}\b(hola|qué tal|que tal|bienvenid\w+|mi nombre es|soy \w+ y|les habla)\b/i;
-const SEGUNDA = /\b(tú|tu|te|tus|ti|contigo|tienes|puedes|quieres|sabes)\b/i;
+// Hablarle a la persona no es solo el pronombre: el imperativo también lo es.
+// "Observa, decepciónate y aléjate" le habla a alguien tanto como "tú puedes".
+// Sin los verbos, un viral de 7M perdía este punto de gratis.
+const SEGUNDA = /\b(tú|tu|te|tus|ti|contigo|tienes|puedes|quieres|sabes|piensas|crees|haces|estás|eres|tienen)\b/i;
+const IMPERATIVO = /\b(observa|mira|escucha|deja|dejá|haz|piensa|imagina|recuerda|anota|guarda|prueba|empieza|para|detente|aléjate|alejate|olvida|fíjate|fijate|no (reclames|reclamen|hagas|esperes|creas|pierdas)|decepci[oó]nate)\b/i;
 
 // ¿Abre con la voz de otro, una pregunta o un diálogo?
 function abreConOtro(t: string): boolean {
@@ -155,7 +168,7 @@ export function medirForma(guionRaw: string): ChequeoForma[] {
   const molde = moldeRepetido(t);
   const sePresenta = PRESENTARSE.test(t);
   const abre = abreConOtro(t);
-  const tuteo = SEGUNDA.test(arranque);
+  const tuteo = SEGUNDA.test(arranque) || IMPERATIVO.test(arranque);
   const relleno = RELLENO.test(t);
 
   return [

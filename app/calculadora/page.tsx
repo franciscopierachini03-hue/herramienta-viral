@@ -9,7 +9,7 @@ import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
-import { CRITERIOS } from '@/lib/calculadora-viral';
+import { CRITERIOS, REFERENCIA } from '@/lib/calculadora-viral';
 
 type Crit = { key: string; pregunta: string; peso: number; cumple: boolean; porque: string; arreglo: string };
 type Forma = { key: string; nombre: string; peso: number; cumple: boolean; detalle: string; arreglo: string };
@@ -125,9 +125,20 @@ export default function Calculadora() {
               </div>
               <p className="text-base font-bold mb-1" style={{ color: res.veredicto.color }}>{res.veredicto.nivel}</p>
               <p className="text-[13px] mb-4" style={{ color: '#9a9aa6' }}>{res.veredicto.frase}</p>
-              <div className="w-full rounded-full" style={{ height: 10, background: '#1a1a24' }}>
-                <div className="rounded-full transition-all" style={{ width: `${pct}%`, height: 10, background: res.veredicto.color }} />
+              {/* La barra con la zona donde caen los virales de verdad marcada
+                  encima: sin esa referencia, un 7 parece un aprobado raspando
+                  cuando en realidad es la mediana de los videos de millones. */}
+              <div className="relative w-full rounded-full" style={{ height: 10, background: '#1a1a24' }}>
+                <div className="absolute rounded-full" style={{
+                  left: `${REFERENCIA.min * 10}%`, width: `${(REFERENCIA.max - REFERENCIA.min) * 10}%`,
+                  height: 10, background: '#ffffff14', border: '1px dashed #ffffff33' }} />
+                <div className="absolute rounded-full transition-all" style={{ width: `${pct}%`, height: 10, background: res.veredicto.color }} />
               </div>
+              <p className="text-[11px] mt-2" style={{ color: '#6f6f7b' }}>
+                La zona marcada es donde caen <b style={{ color: '#9a9aa6' }}>{REFERENCIA.n} virales de 4 a 13 millones</b> que
+                analizamos: entre {REFERENCIA.min} y {REFERENCIA.max}, con mediana en {REFERENCIA.mediana}.
+                Un guion motivacional genérico saca 3.5.
+              </p>
               {/* Las dos mitades: se ve de un vistazo cuál falla */}
               <div className="grid grid-cols-2 gap-3 mt-5">
                 {[
