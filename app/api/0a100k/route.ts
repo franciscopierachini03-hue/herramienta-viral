@@ -28,7 +28,7 @@ const CAMPOS: Array<[string, string]> = [
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
   if (!rateLimit(`0a100k:${ip}`, 5, 10 * 60 * 1000)) {
-    return Response.json({ error: 'Demasiados intentos. Probá de nuevo en unos minutos.' }, { status: 429 });
+    return Response.json({ error: 'Demasiados intentos. Prueba de nuevo en unos minutos.' }, { status: 429 });
   }
 
   let body: Body;
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const nombre = (body.nombre || '').trim().slice(0, 120);
   const email = (body.email || '').trim().slice(0, 160).toLowerCase();
   const whatsapp = (body.whatsapp || '').trim().slice(0, 40);
-  if (nombre.length < 2) return Response.json({ error: 'Contanos tu nombre.' }, { status: 400 });
+  if (nombre.length < 2) return Response.json({ error: 'Cuéntanos tu nombre.' }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Response.json({ error: 'Revisá tu email.' }, { status: 400 });
   if (whatsapp.replace(/\D/g, '').length < 8) return Response.json({ error: 'Dejanos un WhatsApp válido (con código de país).' }, { status: 400 });
 

@@ -46,8 +46,8 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
         setMessages([{
           role: 'assistant',
           content: ci
-            ? '¡Hola de nuevo! 👋 Tu cliente ideal ya está guardado. Tocá ✨ Generar más palabras cuando quieras, o cambialo.'
-            : 'Armemos tu lista 🔥 Contame en una frase: ¿quién es tu CLIENTE IDEAL?',
+            ? '¡Hola de nuevo! 👋 Tu cliente ideal ya está guardado. Toca ✨ Generar más palabras cuando quieras, o cámbialo.'
+            : 'Armemos tu lista 🔥 Cuéntame en una frase: ¿quién es tu CLIENTE IDEAL?',
         }]);
       } catch {
         setDefiniendo(true);
@@ -80,9 +80,9 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
       if (!r.ok) throw new Error(j.error || 'error');
       const terms: string[] = Array.isArray(j.terms) ? j.terms : [];
       shownRef.current = [...shownRef.current, ...terms];
-      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Acá tenés tus palabras:', terms }]);
+      setMessages(m => [...m, { role: 'assistant', content: j.reply || 'Aquí tienes tus palabras:', terms }]);
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Probá de nuevo en un momento.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: 'No pude generar las palabras ahora. Prueba de nuevo en un momento.' }]);
     } finally {
       setBusy(false);
     }
@@ -98,17 +98,17 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'error');
-      setMessages(m => [...m, { role: 'assistant', content: j.reply || '¿Qué vendés?' }]);
+      setMessages(m => [...m, { role: 'assistant', content: j.reply || '¿Qué vendes?' }]);
       setPropuesta(typeof j.propuesta === 'string' ? j.propuesta : '');
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'No pude seguir ahora. Probá de nuevo en un momento.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: 'No pude seguir ahora. Prueba de nuevo en un momento.' }]);
     } finally { setBusy(false); }
   }
 
   function arrancarAyuda() {
     setAyudando(true);
     setPropuesta('');
-    setMessages(m => [...m, { role: 'assistant', content: 'Dale, lo armamos juntos 💪 Contame: ¿qué vendés o qué resultado le hacés lograr a la gente?' }]);
+    setMessages(m => [...m, { role: 'assistant', content: 'Dale, lo armamos juntos 💪 Cuéntame: ¿qué vendes o qué resultado le haces lograr a la gente?' }]);
   }
 
   function usarPropuesta() {
@@ -164,16 +164,16 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
 
   function cambiarCliente() {
     setDefiniendo(true);
-    setMessages(m => [...m, { role: 'assistant', content: 'Dale 👇 ¿Quién es tu nuevo CLIENTE IDEAL? (tus palabras guardadas quedan intactas)' }]);
+    setMessages(m => [...m, { role: 'assistant', content: 'Listo 👇 ¿Quién es tu nuevo CLIENTE IDEAL? (tus palabras guardadas quedan intactas)' }]);
   }
 
   // Todavía no definió su cliente ideal → lo mostramos como PASO 1, destacado y
   // sin poder ocultarlo (antes quedaba escondido como un ayudante opcional).
   const sinDefinir = !clienteIdeal && !cargando;
   const ultimaConTerms = [...messages].reverse().find(m => m.terms && m.terms.length);
-  const placeholder = ayudando ? 'Contame qué vendés o a quién ayudás…'
+  const placeholder = ayudando ? 'Cuéntame qué vendes o a quién ayudás…'
     : definiendo ? EJEMPLO_CLIENTE
-    : 'Ajustá o pedí más (ej: más de ventas, en inglés)…';
+    : 'Ajusta o pide más (ej: más de ventas, en inglés)…';
 
   return (
     <div className="rounded-2xl mb-5 overflow-hidden" style={{
@@ -189,7 +189,7 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
           </span>
           {sinDefinir && (
             <span className="block text-[11px] mt-1" style={{ color: '#a78bfa' }}>
-              Lo hacés <b>una sola vez</b>: te arma tus palabras para buscar virales y, desde ahora, <b>tus guiones se adaptan solos</b> a quien le vendés.
+              Lo haces <b>una sola vez</b>: te arma tus palabras para buscar virales y, desde ahora, <b>tus guiones se adaptan solos</b> a quien le vendes.
             </span>
           )}
         </span>
@@ -203,7 +203,7 @@ export default function IdeasChat({ onPick }: { onPick: (term: string) => void }
             <div className="rounded-xl p-3 mb-3" style={{ background: '#0a1508', border: '1px solid #22c55e33' }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold" style={{ color: '#86efac' }}>⭐ Tus palabras guardadas ({saved.length})</span>
-                <span className="text-[10px]" style={{ color: '#5a8a6a' }}>se guardan solas · tocá 🔎 para buscar</span>
+                <span className="text-[10px]" style={{ color: '#5a8a6a' }}>se guardan solas · toca 🔎 para buscar</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {saved.map((t, k) => (

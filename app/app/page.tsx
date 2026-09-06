@@ -1686,7 +1686,7 @@ export default function Home() {
                 ) : (
                   <div className="py-10 px-4" style={{ color: '#a78bfa' }}>
                     <div className="text-3xl mb-1">📸</div>
-                    <div className="text-xs font-bold">Tocá para subir</div>
+                    <div className="text-xs font-bold">Toca para subir</div>
                     <div className="text-[11px] mt-0.5" style={{ color: '#6b6b78' }}>captura de tu bio</div>
                   </div>
                 )}
@@ -1698,15 +1698,15 @@ export default function Home() {
               )}
             </div>
             <div>
-              <p className="text-xs mb-2" style={{ color: '#8b8b96' }}>Contame lo más que puedas — mientras más des, más a medida sale tu bio <span style={{ color: '#6b6b78' }}>(todo opcional)</span>:</p>
+              <p className="text-xs mb-2" style={{ color: '#8b8b96' }}>Cuéntame lo más que puedas — mientras más des, más a medida sale tu bio <span style={{ color: '#6b6b78' }}>(todo opcional)</span>:</p>
               <div className="flex flex-col gap-2 mb-3">
-                <input value={pOferta} onChange={e => setPOferta(e.target.value)} placeholder="¿Qué hacés / vendés? (ej: asesorías de finanzas)"
+                <input value={pOferta} onChange={e => setPOferta(e.target.value)} placeholder="¿Qué haces / vendes? (ej: asesorías de finanzas)"
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
                 <input value={pAudiencia} onChange={e => setPAudiencia(e.target.value)} placeholder="¿A quién ayudás? (ej: mujeres que quieren ahorrar)"
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
-                <input value={pObjetivo} onChange={e => setPObjetivo(e.target.value)} placeholder="¿Qué querés que hagan? (ej: agendar una asesoría)"
+                <input value={pObjetivo} onChange={e => setPObjetivo(e.target.value)} placeholder="¿Qué quieres que hagan? (ej: agendar una asesoría)"
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
-                <input value={pTono} onChange={e => setPTono(e.target.value)} placeholder="¿Qué tono querés? (ej: cercano y motivador)"
+                <input value={pTono} onChange={e => setPTono(e.target.value)} placeholder="¿Qué tono quieres? (ej: cercano y motivador)"
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
               </div>
               <button onClick={() => void analizarMiPerfil()} disabled={!perfilImg || perfilBusy}
@@ -1788,7 +1788,7 @@ export default function Home() {
               {/* Bios nuevas */}
               {perfilResult.bios.length > 0 && (
                 <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg,#14141f,#0d0d16)', border: '1px solid #23232f' }}>
-                  <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>✍️ 3 bios nuevas <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(tocá para copiar)</span></h3>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: '#d4d4dc' }}>✍️ 3 bios nuevas <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(toca para copiar)</span></h3>
                   <div className="flex flex-col gap-2">
                     {perfilResult.bios.map((b, i) => (
                       <button key={i} onClick={() => void copiarBio(b.texto, i)}

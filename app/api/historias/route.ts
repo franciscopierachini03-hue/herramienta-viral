@@ -25,9 +25,9 @@ Reglas de la casa:
 - El objetivo no son los likes: es que te ESCRIBAN.
 - Nunca prometas lo que la persona no dijo que vende.
 - ESPAÑOL NEUTRO LATINOAMERICANO. Es lo más importante de todo.
-  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tenés"),
-  "quieres" (no "querés"), "puedes" (no "podés"), "elige" (no "elegí"),
-  "mira" (no "mirá"), "cuéntame" (no "contame").
+  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tienes"),
+  "quieres" (no "quieres"), "puedes" (no "puedes"), "elige" (no "elige"),
+  "mira" (no "mira"), "cuéntame" (no "cuéntame").
   Tampoco modismos de un solo país: ni "che", ni "güey", ni "parcero",
   ni "tío", ni "chevere". Tiene que sonar natural en México, Colombia,
   Perú, Chile y Argentina por igual.
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   // ── Modo 1: qué preguntarle (sin IA, instantáneo) ──
   if (body.modo === 'preguntas') {
     const preguntas = [
-      { key: 'oferta', label: '¿Qué vendés (o querés vender)?', placeholder: 'Ej.: mentoría de 8 semanas para coaches que quieren llenar su agenda' },
+      { key: 'oferta', label: '¿Qué vendes (o quieres vender)?', placeholder: 'Ej.: mentoría de 8 semanas para coaches que quieren llenar su agenda' },
       { key: 'dolor', label: '¿Qué es lo que MÁS frena a tu cliente hoy?', placeholder: 'Ej.: publica todos los días pero no le llegan clientes' },
       { key: 'transformacion', label: '¿Cómo queda esa persona después de trabajar con vos?', placeholder: 'Ej.: agenda llena y cobrando el doble sin vivir pegada al celular' },
     ];
@@ -75,14 +75,14 @@ export async function POST(req: NextRequest) {
 
   // ── Modo 2: armar la historia ──
   if (!rateLimit(`historias:${email}`, 30, 60 * 60 * 1000)) {
-    return Response.json({ error: 'Llegaste al límite por hora. Probá más tarde.' }, { status: 429 });
+    return Response.json({ error: 'Llegaste al límite por hora. Prueba más tarde.' }, { status: 429 });
   }
   const key = process.env.OPENAI_API_KEY;
   if (!key) return Response.json({ error: 'Falta configurar la IA (OPENAI_API_KEY).' }, { status: 503 });
 
   const r0 = body.respuestas || {};
   const cliente = clienteIdeal || String(r0.cliente || '').slice(0, 500);
-  if (!cliente) return Response.json({ error: 'Contanos a quién le hablás.' }, { status: 400 });
+  if (!cliente) return Response.json({ error: 'Cuéntanos a quién le hablás.' }, { status: 400 });
 
   const ej = formato.ejemplo;
   const userText = [
@@ -114,13 +114,13 @@ export async function POST(req: NextRequest) {
     });
     if (!r.ok) {
       console.error('[historias] openai', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      return Response.json({ error: 'No pudimos armar la historia. Probá de nuevo.' }, { status: 502 });
+      return Response.json({ error: 'No pudimos armar la historia. Prueba de nuevo.' }, { status: 502 });
     }
     const d = await r.json();
     const out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
     return Response.json({ ...out, formato: formato.key, cuando: formato.cuando });
   } catch (e) {
     console.error('[historias]', (e as Error).message.slice(0, 150));
-    return Response.json({ error: 'Error al armar. Probá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'Error al armar. Prueba de nuevo.' }, { status: 502 });
   }
 }

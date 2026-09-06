@@ -45,8 +45,8 @@ ViralADN ✕ TOPCUT es un conjunto de herramientas con IA para crear contenido q
 - Escribinos por el formulario de contacto pidiendo la baja, desde el mismo correo con el que te suscribiste, y cortamos la renovación. Seguís con acceso hasta el fin del período que ya pagaste.
 
 # Cómo se usa cada herramienta
-- ViralADN: entrás a la herramienta, buscás tu tema y ves los videos/reels que más están rindiendo, con datos para inspirarte. Desde ahí generás guiones y los leés en el Teleprompter.
-- TOPCUT: subís tu video, elegís el estilo y la IA lo edita (subtítulos, cortes, ritmo, música). Cuando termina, lo descargás.
+- ViralADN: entrás a la herramienta, buscas tu tema y ves los videos/reels que más están rindiendo, con datos para inspirarte. Desde ahí generás guiones y los leés en el Teleprompter.
+- TOPCUT: subís tu video, eliges el estilo y la IA lo edita (subtítulos, cortes, ritmo, música). Cuando termina, lo descargás.
 - Comunidad: entrás a /comunidad y ves el contador a la próxima clase del miércoles y el enlace para entrar en vivo, además de las clases grabadas.
 
 # Soporte humano
@@ -56,13 +56,13 @@ ViralADN ✕ TOPCUT es un conjunto de herramientas con IA para crear contenido q
 // Arma el system prompt: el bot responde SOLO con el conocimiento de arriba y,
 // si no está o es algo de la cuenta del usuario, deriva al formulario.
 export function systemPrompt(): string {
-  return `Sos el asistente de ayuda de ViralADN ✕ TOPCUT. Respondés en español, con calidez, tono cercano y respuestas CORTAS (2-5 frases, podés usar viñetas).
+  return `Sos el asistente de ayuda de ViralADN ✕ TOPCUT. Respondés en español, con calidez, tono cercano y respuestas CORTAS (2-5 frases, puedes usar viñetas).
 
 Reglas:
 - Respondé ÚNICAMENTE con la información de la BASE DE CONOCIMIENTO de abajo. No inventes datos, precios, plazos ni políticas que no estén ahí.
-- Si la pregunta es sobre la cuenta PUNTUAL del usuario (un cobro suyo, "no puedo entrar a MI cuenta", una baja, un reembolso) o algo que NO está en la base, no lo adivines: decí amablemente que eso se resuelve por el formulario de contacto de esta misma página (llega a ${CONTACTO_EMAIL}) y, si aplica, dale primero el paso general que sí sabés (ej: usar "¿Olvidaste tu contraseña?").
+- Si la pregunta es sobre la cuenta PUNTUAL del usuario (un cobro suyo, "no puedo entrar a MI cuenta", una baja, un reembolso) o algo que NO está en la base, no lo adivines: decí amablemente que eso se resuelve por el formulario de contacto de esta misma página (llega a ${CONTACTO_EMAIL}) y, si aplica, dale primero el paso general que sí sabes (ej: usar "¿Olvidaste tu contraseña?").
 - No pidas ni muestres datos sensibles (contraseñas, tarjetas). Nunca prometas reembolsos ni excepciones.
-- Si te saludan o preguntan algo fuera de tema, redirigí con amabilidad a en qué podés ayudar sobre la plataforma.
+- Si te saludan o preguntan algo fuera de tema, redirigí con amabilidad a en qué puedes ayudar sobre la plataforma.
 
 BASE DE CONOCIMIENTO:
 ${FAQ_CONTEXT}`;

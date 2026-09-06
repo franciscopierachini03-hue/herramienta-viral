@@ -20,13 +20,13 @@ function getOpenAI(): OpenAI {
 const MODEL_CHAIN = ['gpt-5.5', 'gpt-5.4', 'gpt-5.1', 'gpt-4.1', 'gpt-4o'];
 let _modeloOk: string | null = null;
 
-const SYSTEM = `Sos un estratega de perfiles de Instagram/TikTok de primer nivel, especializado en BIOS que convierten. Mirás el SCREENSHOT del perfil de una persona (más el contexto que te da) y le decís, sin vueltas, qué cambiar para que su descripción convierta visitas en seguidores y en clientes.
+const SYSTEM = `Sos un estratega de perfiles de Instagram/TikTok de primer nivel, especializado en BIOS que convierten. Miras el SCREENSHOT del perfil de una persona (más el contexto que te da) y le decís, sin vueltas, qué cambiar para que su descripción convierta visitas en seguidores y en clientes.
 
 Sabés qué hace que un perfil funcione:
 - La foto: cara clara y con luz (o logo nítido si es marca). Nada borroso ni lejano.
 - El NOMBRE (el campo en negrita, no el @): es lo único que el buscador de Instagram indexa. Debe llevar nombre + palabra clave de lo que hace ("Ana · Finanzas para mujeres"), no solo el nombre.
 - El @usuario: corto, alineado al nicho, sin números ni guiones raros si se puede.
-- La BIO / descripción (máx 150 caracteres): en 3 segundos tiene que quedar clarísimo A QUIÉN ayuda, CON QUÉ resultado y QUÉ acción hacer. Cero frases vacías ("apasionado por la vida", "soñador", "amante del café"). La fórmula que funciona: línea 1 = a quién ayudás y con qué resultado concreto · línea 2 = prueba o diferencial (número, logro, método con nombre) · línea 3 = CTA con la acción exacta ("Escribí PLAN", "Agendá abajo").
+- La BIO / descripción (máx 150 caracteres): en 3 segundos tiene que quedar clarísimo A QUIÉN ayuda, CON QUÉ resultado y QUÉ acción hacer. Cero frases vacías ("apasionado por la vida", "soñador", "amante del café"). La fórmula que funciona: línea 1 = a quién ayudás y con qué resultado concreto · línea 2 = prueba o diferencial (número, logro, método con nombre) · línea 3 = CTA con la acción exacta ("Escribe PLAN", "Agendá abajo").
 - El LINK: uno solo, con motivo claro para tocarlo. Los HIGHLIGHTS ordenados para vender.
 
 REGLAS DE FEEDBACK:
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean);
 
   const userText = [
-    'Analizá este perfil y devolvé el JSON con el feedback. Poné foco en la DESCRIPCIÓN (bio): que quede clarísimo qué comunica hoy, qué debería, y dame 3 bios nuevas explicadas.',
+    'Analizá este perfil y devolvé el JSON con el feedback. Pon foco en la DESCRIPCIÓN (bio): que quede clarísimo qué comunica hoy, qué debería, y dame 3 bios nuevas explicadas.',
     bloques.length
       ? `CONTEXTO que dio la persona (usalo para que TODO salga a medida):\n${bloques.join('\n')}`
       : 'La persona no dio contexto — inferí el nicho y el objetivo de lo que se ve, y decilo.',
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
         recomendaciones: arrStr(raw.recomendaciones, 300, 5),
       };
       if (!analisis.veredicto && !analisis.mejoras.length && !analisis.bios.length) {
-        return Response.json({ error: 'No pudimos leer el perfil. Probá con una captura más nítida.' }, { status: 502 });
+        return Response.json({ error: 'No pudimos leer el perfil. Prueba con una captura más nítida.' }, { status: 502 });
       }
       return Response.json({ analisis });
     } catch (err) {
@@ -173,5 +173,5 @@ export async function POST(req: NextRequest) {
     }
   }
   console.error('[analizar-perfil] error:', lastErr instanceof Error ? lastErr.message : lastErr);
-  return Response.json({ error: 'No se pudo analizar ahora. Probá de nuevo en un momento.' }, { status: 500 });
+  return Response.json({ error: 'No se pudo analizar ahora. Prueba de nuevo en un momento.' }, { status: 500 });
 }

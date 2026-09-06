@@ -14,7 +14,7 @@ const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 export async function POST(req: NextRequest) {
   // Anti-abuso: 5 mensajes cada 10 minutos por IP.
   const rl = rateLimit(`ayuda-contacto:${clientIp(req)}`, 5, 10 * 60_000);
-  if (!rl.ok) return Response.json({ error: `Enviaste varios mensajes. Probá de nuevo en un rato.` }, { status: 429 });
+  if (!rl.ok) return Response.json({ error: `Enviaste varios mensajes. Prueba de nuevo en un rato.` }, { status: 429 });
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return Response.json({ error: 'JSON inválido.' }, { status: 400 }); }
@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
   const mensaje = String(body.mensaje || '').trim().slice(0, 4000);
 
   if (nombre.length < 2) return Response.json({ error: 'Decinos tu nombre.' }, { status: 400 });
-  if (!emailOk(email)) return Response.json({ error: 'Poné un correo válido.' }, { status: 400 });
-  if (mensaje.length < 5) return Response.json({ error: 'Contanos un poco más en el mensaje.' }, { status: 400 });
+  if (!emailOk(email)) return Response.json({ error: 'Pon un correo válido.' }, { status: 400 });
+  if (mensaje.length < 5) return Response.json({ error: 'Cuéntanos un poco más en el mensaje.' }, { status: 400 });
 
   // Adjunto opcional (imagen). El cliente ya la comprime a JPEG; validamos que
   // sea un data:image y que no exceda ~4 MB en base64 (tope del cuerpo de Vercel).
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     await sendMensajeContacto({ nombre, email, asunto, mensaje, adjunto });
   } catch (e) {
     console.error('[ayuda/contacto] envío:', e);
-    return Response.json({ error: 'No pudimos enviar el mensaje. Probá de nuevo en un momento.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos enviar el mensaje. Prueba de nuevo en un momento.' }, { status: 502 });
   }
 
   // La confirmación al usuario es "best-effort": si falla, el mensaje ya se envió.

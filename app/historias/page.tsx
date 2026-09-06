@@ -1,7 +1,7 @@
 'use client';
 
 // 📖 /historias — ARMADOR DE HISTORIAS QUE VENDEN (método de Francisco).
-// Elegís uno de los 4 formatos, contestás 2-3 preguntas de tu negocio y la IA
+// Eliges uno de los 4 formatos, contestás 2-3 preguntas de tu negocio y la IA
 // arma la historia lista para publicar, adaptada a tu nicho y cliente ideal.
 
 import { useState } from 'react';

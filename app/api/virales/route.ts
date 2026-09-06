@@ -1,5 +1,11 @@
 import { NextRequest } from 'next/server';
 
+// ⚠️ Groq retira modelos sin avisar. En sep-2026 'llama-3.3-70b-versatile'
+// devolvió 404 ("does not exist") y el chat de palabras clave se cayó en
+// silencio: la persona solo veía "no pude generar". Configurable por env para
+// poder cambiarlo desde Vercel sin desplegar.
+const GROQ_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+
 export const maxDuration = 300; // 5 minutos — Vercel Pro
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -285,7 +291,7 @@ async function expandWithAI(tema: string): Promise<AIKeywords | null> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         temperature: 0.3,
         max_tokens: 700,
         response_format: { type: 'json_object' },
@@ -1686,7 +1692,7 @@ REGLAS NO NEGOCIABLES
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         temperature: 0.1,
         max_tokens: 4000,
         response_format: { type: 'json_object' },
@@ -2375,7 +2381,7 @@ export async function POST(req: NextRequest) {
   if (googleMode) {
     // Modo Google: SIEMPRE responde acá → nunca cae al scraper/Apify (cero gasto
     // de Apify). Para reactivar scrapers (ej. si se agota el cupo de SerpApi):
-    // poné SEARCH_ENGINE=off en el entorno.
+    // pon SEARCH_ENGINE=off en el entorno.
     try {
       const buckets = await googleSearchBuckets(tema);
       const vids = buckets[platform] || [];
@@ -2385,7 +2391,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ videos: vids });
     } catch (e) {
       console.error('[virales/google] error:', (e as Error).message);
-      return Response.json({ videos: [], error: 'El buscador no respondió. Probá de nuevo en un momento.' });
+      return Response.json({ videos: [], error: 'El buscador no respondió. Prueba de nuevo en un momento.' });
     }
   }
 

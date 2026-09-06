@@ -2,7 +2,7 @@
 
 // 🎬 /formatos — GUIONES POR FORMATO.
 //
-// El generador viejo escribía siempre lo mismo: un párrafo de talking head.
+// El generador viejo escribea siempre lo mismo: un párrafo de talking head.
 // Acá se elige PRIMERO el formato (el formato define cómo se escribe, no solo
 // cómo se filma), después la estructura narrativa, y el gancho se elige entre
 // cinco en vez de aceptar el primero que salga.

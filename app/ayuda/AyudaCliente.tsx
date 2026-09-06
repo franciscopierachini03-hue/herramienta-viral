@@ -11,7 +11,7 @@ type Msg = { role: 'user' | 'assistant'; content: string };
 
 const SALUDO: Msg = {
   role: 'assistant',
-  content: '¡Hola! 👋 Soy el asistente de ViralADN ✕ TOPCUT. Preguntame lo que quieras sobre las herramientas, tu acceso, precios o la comunidad. Si es algo de tu cuenta, más abajo podés escribirnos directo.',
+  content: '¡Hola! 👋 Soy el asistente de ViralADN ✕ TOPCUT. Preguntame lo que quieras sobre las herramientas, tu acceso, precios o la comunidad. Si es algo de tu cuenta, más abajo puedes escribirnos directo.',
 };
 
 export default function AyudaCliente() {
@@ -35,9 +35,9 @@ export default function AyudaCliente() {
         body: JSON.stringify({ messages: nuevos.filter(m => m !== SALUDO).map(m => ({ role: m.role, content: m.content })) }),
       });
       const d = await r.json();
-      setMessages(m => [...m, { role: 'assistant', content: d.reply || d.error || 'No pude responder. Probá el formulario de abajo.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: d.reply || d.error || 'No pude responder. Prueba el formulario de abajo.' }]);
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'Se cortó la conexión. Probá de nuevo o escribinos por el formulario de abajo.' }]);
+      setMessages(m => [...m, { role: 'assistant', content: 'Se cortó la conexión. Prueba de nuevo o escribinos por el formulario de abajo.' }]);
     } finally { setEnviando(false); }
   }
 
@@ -46,7 +46,7 @@ export default function AyudaCliente() {
       <div className="mb-8 text-center">
         <div className="inline-block text-3xl mb-2">🆘</div>
         <h1 className="text-2xl font-extrabold" style={{ background: 'linear-gradient(135deg,#a855f7,#c13584)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Centro de Ayuda</h1>
-        <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>Respuestas al instante — y si necesitás a una persona, escribinos.</p>
+        <p className="text-sm mt-1" style={{ color: '#9ca3af' }}>Respuestas al instante — y si necesitas a una persona, escribinos.</p>
       </div>
 
       {/* Chat */}
@@ -83,7 +83,7 @@ export default function AyudaCliente() {
 
         {/* Input */}
         <form onSubmit={e => { e.preventDefault(); preguntar(input); }} className="flex items-center gap-2 p-3" style={{ borderTop: '1px solid #262626' }}>
-          <input value={input} onChange={e => setInput(e.target.value)} placeholder="Escribí tu pregunta…"
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="Escribe tu pregunta…"
             className="flex-1 text-sm px-4 py-2.5 rounded-full outline-none"
             style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' }} />
           <button type="submit" disabled={enviando || !input.trim()} className="text-sm font-bold px-4 py-2.5 rounded-full whitespace-nowrap"
@@ -149,7 +149,7 @@ function FormularioContacto() {
     try {
       setImagen(await comprimirImagen(file));
       setImgNombre(file.name);
-    } catch { setError('No pude leer esa imagen. Probá con otra.'); }
+    } catch { setError('No pude leer esa imagen. Prueba con otra.'); }
   }
 
   async function enviar(e: React.FormEvent) {
@@ -163,7 +163,7 @@ function FormularioContacto() {
       const d = await r.json();
       if (d.error) setError(d.error);
       else setEnviado(true);
-    } catch { setError('No se pudo enviar. Probá de nuevo.'); }
+    } catch { setError('No se pudo enviar. Prueba de nuevo.'); }
     finally { setEnviando(false); }
   }
 
@@ -190,7 +190,7 @@ function FormularioContacto() {
         </div>
         <input value={asunto} onChange={e => setAsunto(e.target.value)} placeholder="Asunto (opcional)"
           className="w-full text-sm px-4 py-2.5 rounded-xl outline-none" style={inp} />
-        <textarea required value={mensaje} onChange={e => setMensaje(e.target.value)} placeholder="Contanos en qué te ayudamos…" rows={4}
+        <textarea required value={mensaje} onChange={e => setMensaje(e.target.value)} placeholder="Cuéntanos en qué te ayudamos…" rows={4}
           className="w-full text-sm px-4 py-2.5 rounded-xl outline-none resize-y" style={inp} />
 
         {/* Adjuntar una foto (opcional) — ideal para reportar un error con captura */}

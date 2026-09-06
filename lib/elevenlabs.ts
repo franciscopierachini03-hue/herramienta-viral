@@ -35,7 +35,7 @@ export async function crearVoz(nombre: string, muestraBase64: string, mime = 'au
     const t = await res.text().catch(() => '');
     if (res.status === 401) throw new Error('La key de ElevenLabs es inválida.');
     if (res.status === 403 || /can_not_use_instant_voice_cloning|subscription/i.test(t))
-      throw new Error('Tu plan de ElevenLabs no permite clonar voz — necesitás al menos el plan Starter.');
+      throw new Error('Tu plan de ElevenLabs no permite clonar voz — necesitas al menos el plan Starter.');
     throw new Error(`ElevenLabs ${res.status}: ${t.slice(0, 200)}`);
   }
   const d = await res.json();

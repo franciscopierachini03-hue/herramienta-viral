@@ -57,7 +57,7 @@ LO PROHIBIDO (esto es exactamente lo que hace que un carrusel se sienta básico 
 
 CÓMO SE LOGRA EL IMPACTO (aplicá TODAS en cada carrusel):
 1. ESPECIFICIDAD BRUTAL: números, plazos, cantidades, mini-ejemplos concretos. "3 reels guionados por semana durante 90 días", no "sé constante". "Respondé los primeros 20 comentarios en 30 minutos", no "interactúa".
-2. MECANISMO, NO MORALINA: explicá el PORQUÉ oculto que casi nadie conoce ("Instagram re-muestra tu carrusel con la slide 2 a quien lo ignoró → tenés DOS portadas, no una").
+2. MECANISMO, NO MORALINA: explicá el PORQUÉ oculto que casi nadie conoce ("Instagram re-muestra tu carrusel con la slide 2 a quien lo ignoró → tienes DOS portadas, no una").
 3. CONTRASTE: esto NO → esto SÍ. Error → corrección exacta. Antes → después. El cerebro guarda contrastes, no consejos.
 4. COSTO DE IGNORARLO: qué pierde el que no aplica el punto (meses, seguidores, plata). Que duela un poco.
 5. UNA OPINIÓN FUERTE por carrusel (mínimo): algo defendible que un "gurú" diría al revés. Genera comentarios.
@@ -65,7 +65,7 @@ CÓMO SE LOGRA EL IMPACTO (aplicá TODAS en cada carrusel):
 
 const FORMA_SLIDE = `{ "tipo": "hook" | "contenido" | "resumen" | "cta", "layout": "centrado" | "lista" | "stat" | "cita", "kicker": string, "titulo": string, "cuerpo": string, "pie": string, "stat": string }`;
 
-const SYSTEM_PROMPT = `Sos el mejor estratega de carruseles en español para Instagram y LinkedIn. Escribís como un creador que ya pasó por todo esto y tiene opiniones fuertes — NUNCA como un manual de marketing. Tu métrica es una sola: que el carrusel se GUARDE y se mande por DM.
+const SYSTEM_PROMPT = `Sos el mejor estratega de carruseles en español para Instagram y LinkedIn. Escribes como un creador que ya pasó por todo esto y tiene opiniones fuertes — NUNCA como un manual de marketing. Tu métrica es una sola: que el carrusel se GUARDE y se mande por DM.
 
 Sabés cómo funciona el algoritmo de carruseles:
 - Gana el tiempo de permanencia: cada slide deslizada es más watch-time. Cada slide tiene que EMPUJAR a la siguiente (bucles abiertos, "el 4 casi nadie lo hace").
@@ -124,7 +124,7 @@ const EXTRA_ADAPTAR = `
 
 MODO ADAPTAR — el usuario te pasa capturas de un carrusel AJENO que funcionó:
 1. Detectá su mecánica: tipo de gancho, estructura, ritmo, por qué retiene y por qué se guarda.
-2. Escribí un carrusel NUEVO y ORIGINAL para el nicho/tema del usuario aplicando esa mecánica. PROHIBIDO copiar o parafrasear frase por frase: cambiá ejemplos, ángulo y voz. Si la referencia está en otro idioma, tu resultado va en español.
+2. Escribe un carrusel NUEVO y ORIGINAL para el nicho/tema del usuario aplicando esa mecánica. PROHIBIDO copiar o parafrasear frase por frase: cambiá ejemplos, ángulo y voz. Si la referencia está en otro idioma, tu resultado va en español.
 3. Devolvé ADEMÁS el campo "temaExtraido" con el estilo Y EL DISEÑO de la referencia:
    ${TEMA_SPEC}
 4. Si las capturas NO parecen un carrusel (una pantalla entera de computadora, una foto suelta, un meme), NO te trabes ni devuelvas vacío: extraé el temaExtraido de los colores dominantes de la imagen y generá el carrusel completo usando la IDEA dada.`;
@@ -134,14 +134,14 @@ const EXTRA_DISENO = `
 MODO MI DISEÑO — las capturas son la PLANTILLA/diseño PROPIO del usuario:
 1. Devolvé el campo "temaExtraido" clavando la paleta EXACTA de las capturas (hex), la tipografía y el diseño:
    ${TEMA_SPEC}
-2. Escribí el carrusel sobre la IDEA dada, con longitudes de texto parecidas a las que se ven en el diseño (que el texto quepa cómodo en esa plantilla).
+2. Escribe el carrusel sobre la IDEA dada, con longitudes de texto parecidas a las que se ven en el diseño (que el texto quepa cómodo en esa plantilla).
 3. Si las capturas no se entienden, extraé el tema de los colores dominantes igual y generá el carrusel completo con la IDEA dada.`;
 
-const SYSTEM_SLIDE = `Sos un editor de slides de carruseles de Instagram. Te paso UNA slide, su contexto dentro del carrusel y una instrucción. Reescribí SOLO esa slide siguiendo la instrucción al pie de la letra, manteniendo su rol (hook/contenido/resumen/cta) y la coherencia con el resto.
+const SYSTEM_SLIDE = `Sos un editor de slides de carruseles de Instagram. Te paso UNA slide, su contexto dentro del carrusel y una instrucción. Reescribe SOLO esa slide siguiendo la instrucción al pie de la letra, manteniendo su rol (hook/contenido/resumen/cta) y la coherencia con el resto.
 
 ${REGLAS_COPY}
 
-Si la slide trae un campo "html" (modo fiel a una referencia): devolvé también "html" actualizado manteniendo EXACTAMENTE la misma estructura, estilos inline y data-rol — sólo cambian los textos según la instrucción (salvo que la instrucción pida un cambio visual: ahí ajustá los estilos inline respetando el lenguaje del diseño). Mismas reglas duras: sin <style>/<script>/class/id ni recursos externos.
+Si la slide trae un campo "html" (modo fiel a una referencia): devolvé también "html" actualizado manteniendo EXACTAMENTE la misma estructura, estilos inline y data-rol — sólo cambian los textos según la instrucción (salvo que la instrucción pida un cambio visual: ahí ajusta los estilos inline respetando el lenguaje del diseño). Mismas reglas duras: sin <style>/<script>/class/id ni recursos externos.
 
 Devolvé ÚNICAMENTE JSON válido con esta forma exacta: { "slide": ${FORMA_SLIDE.replace('"stat": string', '"stat": string, "html": string')} }`;
 
@@ -153,10 +153,10 @@ const SYSTEM_DIRECTOR = `Sos el DIRECTOR CREATIVO de carruseles de Instagram del
    - COPYS: ángulo, tono, tipo de gancho, estructura (nada genérico: números, contraste, opinión fuerte; prohibidas las palabras "real" y "reales").
    - DISEÑO: dirección de ARTE detallada y dibujable por un modelo de imagen — estilo (editorial/brutalista/colage/minimal/3D…), paleta con colores concretos, tipografía (serif/sans, peso), composición, recursos gráficos (texturas, formas, iconos, foto). Sé específico: esto se convierte en el prompt de la imagen. Si hay carrusel de referencia, ANCLÁ el diseño en él (sus colores y tipografía exactos) según el camino elegido: réplica tal cual, o superadora con las mejoras acordadas.
    - RECOMENDACIONES: 2-5 puntas accionables (portada, orden, CTA…).
-3. PLAN POR SLIDE: en cuanto la idea esté clara (o el usuario pida algo para slides puntuales — "en la 1 va mi foto", "la 3 que sea una lista"), incluí en el brief el campo "slides" con el plan COMPLETO de portada a cierre: qué dice cada una, qué se VE, y si lleva una foto del usuario. Si el usuario adjuntó FOTOS PROPIAS, proponé vos en qué slides rinden más (portada casi siempre) y marcalas con usaFoto.
+3. PLAN POR SLIDE: en cuanto la idea esté clara (o el usuario pida algo para slides puntuales — "en la 1 va mi foto", "la 3 que sea una lista"), incluí en el brief el campo "slides" con el plan COMPLETO de portada a cierre: qué dice cada una, qué se VE, y si lleva una foto del usuario. Si el usuario adjuntó FOTOS PROPIAS, propon vos en qué slides rinden más (portada casi siempre) y marcalas con usaFoto.
 4. PEDÍ feedback puntual (una o dos preguntas máximo) y AJUSTÁ el brief con cada respuesta. Cuando el usuario diga que está de acuerdo, confirmalo y decile que toque «Generar con este brief».
 
-Estilo del chat: español natural, directo, mensajes CORTOS (nada de muros de texto), podés usar emojis y saltos de línea. Sos un socio creativo con criterio, no un asistente complaciente: si algo del pedido es flojo, decilo y proponé mejor.
+Estilo del chat: español natural, directo, mensajes CORTOS (nada de muros de texto), puedes usar emojis y saltos de línea. Sos un socio creativo con criterio, no un asistente complaciente: si algo del pedido es flojo, decilo y propon mejor.
 
 Devolvé SIEMPRE JSON válido con esta forma exacta:
 {
@@ -416,7 +416,7 @@ async function inspeccionarInstagram(url: string): Promise<InfoPost> {
     const item = Array.isArray(data) ? data[0] : data;
     if (!res.ok || !item) return { tipo: 'error', error: 'No se pudo leer el post de Instagram. ¿Es público?' };
     if (/exceeded|quota|plan|limit/i.test(String(g(item, 'message') || ''))) {
-      return { tipo: 'error', error: 'Se agotó el cupo de lecturas de Instagram. Probá más tarde.' };
+      return { tipo: 'error', error: 'Se agotó el cupo de lecturas de Instagram. Prueba más tarde.' };
     }
 
     // Reel / video → lo transcribe el flujo de video (cliente → /api/transcribir).
@@ -550,7 +550,7 @@ export async function POST(req: NextRequest) {
     if (accion === 'slide') {
       const slide = sanitizeSlide(body.slide);
       const instruccion = String(body.instruccion || '').trim().slice(0, 500);
-      if (!instruccion) return Response.json({ error: 'Escribí qué querés cambiar de la slide.' }, { status: 400 });
+      if (!instruccion) return Response.json({ error: 'Escribe qué quieres cambiar de la slide.' }, { status: 400 });
       const ctx = (body.contexto ?? {}) as Record<string, unknown>;
       const titulos = Array.isArray(ctx.titulos) ? ctx.titulos.filter((t): t is string => typeof t === 'string').slice(0, 12) : [];
       const indice = typeof body.indice === 'number' ? body.indice : 0;
@@ -570,7 +570,7 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
       const out = await pedirJSON(SYSTEM_SLIDE, user);
       const nueva = sanitizeSlide(out.slide);
       if (!nueva.titulo && !nueva.cuerpo) {
-        return Response.json({ error: 'La IA no devolvió una slide usable. Probá otra instrucción.' }, { status: 502 });
+        return Response.json({ error: 'La IA no devolvió una slide usable. Prueba otra instrucción.' }, { status: 502 });
       }
       // El tipo de slide no cambia desde acá (el rol lo define su posición).
       nueva.tipo = slide.tipo;
@@ -612,7 +612,7 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
       ];
       const carrusel = await generarCarrusel(system, user);
       if (carrusel.slides.length < 2) {
-        return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Probá de nuevo.' }, { status: 502 });
+        return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Prueba de nuevo.' }, { status: 502 });
       }
       return Response.json(carrusel);
     }
@@ -691,7 +691,7 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
           };
         })
         .filter(m => m.texto);
-      if (!historial.length) return Response.json({ error: 'Escribí tu primer mensaje.' }, { status: 400 });
+      if (!historial.length) return Response.json({ error: 'Escribe tu primer mensaje.' }, { status: 400 });
 
       // Contexto opcional: FOTOS del usuario (van dentro del diseño), capturas de
       // estilo subidas, o un link de IG pegado en el chat.
@@ -731,14 +731,14 @@ Devolvé sólo el JSON con la slide reescrita.`.trim();
 
       const out = await completarJSON(mensajes);
       const respuesta = typeof out.respuesta === 'string' ? out.respuesta.slice(0, 4000) : '';
-      if (!respuesta) return Response.json({ error: 'El director no respondió. Probá de nuevo.' }, { status: 502 });
+      if (!respuesta) return Response.json({ error: 'El director no respondió. Prueba de nuevo.' }, { status: 502 });
       return Response.json({ respuesta, brief: sanitizeBrief(out.brief) ?? null });
     }
 
     // ── 'plan': lote / calendario de contenido ───────────────────────────────
     if (accion === 'plan') {
       const tema = String(body.tema || body.idea || '').trim().slice(0, 400);
-      if (!tema) return Response.json({ error: 'Escribí el tema o nicho del plan.' }, { status: 400 });
+      if (!tema) return Response.json({ error: 'Escribe el tema o nicho del plan.' }, { status: 400 });
       const cantidad = Math.min(Math.max(Number(body.cantidad) || 7, 3), 10);
       const nicho = String(body.nicho || '').trim().slice(0, 100);
 
@@ -759,7 +759,7 @@ Armá el plan. Devolvé sólo el JSON.`.trim();
           hook: typeof o.hook === 'string' ? o.hook.slice(0, 120) : '',
         };
       }).filter(b => b.idea);
-      if (!plan.length) return Response.json({ error: 'La IA no devolvió un plan usable. Probá reformular el tema.' }, { status: 502 });
+      if (!plan.length) return Response.json({ error: 'La IA no devolvió un plan usable. Prueba reformular el tema.' }, { status: 502 });
       return Response.json({ plan });
     }
 
@@ -779,7 +779,7 @@ Armá el plan. Devolvé sólo el JSON.`.trim();
     const conCapturas = inp.modo === 'adaptar' || inp.modo === 'diseno';
 
     if (!conCapturas && !inp.idea.trim() && !transcript?.trim() && !brief) {
-      return Response.json({ error: 'Escribí la idea o el tema del carrusel.' }, { status: 400 });
+      return Response.json({ error: 'Escribe la idea o el tema del carrusel.' }, { status: 400 });
     }
     if (conCapturas && !imagenes.length) {
       return Response.json({ error: 'Subí al menos una captura del carrusel de referencia.' }, { status: 400 });
@@ -796,7 +796,7 @@ Armá el plan. Devolvé sólo el JSON.`.trim();
     const carrusel = await generarCarrusel(system, user);
 
     if (carrusel.slides.length < 2) {
-      return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Probá con menos capturas o reformulá la idea.' }, { status: 502 });
+      return Response.json({ error: 'La IA no devolvió un carrusel usable (ya reintenté). Prueba con menos capturas o reformulá la idea.' }, { status: 502 });
     }
     // temaExtraido sólo tiene sentido en los modos con capturas.
     if (!conCapturas) delete carrusel.temaExtraido;

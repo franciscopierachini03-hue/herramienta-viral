@@ -52,9 +52,9 @@ export default function Aplicacion0a100k() {
         body: JSON.stringify(f),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(d.error || 'No se pudo enviar. Probá de nuevo.'); setEstado('form'); return; }
+      if (!r.ok) { setError(d.error || 'No se pudo enviar. Prueba de nuevo.'); setEstado('form'); return; }
       setEstado('listo');
-    } catch { setError('Error de conexión. Probá de nuevo.'); setEstado('form'); }
+    } catch { setError('Error de conexión. Prueba de nuevo.'); setEstado('form'); }
   }
 
   if (estado === 'listo') {
@@ -80,7 +80,7 @@ export default function Aplicacion0a100k() {
             De <span style={{ color: '#fca5a5' }}>0</span> a <span style={{ background: 'linear-gradient(90deg,#a78bfa,#ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>100K</span> 🚀
           </h1>
           <p className="text-sm leading-relaxed" style={{ color: '#b4b4c0' }}>
-            Contanos de tu negocio en 2 minutos. Con esta info vemos si podemos ayudarte a escalar — y <b style={{ color: '#fff' }}>te respondemos por WhatsApp</b>.
+            Cuéntanos de tu negocio en 2 minutos. Con esta info vemos si podemos ayudarte a escalar — y <b style={{ color: '#fff' }}>te respondemos por WhatsApp</b>.
           </p>
         </div>
 
@@ -100,31 +100,31 @@ export default function Aplicacion0a100k() {
           <Campo label="Tu Instagram (o tu red principal) *">
             <input style={inputStyle} required value={f.instagram || ''} onChange={e => set('instagram')(e.target.value)} placeholder="@tuusuario" />
           </Campo>
-          <Campo label="¿Cuántos seguidores tenés hoy? *">
-            <Select value={f.seguidores || ''} onChange={set('seguidores')} opciones={SEGUIDORES} placeholder="Elegí un rango" />
+          <Campo label="¿Cuántos seguidores tienes hoy? *">
+            <Select value={f.seguidores || ''} onChange={set('seguidores')} opciones={SEGUIDORES} placeholder="Elige un rango" />
           </Campo>
-          <Campo label="¿Qué vendés hoy? (tu oferta y su precio) *">
+          <Campo label="¿Qué vendes hoy? (tu oferta y su precio) *">
             <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} required minLength={10} value={f.oferta || ''} onChange={e => set('oferta')(e.target.value)}
               placeholder="Ej.: mentoría de 8 semanas para coaches, $997 USD…" />
           </Campo>
           <Campo label="¿Cuánto estás facturando por mes? *">
-            <Select value={f.facturacion || ''} onChange={set('facturacion')} opciones={FACTURACION} placeholder="Elegí un rango" />
+            <Select value={f.facturacion || ''} onChange={set('facturacion')} opciones={FACTURACION} placeholder="Elige un rango" />
           </Campo>
           <Campo label="¿Cuál es tu meta a 12 meses? *">
-            <Select value={f.meta || ''} onChange={set('meta')} opciones={META} placeholder="Elegí tu meta" />
+            <Select value={f.meta || ''} onChange={set('meta')} opciones={META} placeholder="Elige tu meta" />
           </Campo>
           <Campo label="¿Qué es lo que MÁS te está frenando hoy? *">
             <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} required minLength={10} value={f.freno || ''} onChange={e => set('freno')(e.target.value)}
               placeholder="Ej.: no sé qué publicar, no me llegan clientes, no tengo tiempo de editar…" />
           </Campo>
           <Campo label="¿Cada cuánto publicás contenido? *">
-            <Select value={f.frecuencia || ''} onChange={set('frecuencia')} opciones={FRECUENCIA} placeholder="Elegí una opción" />
+            <Select value={f.frecuencia || ''} onChange={set('frecuencia')} opciones={FRECUENCIA} placeholder="Elige una opción" />
           </Campo>
           <Campo label="¿Trabajás solo o con equipo? *">
-            <Select value={f.equipo || ''} onChange={set('equipo')} opciones={EQUIPO} placeholder="Elegí una opción" />
+            <Select value={f.equipo || ''} onChange={set('equipo')} opciones={EQUIPO} placeholder="Elige una opción" />
           </Campo>
           <Campo label="Si vemos que podemos ayudarte, ¿estás en un momento de invertir en tu negocio? *">
-            <Select value={f.inversion || ''} onChange={set('inversion')} opciones={INVERSION} placeholder="Elegí una opción" />
+            <Select value={f.inversion || ''} onChange={set('inversion')} opciones={INVERSION} placeholder="Elige una opción" />
           </Campo>
 
           {error && <p className="text-sm mb-3 font-bold" style={{ color: '#fca5a5' }}>{error}</p>}

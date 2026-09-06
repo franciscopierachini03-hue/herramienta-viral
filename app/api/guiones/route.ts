@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   // Cliente ideal guardado (ver /api/nicho) → el BODY y el CTA le hablan a ÉL.
   // Es el paso final del proceso: encontrás el viral del nicho grande y lo
-  // adaptás a quien de verdad le vendés. Si no lo definió, el guión sale igual.
+  // adaptás a quien de verdad le vendes. Si no lo definió, el guión sale igual.
   let clienteIdeal = '';
   try {
     const supabase = await createClient();

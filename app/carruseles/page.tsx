@@ -3,8 +3,8 @@
 // Carruseles — la máquina completa.
 //
 // 4 modos de entrada:
-//   💡 Idea         — escribís una idea y la IA arma el carrusel.
-//   📸 Adaptar viral — pegás capturas de un carrusel ajeno que funcionó; la IA
+//   💡 Idea         — escribes una idea y la IA arma el carrusel.
+//   📸 Adaptar viral — pegas capturas de un carrusel ajeno que funcionó; la IA
 //                      extrae su mecánica Y su estilo visual, y lo rehace para tu nicho.
 //   🖼️ Mi diseño     — subís TU plantilla; la IA clona su paleta y escribe encima.
 //   📅 Lote          — un tema → plan de N carruseles con ángulos distintos.
@@ -33,8 +33,8 @@ type ModoUI = 'director' | 'idea' | 'link' | 'adaptar' | 'diseno' | 'lote';
 
 const MODOS: { key: ModoUI; icon: string; label: string; desc: string }[] = [
   { key: 'director', icon: '💬', label: 'Director', desc: 'Charlá con tu director creativo: análisis + propuesta de copys y diseño. Cuando acuerdan, la IA de imagen dibuja cada slide.' },
-  { key: 'idea', icon: '💡', label: 'Idea', desc: 'Escribí una idea y la IA arma todo.' },
-  { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pegá un link: un video se transcribe; un carrusel de Instagram se adapta con sus imágenes.' },
+  { key: 'idea', icon: '💡', label: 'Idea', desc: 'Escribe una idea y la IA arma todo.' },
+  { key: 'link', icon: '🔗', label: 'De un link', desc: 'Pega un link: un video se transcribe; un carrusel de Instagram se adapta con sus imágenes.' },
   { key: 'adaptar', icon: '📸', label: 'Adaptar viral', desc: 'Capturas de un carrusel ajeno → lo rehace para tu nicho y clona su estilo.' },
   { key: 'diseno', icon: '🖼️', label: 'Mi diseño', desc: 'Subí tu plantilla → clona tu paleta y escribe el contenido encima.' },
   { key: 'lote', icon: '📅', label: 'Lote', desc: 'Un tema → plan de varios carruseles con ángulos distintos.' },
@@ -293,10 +293,10 @@ export default function CarruselesPage() {
     const laIdea = (ideaParam ?? idea).trim();
     const conCapturas = elModo === 'adaptar' || elModo === 'diseno';
 
-    if (esLink && !esLinkTranscribible(link)) { setError('Pegá un link de Instagram, TikTok, YouTube o Facebook.'); return; }
-    if (!esLink && !conCapturas && !laIdea) { setError('Escribí la idea o el tema del carrusel.'); return; }
-    if (conCapturas && imagenes.length === 0) { setError('Subí al menos una captura (arrastrá, pegá con ⌘V o tocá el recuadro).'); return; }
-    if (elModo === 'diseno' && !laIdea) { setError('Escribí la idea del carrusel (el diseño pone el estilo, la idea pone el contenido).'); return; }
+    if (esLink && !esLinkTranscribible(link)) { setError('Pega un link de Instagram, TikTok, YouTube o Facebook.'); return; }
+    if (!esLink && !conCapturas && !laIdea) { setError('Escribe la idea o el tema del carrusel.'); return; }
+    if (conCapturas && imagenes.length === 0) { setError('Subí al menos una captura (arrastrá, pega con ⌘V o toca el recuadro).'); return; }
+    if (elModo === 'diseno' && !laIdea) { setError('Escribe la idea del carrusel (el diseño pone el estilo, la idea pone el contenido).'); return; }
 
     setBusy(true); setError(''); setCarrusel(null); setActiva(0);
 
@@ -345,7 +345,7 @@ export default function CarruselesPage() {
         const dt: Record<string, unknown> = await rt.json().catch(() => ({}));
         const texto = typeof dt.texto === 'string' ? dt.texto : '';
         if (!rt.ok || !texto) {
-          setError(typeof dt.error === 'string' ? dt.error : 'No se pudo transcribir el video. Probá con otro link.');
+          setError(typeof dt.error === 'string' ? dt.error : 'No se pudo transcribir el video. Prueba con otro link.');
           setBusy(false); setFase(''); return;
         }
         transcript = texto;
@@ -381,7 +381,7 @@ export default function CarruselesPage() {
       if (!res.ok) {
         setError(typeof d.error === 'string' ? d.error
           : res.status === 413 ? 'Las capturas pesan demasiado (límite del servidor). Sacá alguna e intentá de nuevo.'
-          : `No se pudo generar (HTTP ${res.status}). Probá de nuevo.`);
+          : `No se pudo generar (HTTP ${res.status}). Prueba de nuevo.`);
       }
       else {
         const c = d as unknown as Carrusel;
@@ -389,13 +389,13 @@ export default function CarruselesPage() {
         // Modos con capturas: fase 2 — réplica fiel del diseño de la referencia.
         if (conCapturas && c.temaExtraido) void vestirCarrusel(c, { imagenes });
       }
-    } catch { setError('Error de conexión. Probá de nuevo.'); }
+    } catch { setError('Error de conexión. Prueba de nuevo.'); }
     setBusy(false); setFase('');
   }
 
   async function generarPlan() {
     if (planBusy) return;
-    if (!idea.trim()) { setError('Escribí el tema o nicho del plan.'); return; }
+    if (!idea.trim()) { setError('Escribe el tema o nicho del plan.'); return; }
     setPlanBusy(true); setError(''); setPlan([]);
     try {
       const res = await fetch('/api/carruseles', {
@@ -405,7 +405,7 @@ export default function CarruselesPage() {
       const d = await res.json();
       if (!res.ok) setError(d.error || 'No se pudo armar el plan.');
       else setPlan((d.plan as BriefLote[]) || []);
-    } catch { setError('Error de conexión. Probá de nuevo.'); }
+    } catch { setError('Error de conexión. Prueba de nuevo.'); }
     setPlanBusy(false);
   }
 
@@ -431,7 +431,7 @@ export default function CarruselesPage() {
         }),
       });
       const d: Record<string, unknown> = await res.json().catch(() => ({}));
-      if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'El director no respondió. Probá de nuevo.');
+      if (!res.ok) setError(typeof d.error === 'string' ? d.error : 'El director no respondió. Prueba de nuevo.');
       else {
         setChat([...nuevo, { rol: 'ia', texto: String(d.respuesta || '') }]);
         if (d.brief) setBrief(d.brief as BriefCreativo);
@@ -519,7 +519,7 @@ export default function CarruselesPage() {
     setImgProgreso(c.slides.map(() => 'pend'));
     const okPortada = await dibujarSlide(c.slides[0], 0, c.slides.length, brief);
     setGenerandoArte(false);
-    if (!okPortada) setError('No se pudo dibujar la portada. Tocá «🎨 Redibujar esta slide» para reintentar.');
+    if (!okPortada) setError('No se pudo dibujar la portada. Toca «🎨 Redibujar esta slide» para reintentar.');
   }
 
   // Confirmaste la portada → se dibuja el resto en paralelo.
@@ -631,7 +631,7 @@ export default function CarruselesPage() {
   async function regenerarSlide() {
     if (!carrusel || !slideActiva || regenBusy) return;
     const inst = instruccion.trim();
-    if (!inst) { setError('Escribí qué cambiar (ej: "más agresivo, con un ejemplo de finanzas").'); return; }
+    if (!inst) { setError('Escribe qué cambiar (ej: "más agresivo, con un ejemplo de finanzas").'); return; }
     setRegenBusy(true); setError('');
     try {
       const res = await fetch('/api/carruseles', {
@@ -652,7 +652,7 @@ export default function CarruselesPage() {
         setCarrusel({ ...carrusel, slides: next });
         setInstruccion('');
       }
-    } catch { setError('Error de conexión. Probá de nuevo.'); }
+    } catch { setError('Error de conexión. Prueba de nuevo.'); }
     setRegenBusy(false);
   }
 
@@ -723,7 +723,7 @@ export default function CarruselesPage() {
       await capturar(node); // warm-up (la 1ª captura puede salir sin fuentes)
       const url = await capturar(node);
       descargar(url, `slide-${String(activa + 1).padStart(2, '0')}.png`);
-    } catch { setError('No se pudo exportar la slide. Probá de nuevo.'); }
+    } catch { setError('No se pudo exportar la slide. Prueba de nuevo.'); }
     setExportando(false);
   }
 
@@ -747,7 +747,7 @@ export default function CarruselesPage() {
       const url = URL.createObjectURL(blob);
       descargar(url, 'carrusel.zip');
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch { setError('No se pudo armar el .zip. Probá de nuevo.'); }
+    } catch { setError('No se pudo armar el .zip. Prueba de nuevo.'); }
     setExportando(false);
   }
 
@@ -826,7 +826,7 @@ export default function CarruselesPage() {
                     style={{ background: '#0a0a12', border: '1px solid #1d1d28', maxHeight: 340, minHeight: 150 }}>
                     {chat.length === 0 && (
                       <p className="text-xs leading-relaxed" style={{ color: '#6b6b78' }}>
-                        👋 Contale al director qué querés lograr: una idea, un link de Instagram
+                        👋 Contale al director qué quieres lograr: una idea, un link de Instagram
                         (pegalo acá mismo), referencias de estilo o TUS fotos (arriba). Podés pedir
                         cosas por slide: «en la portada va mi foto», «la 3 es una lista»… Te devuelve
                         análisis + propuesta con plan por slide, ajustan juntos, y recién ahí se genera.
@@ -882,7 +882,7 @@ export default function CarruselesPage() {
                           {brief.recomendaciones.map((r, i) => <li key={i}>• {r}</li>)}
                         </ul>
                       )}
-                      <p className="mt-1.5" style={{ color: '#5f8a7d' }}>¿Cambios? Pedíselos en el chat: el brief se actualiza solo.</p>
+                      <p className="mt-1.5" style={{ color: '#5f8a7d' }}>¿Cambios? Pideselos en el chat: el brief se actualiza solo.</p>
                     </div>
                   )}
 
@@ -918,7 +918,7 @@ export default function CarruselesPage() {
                   onAdd={files => void agregarImagenes(files)}
                   onRemove={i => setImagenes(prev => prev.filter((_, j) => j !== i))}
                   hint={modo === 'adaptar'
-                    ? 'Las slides del carrusel que querés adaptar (hasta 8, en orden)'
+                    ? 'Las slides del carrusel que quieres adaptar (hasta 8, en orden)'
                     : 'Capturas de TU plantilla o diseño (hasta 8)'}
                 />
               )}
@@ -983,7 +983,7 @@ export default function CarruselesPage() {
                   </button>
                   {avanzado && (
                     <label className="block mb-3">
-                      <span className="text-xs" style={{ color: '#8b8b96' }}>¿Qué querés que hagan al final?</span>
+                      <span className="text-xs" style={{ color: '#8b8b96' }}>¿Qué quieres que hagan al final?</span>
                       <input value={cta} onChange={e => setCta(e.target.value)} placeholder="Ej: que guarden y sigan la cuenta"
                         className={input + ' mt-1'} style={inputStyle} />
                     </label>
@@ -1015,7 +1015,7 @@ export default function CarruselesPage() {
             {modo === 'lote' && plan.length > 0 && (
               <div className="rounded-3xl p-6" style={card}>
                 <h2 className="text-lg font-bold mb-1">Tu plan ({plan.length})</h2>
-                <p className="text-sm mb-3" style={{ color: '#9a9aa6' }}>Cada uno con un ángulo distinto. Tocá <b>Generar</b> y se arma completo.</p>
+                <p className="text-sm mb-3" style={{ color: '#9a9aa6' }}>Cada uno con un ángulo distinto. Toca <b>Generar</b> y se arma completo.</p>
                 <div className="flex flex-col gap-2">
                   {plan.map((b, i) => (
                     <div key={i} className="rounded-2xl p-3" style={{ background: '#0e1a17', border: '1px solid #1d3b34' }}>
@@ -1039,7 +1039,7 @@ export default function CarruselesPage() {
             {/* 2 · Estilo */}
             <div className="rounded-3xl p-6" style={card}>
               <h2 className="text-lg font-bold mb-1">2 · Estilo</h2>
-              <p className="text-sm mb-3" style={{ color: '#9a9aa6' }}>Elegí una plantilla y aplicá tu marca encima.</p>
+              <p className="text-sm mb-3" style={{ color: '#9a9aa6' }}>Elige una plantilla y aplicá tu marca encima.</p>
 
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {temaClonado && (
@@ -1117,7 +1117,7 @@ export default function CarruselesPage() {
               <div className="flex flex-col items-center justify-center text-center py-20" style={{ color: '#6b6b78' }}>
                 <div className="text-5xl mb-4">🎠</div>
                 <p className="text-sm max-w-xs">
-                  Tu carrusel va a aparecer acá. Elegí un punto de partida a la izquierda
+                  Tu carrusel va a aparecer acá. Elige un punto de partida a la izquierda
                   {modo === 'lote' ? ' y generá el plan.' : ' y dale a Generar.'}
                 </p>
               </div>
@@ -1149,7 +1149,7 @@ export default function CarruselesPage() {
 
                   {vistiendo && (
                     <p className="text-[11px] text-center mt-2 animate-pulse" style={{ color: '#7fd9c4' }}>
-                      👔 Clonando el diseño tal cual la referencia… (~20s, podés ir editando)
+                      👔 Clonando el diseño tal cual la referencia… (~20s, puedes ir editando)
                     </p>
                   )}
                   {generandoArte && (
@@ -1159,7 +1159,7 @@ export default function CarruselesPage() {
                   )}
                   {!generandoArte && imgProgreso.includes('err') && (
                     <p className="text-[11px] text-center mt-2" style={{ color: '#fbbf24' }}>
-                      ⚠️ {imgProgreso.filter(v => v === 'err').length} slide(s) no se pudieron dibujar — abrilas y tocá «Redibujar».
+                      ⚠️ {imgProgreso.filter(v => v === 'err').length} slide(s) no se pudieron dibujar — abrilas y toca «Redibujar».
                     </p>
                   )}
 
@@ -1168,7 +1168,7 @@ export default function CarruselesPage() {
                     <div className="mt-3 rounded-2xl px-3 py-2.5" style={{ background: '#1a1408', border: '1px solid #a1620a55' }}>
                       <p className="text-[11px] mb-2" style={{ color: '#fbbf24' }}>
                         🖼 <b>Portada lista.</b> Si te gusta el estilo, dibujamos el resto. Si no,
-                        pedile cambios al director o tocá «Redibujar» — gratis hasta que confirmes.
+                        pedile cambios al director o toca «Redibujar» — gratis hasta que confirmes.
                       </p>
                       <button onClick={() => void dibujarRestantes()}
                         className="w-full py-2 rounded-xl text-xs font-bold"
@@ -1230,7 +1230,7 @@ export default function CarruselesPage() {
                     {modoImagen && (
                       <div className="mt-2">
                         <p className="text-[11px] rounded-lg px-2.5 py-1.5 mb-2" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#8fd0bd' }}>
-                          🎨 Slide dibujada por IA: editá los textos, escribí un ajuste (opcional) y tocá
+                          🎨 Slide dibujada por IA: editá los textos, escribe un ajuste (opcional) y toca
                           <b> Redibujar</b> para regenerarla con el mismo estilo del brief.
                         </p>
                         <div className="flex gap-1.5 flex-wrap">
@@ -1252,7 +1252,7 @@ export default function CarruselesPage() {
                     {!modoImagen && modoFiel && (
                       <p className="text-[11px] mt-2 rounded-lg px-2.5 py-1.5" style={{ background: '#0e1a17', border: '1px solid #1d3b34', color: '#8fd0bd' }}>
                         🎯 Modo fiel al original: editás los textos y el diseño clonado se mantiene tal cual.
-                        Elegí otra plantilla en «2 · Estilo» para re-vestirlo (y volver a layouts y fondos).
+                        Elige otra plantilla en «2 · Estilo» para re-vestirlo (y volver a layouts y fondos).
                       </p>
                     )}
 
@@ -1350,7 +1350,7 @@ export default function CarruselesPage() {
                   {/* Ganchos alternativos */}
                   {carrusel.hooksAlternativos?.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-bold mb-2" style={{ color: '#d4d4dc' }}>🎣 Probá otra portada <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(toca para usar)</span></h3>
+                      <h3 className="text-sm font-bold mb-2" style={{ color: '#d4d4dc' }}>🎣 Prueba otra portada <span className="text-xs font-normal" style={{ color: '#8b8b96' }}>(toca para usar)</span></h3>
                       <div className="flex flex-col gap-1.5">
                         {carrusel.hooksAlternativos.map((h, i) => (
                           <button key={i} onClick={() => usarHook(h)}
@@ -1414,7 +1414,7 @@ function Dropzone({ imagenes, onAdd, onRemove, hint }: {
         className="rounded-2xl p-4 text-center cursor-pointer transition-all"
         style={{ border: '2px dashed #2a4a40', background: '#0c1512', color: '#7fd9c4' }}>
         <div className="text-2xl mb-1">📸</div>
-        <p className="text-xs font-bold">Arrastrá, pegá (⌘V) o tocá para subir</p>
+        <p className="text-xs font-bold">Arrastrá, pega (⌘V) o toca para subir</p>
         <p className="text-[11px] mt-0.5" style={{ color: '#5f8a7d' }}>{hint}</p>
       </div>
       <input ref={inputRef} type="file" accept="image/*" multiple hidden

@@ -17,7 +17,7 @@ type Msg = { role: 'user' | 'assistant'; content: string };
 export async function POST(req: NextRequest) {
   // Anti-abuso: 20 mensajes por minuto por IP.
   const rl = rateLimit(`ayuda-chat:${clientIp(req)}`, 20, 60_000);
-  if (!rl.ok) return Response.json({ error: `Demasiadas consultas. Probá de nuevo en ${rl.retryAfter}s.` }, { status: 429 });
+  if (!rl.ok) return Response.json({ error: `Demasiadas consultas. Prueba de nuevo en ${rl.retryAfter}s.` }, { status: 429 });
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {

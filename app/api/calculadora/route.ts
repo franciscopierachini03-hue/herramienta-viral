@@ -56,7 +56,7 @@ Y aparte:
                listas para decir en voz alta.
 
 ESPAÑOL NEUTRO LATINOAMERICANO. Usa "tú", nunca "vos". Nada de voseo
-("tenés", "querés", "podés", "mirá") ni modismos de un solo país.
+("tienes", "quieres", "puedes", "mira") ni modismos de un solo país.
 Nunca uses las palabras "real" ni "reales".
 
 Responde SOLO en JSON con esta forma:

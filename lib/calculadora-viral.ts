@@ -137,7 +137,7 @@ const PRESENTARSE = /^[^.!?]{0,80}\b(hola|qué tal|que tal|bienvenid\w+|mi nombr
 // "Observa, decepciónate y aléjate" le habla a alguien tanto como "tú puedes".
 // Sin los verbos, un viral de 7M perdía este punto de gratis.
 const SEGUNDA = /\b(tú|tu|te|tus|ti|contigo|tienes|puedes|quieres|sabes|piensas|crees|haces|estás|eres|tienen)\b/i;
-const IMPERATIVO = /\b(observa|mira|escucha|deja|dejá|haz|piensa|imagina|recuerda|anota|guarda|prueba|empieza|para|detente|aléjate|alejate|olvida|fíjate|fijate|no (reclames|reclamen|hagas|esperes|creas|pierdas)|decepci[oó]nate)\b/i;
+const IMPERATIVO = /\b(observa|mira|escucha|deja|dejá|haz|piensa|imagina|recuerda|anota|guarda|prueba|empieza|para|detente|aléjate|alejate|olvida|fíjate|fíjate|no (reclames|reclamen|hagas|esperes|creas|pierdas)|decepci[oó]nate)\b/i;
 
 // ¿Abre con la voz de otro, una pregunta o un diálogo?
 function abreConOtro(t: string): boolean {

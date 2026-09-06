@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 // solo el plan mensual $47 — el único precio creado en la cuenta Elevation.
 // PRUEBA GRATIS de 7 días: tarjeta hoy, paga $0, y al día 8 Stripe cobra sola.
 // Cobra la cuenta ELEVATION (no la principal). Cada venta queda etiquetada con
-// el canal (el de la ruta, o ?canal= si viene) → en Stripe sabés de qué
+// el canal (el de la ruta, o ?canal= si viene) → en Stripe sabes de qué
 // comunidad vino.
 //
 // Sin useSearchParams a propósito: el canal se lee al hacer clic → la página

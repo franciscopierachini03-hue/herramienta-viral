@@ -1,8 +1,8 @@
 'use client';
 
-// Teleprompter — pegás tu guion y la letra baja sola mientras hablás a cámara.
+// Teleprompter — pegas tu guion y la letra baja sola mientras hablás a cámara.
 // Todo pasa en TU navegador: no hay API ni costo. Controlás tamaño y velocidad
-// en vivo, podés espejar el texto (para vidrio/beam-splitter) y ponerlo a
+// en vivo, puedes espejar el texto (para vidrio/beam-splitter) y ponerlo a
 // pantalla completa. Guion y ajustes quedan guardados en este equipo.
 // Hub & spoke: el header ProductNav vuelve al Home para cambiar de herramienta.
 
@@ -20,7 +20,7 @@ const EJEMPLO = `Hola, hoy te voy a contar las 3 cosas que cambiaron mi forma de
 
 La primera: dejá de improvisar. Un guion claro te hace sonar seguro y te ahorra mil tomas.
 
-La segunda: mirá al lente, no a la pantalla. La conexión se siente del otro lado.
+La segunda: mira al lente, no a la pantalla. La conexión se siente del otro lado.
 
 Y la tercera: practicá el primer segundo como si fuera el único. Ese gancho decide si te ven o te saltan.
 
@@ -199,7 +199,7 @@ export default function TeleprompterPage() {
       setCamError(
         name === 'NotAllowedError' ? 'Diste que no al permiso. Activá la cámara desde el candado 🔒 de la barra del navegador.'
           : name === 'NotFoundError' || name === 'OverconstrainedError' ? 'No encontramos una cámara en este equipo.'
-            : 'No se pudo abrir la cámara. Probá de nuevo.',
+            : 'No se pudo abrir la cámara. Prueba de nuevo.',
       );
     } finally { setPidiendo(false); }
   }
@@ -278,9 +278,9 @@ export default function TeleprompterPage() {
         const d = await res.json();
         const gs = (d.guiones || []) as typeof bibGuiones;
         setBibGuiones(gs);
-        if (!gs.length) setBibError('Todavía no tenés guiones guardados en ViralADN.');
+        if (!gs.length) setBibError('Todavía no tienes guiones guardados en ViralADN.');
       }
-    } catch { setBibError('No se pudieron cargar tus guiones. Probá de nuevo.'); }
+    } catch { setBibError('No se pudieron cargar tus guiones. Prueba de nuevo.'); }
     setBibCargando(false);
   }
 
@@ -313,9 +313,9 @@ export default function TeleprompterPage() {
         <ProductNav active="teleprompter" />
 
         <div className="rounded-2xl px-5 py-3 mb-6 text-sm" style={{ ...PANEL, color: '#b4b4c0' }}>
-          🎬 <b>Teleprompter</b> — pegá tu guion, dale <b>play</b> y la letra baja sola mientras hablás a cámara.
-          Ajustá <b>tamaño</b> y <b>velocidad</b> en vivo, espejá el texto si usás vidrio y poné <b>pantalla completa</b>.
-          También podés <b>📷 usar la cámara</b>: te ves a vos con el texto bajando en el centro y grabás ahí mismo.
+          🎬 <b>Teleprompter</b> — pega tu guion, dale <b>play</b> y la letra baja sola mientras hablás a cámara.
+          Ajusta <b>tamaño</b> y <b>velocidad</b> en vivo, espejá el texto si usás vidrio y pon <b>pantalla completa</b>.
+          También puedes <b>📷 usar la cámara</b>: te ves a vos con el texto bajando en el centro y grabás ahí mismo.
           <span style={{ color: '#71717a' }}> (barra espaciadora = play/pausa · ↑/↓ = velocidad)</span>
         </div>
 
@@ -338,7 +338,7 @@ export default function TeleprompterPage() {
               <textarea
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
-                placeholder="Pegá acá tu guion…"
+                placeholder="Pega acá tu guion…"
                 spellCheck={false}
                 className="w-full resize-y rounded-xl px-4 py-3 text-sm outline-none"
                 style={{ minHeight: 150, background: '#08080f', border: '1px solid #1f1f2b', color: '#e7e7ee', lineHeight: 1.6 }}
@@ -454,7 +454,7 @@ export default function TeleprompterPage() {
                   color: '#fff', whiteSpace: 'pre-wrap', letterSpacing: '0.3px',
                   textShadow: camara ? '0 2px 12px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.85)' : 'none',
                 }}>
-                {texto.trim() ? texto : 'Pegá tu guion arriba y dale play ▶'}
+                {texto.trim() ? texto : 'Pega tu guion arriba y dale play ▶'}
               </div>
             </div>
           </div>
@@ -517,7 +517,7 @@ export default function TeleprompterPage() {
               <div className="flex items-start justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid #1b1b27' }}>
                 <div>
                   <p className="text-sm font-bold">📚 Importar mis guiones</p>
-                  <p className="text-xs" style={{ color: '#71717a' }}>Elegí uno o varios y se cargan al teleprompter, listos para leer.</p>
+                  <p className="text-xs" style={{ color: '#71717a' }}>Elige uno o varios y se cargan al teleprompter, listos para leer.</p>
                 </div>
                 <button onClick={() => setImporterOpen(false)} className="text-2xl leading-none px-1" style={{ color: '#8b8b96' }}>×</button>
               </div>

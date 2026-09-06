@@ -75,7 +75,7 @@ export async function getCredits(email: string, grant: number): Promise<CreditSt
 }
 
 // Descuenta n créditos si alcanza. Read-modify-write: suficiente para v1 (el
-// peor caso de una carrera es cobrar de más una sola vez). Si querés exactitud
+// peor caso de una carrera es cobrar de más una sola vez). Si quieres exactitud
 // estricta, mové esto a una función SQL `spend_credits` con UPDATE ... RETURNING.
 export async function spendCredits(
   email: string, n: number, grant: number,

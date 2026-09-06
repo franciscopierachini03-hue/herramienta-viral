@@ -12,7 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 //
 // Corre a diario desde /api/cron/daily.
 //   ?dry=1  → solo lista a quién le escribiría, sin enviar
-//   ?force=1 → ignora el "ya le escribí hoy"
+//   ?force=1 → ignora el "ya le escribe hoy"
 // Auth: Vercel Cron (CRON_SECRET / user-agent) o admin logueado.
 
 export const dynamic = 'force-dynamic';
@@ -96,11 +96,11 @@ function correo(nombre: string, monto: number): { subject: string; html: string 
     </td></tr></table>
 
   <p style="margin:0 0 18px;font-size:13px;color:#8b8b96;text-align:center;">
-    Entrás a tu cuenta y tocás “Gestionar mi suscripción”. ${monto ? `Son $${monto.toFixed(0)} del mes.` : ''}
+    Entrás a tu cuenta y tocas “Gestionar mi suscripción”. ${monto ? `Son $${monto.toFixed(0)} del mes.` : ''}
   </p>
 
   <p style="margin:0;font-size:14px;line-height:1.7;color:#8b8b96;">
-    Si preferís cancelar, también podés hacerlo desde ahí y no te cobramos más — pero avisame por acá si hubo algo que no te gustó, me sirve para mejorar.<br><br>
+    Si preferís cancelar, también puedes hacerlo desde ahí y no te cobramos más — pero avísame por acá si hubo algo que no te gustó, me sirve para mejorar.<br><br>
     <b style="color:#c8c8d4;">Francisco</b>
   </p>
 </td></tr></table>

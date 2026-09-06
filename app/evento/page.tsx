@@ -13,7 +13,7 @@ const HORARIOS: { z: string; h: string; p: string }[] = [
   { z: '🇦🇷🇧🇷', h: '1:00 PM', p: 'Argentina / Brasil' },
 ];
 
-// TESTIMONIOS — pegá las URLs cuando las tengas (vacío = muestra placeholder):
+// TESTIMONIOS — pega las URLs cuando las tengas (vacío = muestra placeholder):
 // Servido desde Supabase Storage (los .mp4 de public/ están gitignoreados).
 const TESTIMONIAL_VIDEO_URL = 'https://hkvzmtvifywmqfmjkeeq.supabase.co/storage/v1/object/public/media/testimonio-franc.mp4';
 // Imagen de crecimiento de Spencer Hoffmann (creador del método): antes/después.

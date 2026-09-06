@@ -8,6 +8,44 @@
 
 import { createClient } from '@/lib/supabase/server';
 
+// ⚠️ Groq retira modelos sin avisar. En sep-2026 'llama-3.3-70b-versatile'
+// devolvió 404 ("does not exist") y el chat de palabras clave se cayó en
+// silencio: la persona solo veía "no pude generar". Configurable por env para
+// poder cambiarlo desde Vercel sin desplegar.
+const GROQ_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+
+// Groq primero (es rápido y barato). Si el modelo ya no existe o Groq falla,
+// cae a OpenAI en vez de dejar a la persona con "no pude generar". Esto pasó
+// de verdad: Groq retiró llama-3.3 y la función quedó muerta sin que nadie se
+// enterara, porque el error se tragaba en un catch.
+async function chatIA(body: Record<string, unknown>): Promise<string | null> {
+  const groq = process.env.GROQ_API_KEY;
+  if (groq) {
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groq}` },
+        body: JSON.stringify({ ...body, model: GROQ_MODEL }),
+      });
+      if (r.ok) return (await r.json())?.choices?.[0]?.message?.content ?? null;
+      console.error('[ideas] groq', r.status, (await r.text().catch(() => '')).slice(0, 160));
+    } catch (e) { console.error('[ideas] groq', (e as Error).message.slice(0, 120)); }
+  }
+  const oa = process.env.OPENAI_API_KEY;
+  if (!oa) return null;
+  try {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${oa}` },
+      body: JSON.stringify({ ...body, model: process.env.IDEAS_MODEL || 'gpt-4o-mini' }),
+    });
+    if (!r.ok) { console.error('[ideas] openai', r.status); return null; }
+    console.log('[ideas] respondió el respaldo de OpenAI');
+    return (await r.json())?.choices?.[0]?.message?.content ?? null;
+  } catch (e) { console.error('[ideas] openai', (e as Error).message.slice(0, 120)); return null; }
+}
+
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +71,8 @@ Devolvés SIEMPRE este JSON exacto, sin texto fuera del JSON:
 {"reply":"lo que le decís","propuesta":"la frase del cliente ideal o null"}
 
 Cómo trabajás:
-- Si te falta información clave (qué vende u ofrece, qué resultado logra la gente con eso, a quién se lo vende), poné "propuesta": null y en "reply" hacé UNA sola pregunta corta y concreta. Nunca cuestionarios largos ni varias preguntas juntas.
-- Apenas tengas lo suficiente (con el rubro y el resultado ya alcanza), poné en "propuesta" UNA frase con esta forma: QUIÉN es + QUÉ quiere lograr + en qué situación está. Ejemplo: "Coaches y consultores con una oferta validada que quieren escalar sus ventas convirtiendo su conocimiento en contenido".
+- Si te falta información clave (qué vende u ofrece, qué resultado logra la gente con eso, a quién se lo vende), pon "propuesta": null y en "reply" hacé UNA sola pregunta corta y concreta. Nunca cuestionarios largos ni varias preguntas juntas.
+- Apenas tengas lo suficiente (con el rubro y el resultado ya alcanza), pon en "propuesta" UNA frase con esta forma: QUIÉN es + QUÉ quiere lograr + en qué situación está. Ejemplo: "Coaches y consultores con una oferta validada que quieren escalar sus ventas convirtiendo su conocimiento en contenido".
 - En "reply" presentás esa propuesta en 1 frase amable e invitás a usarla o ajustarla.
 - No inventes datos del negocio de la persona: si no te los dijo, preguntá.`;
 
@@ -69,25 +107,20 @@ export async function POST(req: Request) {
       .filter((m): m is Turno => !!m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
       .map(m => ({ role: m.role, content: m.content.slice(0, 1200) }))
       .slice(-12);
-    if (!turnos.length) return Response.json({ error: 'Contame algo de tu negocio' }, { status: 400 });
+    if (!turnos.length) return Response.json({ error: 'Cuéntame algo de tu negocio' }, { status: 400 });
     try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile', temperature: 0.5, max_tokens: 400,
-          response_format: { type: 'json_object' },
-          messages: [{ role: 'system', content: SYSTEM_DEFINIR }, ...turnos],
-        }),
+      const contenido = await chatIA({
+        temperature: 0.5, max_tokens: 400,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'system', content: SYSTEM_DEFINIR }, ...turnos],
       });
-      if (!r.ok) return Response.json({ error: 'La IA no respondió' }, { status: 502 });
-      const d = await r.json();
+      if (!contenido) return Response.json({ error: 'La IA no respondió' }, { status: 502 });
       let p: { reply?: string; propuesta?: unknown } = {};
-      try { p = JSON.parse(d?.choices?.[0]?.message?.content || '{}'); } catch { p = {}; }
+      try { p = JSON.parse(contenido); } catch { p = {}; }
       const propuesta = typeof p.propuesta === 'string' && p.propuesta.trim().length > 10
         ? p.propuesta.trim().slice(0, 600) : null;
       return Response.json({
-        reply: (typeof p.reply === 'string' && p.reply.trim()) ? p.reply.trim() : '¿Qué vendés o qué resultado le das a la gente?',
+        reply: (typeof p.reply === 'string' && p.reply.trim()) ? p.reply.trim() : '¿Qué vendes o qué resultado le das a la gente?',
         propuesta,
       });
     } catch {
@@ -101,23 +134,16 @@ export async function POST(req: Request) {
   if (!clienteIdeal) return Response.json({ error: 'Falta el cliente ideal' }, { status: 400 });
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.7,
-        max_tokens: 500,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: buildUserPrompt(clienteIdeal, exclude, extra) },
-        ],
-      }),
-    });
-    if (!res.ok) return Response.json({ error: 'La IA no respondió' }, { status: 502 });
-    const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content || '{}';
+    const raw = await chatIA({
+      temperature: 0.7,
+      max_tokens: 500,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: buildUserPrompt(clienteIdeal, exclude, extra) },
+      ],
+    }) || '{}';
+    if (raw === '{}') return Response.json({ error: 'La IA no respondió' }, { status: 502 });
     let parsed: { reply?: string; terms?: unknown };
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 

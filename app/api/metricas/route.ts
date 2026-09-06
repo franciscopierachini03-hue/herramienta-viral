@@ -49,7 +49,7 @@ PASO 5 — ACCIONES: 3 a 5, concretas y aplicables al próximo video, cada una a
 PASO 6 — GANCHO: uno listo para grabar (1-2 frases) que ataque el problema principal.
 
 ESPAÑOL NEUTRO LATINOAMERICANO — lo más importante. Usa "tú", nunca "vos".
-Nada de voseo ("tenés", "querés", "podés", "mirá") ni modismos de un solo país.
+Nada de voseo ("tienes", "quieres", "puedes", "mira") ni modismos de un solo país.
 Tiene que sonar natural en México, Colombia, Perú, Chile y Argentina por igual.
 Directo, sin humo. Nada de "es importante que…".
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Esta herramienta viene con tu plan de ViralADN.' }, { status: 403 });
   }
   if (!rateLimit(`metricas:${email}`, 20, 60 * 60 * 1000)) {
-    return Response.json({ error: 'Llegaste al límite por hora. Probá más tarde.' }, { status: 429 });
+    return Response.json({ error: 'Llegaste al límite por hora. Prueba más tarde.' }, { status: 429 });
   }
 
   const key = process.env.OPENAI_API_KEY;
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (!imagenes.length) return Response.json({ error: 'Subí al menos una captura de tus estadísticas.' }, { status: 400 });
   for (const img of imagenes) {
     const b64 = img.split(',')[1] || '';
-    if (b64.length * 0.75 > MAX_BYTES) return Response.json({ error: 'La imagen pesa demasiado. Probá con una captura más chica.' }, { status: 413 });
+    if (b64.length * 0.75 > MAX_BYTES) return Response.json({ error: 'La imagen pesa demasiado. Prueba con una captura más chica.' }, { status: 413 });
   }
 
   // Su cliente ideal (definido una vez en ViralADN) → el análisis le habla a ESA persona.
@@ -122,13 +122,13 @@ export async function POST(req: NextRequest) {
     if (!r.ok) {
       const t = await r.text().catch(() => '');
       console.error('[metricas] openai', r.status, t.slice(0, 200));
-      return Response.json({ error: 'No pudimos analizar la captura. Probá de nuevo.' }, { status: 502 });
+      return Response.json({ error: 'No pudimos analizar la captura. Prueba de nuevo.' }, { status: 502 });
     }
     const d = await r.json();
     const out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
     return Response.json({ ...out, conClienteIdeal: !!clienteIdeal });
   } catch (e) {
     console.error('[metricas]', (e as Error).message.slice(0, 150));
-    return Response.json({ error: 'Error al analizar. Probá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'Error al analizar. Prueba de nuevo.' }, { status: 502 });
   }
 }

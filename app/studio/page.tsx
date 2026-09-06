@@ -173,7 +173,7 @@ export default function StudioPage() {
   async function hablar() {
     if (!clonVideo) { setError('Primero subí tu video base (paso 1).'); return; }
     if (!vozTiene) { setError('Primero cloná tu voz (paso 2).'); return; }
-    if (!guion.trim()) { setError('Escribí lo que tu clon va a decir.'); return; }
+    if (!guion.trim()) { setError('Escribe lo que tu clon va a decir.'); return; }
     if (busyTalk) return;
     setBusyTalk(true); setError(''); setNoteTalk('Generando la voz y sincronizando los labios… (1-3 min, no cierres la página)'); setTalkVideo(null);
     try {
@@ -234,7 +234,7 @@ export default function StudioPage() {
           </div>
         )}
 
-        <h1 className="text-2xl md:text-3xl font-extrabold mb-1">¿Qué querés que diga tu clon?</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold mb-1">¿Qué quieres que diga tu clon?</h1>
         <p className="text-sm mb-6" style={{ color: '#9a9aa6' }}>Subí un video tuyo una sola vez, cloná tu voz, y después cada guion sale con tu cara y tu voz — listo para reels.</p>
 
         <div className="grid lg:grid-cols-[minmax(0,340px)_1fr] gap-6 items-start">
@@ -338,7 +338,7 @@ export default function StudioPage() {
             {/* Guion */}
             <h2 className="text-base font-bold mb-2">3 · El guion</h2>
             <textarea value={guion} onChange={e => setGuion(e.target.value)} rows={6} maxLength={GUION_MAX}
-              placeholder="Escribí acá lo que tu clon va a decir a cámara…"
+              placeholder="Escribe acá lo que tu clon va a decir a cámara…"
               className="w-full px-4 py-3 rounded-2xl text-sm outline-none" style={input} />
             <div className="flex justify-between text-[11px] mt-1 mb-1" style={{ color: '#6b6b78' }}>
               <span>≈ {guionSeg}s de video</span>
@@ -359,7 +359,7 @@ export default function StudioPage() {
             <div className="text-[11px] mt-2 flex flex-col gap-0.5" style={{ color: '#6b6b78' }}>
               {!clonVideo && <span>· Subí tu video base (paso 1).</span>}
               {vozTiene === false && <span>· Cloná tu voz (paso 2).</span>}
-              {!guion.trim() && <span>· Escribí el guion (paso 3).</span>}
+              {!guion.trim() && <span>· Escribe el guion (paso 3).</span>}
             </div>
 
             {noteTalk && <p className="text-xs mt-3" style={{ color: '#fde68a' }}>{noteTalk}</p>}

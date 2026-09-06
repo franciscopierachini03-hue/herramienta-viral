@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const texto = String(body?.texto || '').trim();
-  if (!texto) return Response.json({ error: 'Escribí el guion que va a decir.' }, { status: 400 });
+  if (!texto) return Response.json({ error: 'Escribe el guion que va a decir.' }, { status: 400 });
   if (texto.length > 900) return Response.json({ error: 'El guion es muy largo para un clip — cortalo a ~900 caracteres.' }, { status: 400 });
 
   if (!process.env.ELEVENLABS_API_KEY) return Response.json({ error: 'Falta ELEVENLABS_API_KEY (voz).' }, { status: 503 });

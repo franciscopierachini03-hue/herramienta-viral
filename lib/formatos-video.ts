@@ -1,7 +1,7 @@
 // 🎬 FORMATOS DE VIDEO — el catálogo que usa /formatos.
 //
 // ── Por qué existe ─────────────────────────────────────────────────────────
-// El generador viejo (/guiones) escribía SIEMPRE lo mismo: un párrafo de
+// El generador viejo (/guiones) escribea SIEMPRE lo mismo: un párrafo de
 // talking head. Por eso el 84% de lo que la gente guarda en la plataforma es
 // talking head — es lo único que la herramienta les sabía dar.
 //

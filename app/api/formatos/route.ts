@@ -97,9 +97,9 @@ Reglas de la casa, sin excepción:
 - Ejemplos concretos con números y cosas que se ven. Nada abstracto.
 - Nunca uses las palabras "real" ni "reales".
 - ESPAÑOL NEUTRO LATINOAMERICANO. Es lo más importante de todo.
-  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tenés"),
-  "quieres" (no "querés"), "puedes" (no "podés"), "elige" (no "elegí"),
-  "mira" (no "mirá"), "cuéntame" (no "contame").
+  Usa "tú", nunca "vos". Nada de voseo: se dice "tienes" (no "tienes"),
+  "quieres" (no "quieres"), "puedes" (no "puedes"), "elige" (no "elige"),
+  "mira" (no "mira"), "cuéntame" (no "cuéntame").
   Tampoco modismos de un solo país: ni "che", ni "güey", ni "parcero",
   ni "tío", ni "chevere". Tiene que sonar natural en México, Colombia,
   Perú, Chile y Argentina por igual.`;
@@ -151,12 +151,12 @@ export async function POST(req: NextRequest) {
   const tema = String(body.tema || '').trim().slice(0, 400);
   if (!f) return Response.json({ error: 'Elige un formato.' }, { status: 400 });
   if (!e) return Response.json({ error: 'Elige una estructura.' }, { status: 400 });
-  if (!tema) return Response.json({ error: 'Contanos de qué va el video.' }, { status: 400 });
+  if (!tema) return Response.json({ error: 'Cuéntanos de qué va el video.' }, { status: 400 });
 
   const key = process.env.OPENAI_API_KEY;
   if (!key) return Response.json({ error: 'Falta configurar la IA.' }, { status: 503 });
   if (!rateLimit(`formatos:${email}`, 40, 60 * 60 * 1000)) {
-    return Response.json({ error: 'Llegaste al límite por hora. Probá más tarde.' }, { status: 429 });
+    return Response.json({ error: 'Llegaste al límite por hora. Prueba más tarde.' }, { status: 429 });
   }
 
   let cliente = '';
@@ -217,7 +217,7 @@ Responde en JSON con esta forma:
     });
     if (!r.ok) {
       console.error('[formatos] openai', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      return Response.json({ error: 'No pudimos escribirlo. Probá de nuevo.' }, { status: 502 });
+      return Response.json({ error: 'No pudimos escribirlo. Prueba de nuevo.' }, { status: 502 });
     }
     const d = await r.json();
     let out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
@@ -225,7 +225,7 @@ Responde en JSON con esta forma:
     // ── Se corrige solo ────────────────────────────────────────────────────
     // La mitad de FORMA se mide contando, no opinando: podemos verificar el
     // guion antes de mostrarlo y, si le falta algo, pedir UNA corrección con
-    // los fallos concretos. Es la diferencia entre "le pedí que cumpliera" y
+    // los fallos concretos. Es la diferencia entre "le pide que cumpliera" y
     // "verifiqué que cumple".
     if (!esGanchos) {
       let ch = medirForma(textoHablado(out));
@@ -268,6 +268,6 @@ Responde en JSON con esta forma:
     return Response.json({ ...out, formato: f.key, salida: f.salida, estructura: e.key });
   } catch (err) {
     console.error('[formatos]', (err as Error).message.slice(0, 150));
-    return Response.json({ error: 'Error al generar. Probá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'Error al generar. Prueba de nuevo.' }, { status: 502 });
   }
 }

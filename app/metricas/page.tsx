@@ -81,7 +81,7 @@ export default function Metricas() {
     for (const f of Array.from(files).slice(0, MAX_IMG - imgs.length)) {
       if (!f.type.startsWith('image/')) { setError('Solo imágenes (captura de pantalla).'); continue; }
       try { nuevas.push(await comprimirImagen(f)); }
-      catch { setError('No pudimos leer esa imagen. Probá con otra.'); }
+      catch { setError('No pudimos leer esa imagen. Prueba con otra.'); }
     }
     setImgs(p => [...p, ...nuevas].slice(0, MAX_IMG));
   }
@@ -97,7 +97,7 @@ export default function Metricas() {
       const d = await r.json();
       if (!r.ok) { setError(d.error || 'No se pudo analizar.'); return; }
       setRes(d);
-    } catch { setError('Error de conexión. Probá de nuevo.'); }
+    } catch { setError('Error de conexión. Prueba de nuevo.'); }
     finally { setCargando(false); }
   }
 
@@ -147,7 +147,7 @@ export default function Metricas() {
               </div>
 
               <p className="text-[13px] font-bold mb-2" style={{ color: '#c9c9d4' }}>
-                2️⃣ Contame del video <span style={{ color: '#8b8b96' }}>(opcional)</span>
+                2️⃣ Cuéntame del video <span style={{ color: '#8b8b96' }}>(opcional)</span>
               </p>
               <textarea value={contexto} onChange={e => setContexto(e.target.value)} maxLength={600}
                 placeholder="Ej.: era un reel de 30s sobre cómo cobrar más caro, empezaba con una pregunta…"

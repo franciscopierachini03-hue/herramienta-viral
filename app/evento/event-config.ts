@@ -2,7 +2,7 @@
 //  CONFIG DEL EVENTO — una sola fuente para la landing (/evento) y la
 //  página de gracias (/evento/gracias). Edita aquí fecha, título y enlaces.
 // ──────────────────────────────────────────────────────────────────────────
-export const EVENT_DATE = new Date('2026-07-17T10:00:00-06:00'); // ← fecha y hora del evento (10am CDMX)
+export const EVENT_DATE = new Date('2026-07-24T10:00:00-06:00'); // ← fecha y hora del evento (10am CDMX)
 export const EVENT_TZ_OFFSET = -6; // hora del evento en GMT-6 (Ciudad de México). Cambialo si tu evento es en otra zona.
 export const EVENT_TZ_LABEL = 'hora Ciudad de México'; // etiqueta que se muestra junto a la hora
 export const EVENT_TITLE = 'Cómo encontrar contenido viral y crear videos que explotan con inteligencia artificial';
@@ -14,7 +14,7 @@ export const TELEGRAM_URL = 'https://t.me/+69M7e37DIgEwYTEx';
 export const ZOOM_URL = 'https://us02web.zoom.us/j/82701665842?pwd=2MijtfGb0f5NjtB6HTwxL9TccJDxFH.1';
 
 // GRABACIÓN del evento (página /grabacion en evento.franpierachini.com):
-// pegá acá el link de YouTube (subilo como "Oculto"/unlisted) o Vimeo.
+// pega acá el link de YouTube (subilo como "Oculto"/unlisted) o Vimeo.
 // Vacío = la página muestra "estamos subiendo la grabación".
 export const RECORDING_URL = 'https://youtu.be/-aAkP2klTzc';
 

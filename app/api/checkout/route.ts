@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   // Página paralela (/unete): venta con PRUEBA GRATIS + etiqueta de comunidad.
   //   trial:true → 7 días gratis (tarjeta hoy, $0; Stripe cobra solo al día 8).
-  //   canal → va en metadata: sabés de qué comunidad vino cada venta.
+  //   canal → va en metadata: sabes de qué comunidad vino cada venta.
   const TRIAL_DAYS_PARALELO = 7;
   const canal = typeof body?.canal === 'string'
     ? body.canal.trim().toLowerCase().slice(0, 40).replace(/[^a-z0-9_-]/g, '')
