@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { transcribirAudio, resumenTraza, type Intento } from "@/lib/transcribir-audio";
 import { YoutubeTranscript } from 'youtube-transcript';
 import ytdl from '@distube/ytdl-core';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
@@ -141,11 +142,9 @@ function extractInstagramCode(url: string): string | null {
   return match ? match[1] : null;
 }
 
-// Límite de tamaño de archivo de Groq Whisper (~25MB). Un reel largo en 1080p
-// supera esto y Groq responde 413 → antes eso caía a los fallbacks y mostraba
-// "cuota agotada" (mensaje equivocado). Para evitarlo, cuando el post trae un
-// DASH manifest preferimos el STREAM DE AUDIO solo (≈1MB vs 25MB del video).
-const GROQ_MAX_BYTES = 24 * 1024 * 1024;
+// El tope de tamaño ahora lo aplica lib/transcribir-audio (MAX_BYTES). Igual
+// conviene mandarle el STREAM DE AUDIO del DASH (≈1MB) y no el video entero:
+// un reel largo en 1080p pasa los 24MB y no hay motor que lo acepte.
 
 // Extrae la URL del stream de audio de un manifest DASH (MPD XML) de Instagram.
 // El audio solo pesa una fracción del video → siempre entra en Groq.
@@ -157,46 +156,43 @@ function audioUrlFromDash(mpd: unknown): string | null {
   return m ? m[1].replace(/&amp;/g, '&') : null;
 }
 
-// ── Transcribir con Groq Whisper (18x más barato, mucho más rápido) ──────────
-async function transcribeWithGroq(audioUrl: string): Promise<string> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) throw new Error('Falta GROQ_API_KEY');
-
-  // Descargar el audio
-  const audioRes = await fetch(audioUrl);
-  if (!audioRes.ok) throw new Error('No se pudo descargar el audio del video');
-  const audioBuffer = await audioRes.arrayBuffer();
-  if (audioBuffer.byteLength > GROQ_MAX_BYTES) {
-    // El caller debería haber pasado el audio del DASH; si aún así es enorme,
-    // avisamos claro (no es cuota, es tamaño).
-    throw new Error(`archivo muy grande para Groq (${Math.round(audioBuffer.byteLength / 1024 / 1024)}MB)`);
-  }
-  const audioBlob   = new Blob([audioBuffer], { type: 'audio/mp4' });
-
-  // Enviar a Groq Whisper Large V3 (sin forzar idioma → auto-detecta)
-  const form = new FormData();
-  form.append('file', new File([audioBlob], 'audio.mp4', { type: 'audio/mp4' }));
-  form.append('model', 'whisper-large-v3');
-  form.append('response_format', 'json');
-  // No forzamos idioma para que Whisper auto-detecte inglés, español, etc.
-
-  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${groqKey}` },
-    body: form,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Groq error: ${err}`);
-  }
-
-  const data = await res.json();
-  return data.text || '';
+// ── Transcribir el audio ────────────────────────────────────────────────────
+// La cadena de motores vive en lib/transcribir-audio (Groq → OpenAI). Acá solo
+// le pasamos la traza del pedido, que es lo que queda escrito si algo falla.
+async function transcribir(audioUrl: string, traza: Intento[]): Promise<string> {
+  return transcribirAudio(audioUrl, traza);
 }
 
-export async function POST(req: NextRequest) {
-  const { url, platform } = await req.json();
+// Todo lo que hay que saber de UN pedido de transcripción. La traza se llena
+// sola dentro de lib/transcribir-audio y es lo único que sobrevive a un fallo:
+// los logs de Vercel se borran en una hora.
+type Ctx = { url: string; platform: string; email: string | null; traza: Intento[]; t0: number };
+
+// 📉 Un fallo que no queda escrito es un fallo que nadie va a arreglar.
+//
+// Va a su PROPIA tabla, no a transcription_log, por una razón concreta: el cupo
+// diario cuenta filas de ese log, así que anotar ahí los fallos le cobraría a la
+// persona los intentos que NO funcionaron.
+//
+// Si la tabla todavía no existe (falta correr supabase/transcripciones.sql),
+// esto no hace nada y la transcripción sigue igual.
+async function registrarFallo(ctx: Ctx, status: number, mensaje: string) {
+  try {
+    const sb = createServiceClient();
+    await sb.from('transcripciones_fallidas').insert({
+      user_email: ctx.email,
+      platform: ctx.platform || 'desconocida',
+      video_url: String(ctx.url || '').slice(0, 500),
+      status,
+      mensaje: mensaje.slice(0, 300),
+      traza: resumenTraza(ctx.traza).slice(0, 2000),
+      ms: Date.now() - ctx.t0,
+    });
+  } catch { /* sin tabla todavía → no rompe nada */ }
+}
+
+async function manejar(ctx: Ctx): Promise<Response> {
+  const { url, platform } = ctx;
   if (!url) return Response.json({ error: 'Falta la URL del video' }, { status: 400 });
 
   // ── Identificar usuario logueado (para rate limit + log) ──────────────
@@ -205,6 +201,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     userEmail = user?.email || null;
+    ctx.email = userEmail;
   } catch { /* anónimo */ }
 
   // ── Cache lookup (gratis, instantáneo) ────────────────────────────────
@@ -329,7 +326,7 @@ export async function POST(req: NextRequest) {
       if (audioFormats.length > 0) {
         const best = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
         if (best.url) {
-          const texto = await transcribeWithGroq(best.url);
+          const texto = await transcribir(best.url, ctx.traza);
           if (texto) return ok(texto);
         }
       }
@@ -381,7 +378,7 @@ export async function POST(req: NextRequest) {
           }
         }
         // Sin subtítulos → Groq Whisper
-        const texto = await transcribeWithGroq(videoUrl);
+        const texto = await transcribir(videoUrl, ctx.traza);
         if (texto) return ok(texto);
       }
     } catch { /* fallback a ScrapTik */ }
@@ -432,7 +429,7 @@ export async function POST(req: NextRequest) {
 
       if (!videoUrl) throw new Error('No se pudo obtener la URL del video. Puede ser un video privado.');
 
-      const texto = await transcribeWithGroq(videoUrl);
+      const texto = await transcribir(videoUrl, ctx.traza);
       return ok(texto);
 
     } catch { /* ScrapTik también falló */ }
@@ -469,7 +466,7 @@ export async function POST(req: NextRequest) {
           const videoUrl = audioUrl || item?.url || item?.video_url || item?.media?.[0]?.url || item?.video_versions?.[0]?.url;
           if (videoUrl) {
             try {
-              const texto = await transcribeWithGroq(videoUrl);
+              const texto = await transcribir(videoUrl, ctx.traza);
               if (texto) return ok(texto);
               debug.push('looter2: video sin audio transcribible');
             } catch (e) { debug.push(`looter2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
@@ -492,7 +489,7 @@ export async function POST(req: NextRequest) {
           const videoUrl = data?.video_versions?.[0]?.url || data?.video_url;
           if (videoUrl) {
             try {
-              const texto = await transcribeWithGroq(videoUrl);
+              const texto = await transcribir(videoUrl, ctx.traza);
               if (texto) return ok(texto);
               debug.push('fast-reliable: video sin audio transcribible');
             } catch (e) { debug.push(`fast-reliable: groq falló — ${(e as Error).message.slice(0, 60)}`); }
@@ -521,7 +518,7 @@ export async function POST(req: NextRequest) {
           const videoUrl = item?.video_url || item?.video_versions?.[0]?.url;
           if (videoUrl) {
             try {
-              const texto = await transcribeWithGroq(videoUrl);
+              const texto = await transcribir(videoUrl, ctx.traza);
               if (texto) return ok(texto);
               debug.push('scraper-api2: video sin audio transcribible');
             } catch (e) { debug.push(`scraper-api2: groq falló — ${(e as Error).message.slice(0, 60)}`); }
@@ -554,7 +551,7 @@ export async function POST(req: NextRequest) {
           const videoUrl = item?.videoUrl || item?.video_url || item?.video_versions?.[0]?.url;
           if (videoUrl) {
             try {
-              const texto = await transcribeWithGroq(videoUrl);
+              const texto = await transcribir(videoUrl, ctx.traza);
               if (texto) return ok(texto);
               debug.push('apify: video sin audio transcribible');
             } catch (e) { debug.push(`apify: groq falló — ${(e as Error).message.slice(0, 60)}`); }
@@ -634,7 +631,7 @@ export async function POST(req: NextRequest) {
       for (const s of [data?.url, data?.hd, data?.sd, data?.hd_src, data?.sd_src]) push(s);
       const videoUrl = cands.find(u => /\.mp4|\/video|videoplayback/i.test(u)) || cands[0];
       if (videoUrl) {
-        const texto = await transcribeWithGroq(videoUrl);
+        const texto = await transcribir(videoUrl, ctx.traza);
         if (texto) return ok(texto);
       }
     } catch (e) {
@@ -644,4 +641,39 @@ export async function POST(req: NextRequest) {
   }
 
   return Response.json({ error: 'Plataforma no soportada' }, { status: 400 });
+}
+
+// El handler público: corre `manejar` y, si la respuesta es un error, deja
+// anotado QUÉ pasó antes de devolverla. Una sola pieza cubre todas las
+// plataformas y todos los caminos de salida.
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const ctx: Ctx = {
+    url: String(body?.url || ''),
+    platform: String(body?.platform || ''),
+    email: null,
+    traza: [],
+    t0: Date.now(),
+  };
+
+  let res: Response;
+  try {
+    res = await manejar(ctx);
+  } catch (e) {
+    // Una excepción que se escapó: antes moría en el log de Vercel y la persona
+    // veía un 500 pelado.
+    await registrarFallo(ctx, 500, (e as Error).message || 'excepción sin mensaje');
+    console.error('[transcribir] excepción', (e as Error).message, resumenTraza(ctx.traza));
+    return Response.json({ error: 'No pudimos transcribir este video. Ya quedó registrado para revisarlo.' }, { status: 500 });
+  }
+
+  // 400 = la URL venía mal · 429 = llegó a su cupo del día. Ninguno de los dos
+  // es una falla del sistema, así que no ensucian el registro.
+  if (res.status >= 400 && res.status !== 400 && res.status !== 429) {
+    const copia = res.clone();
+    const cuerpo = await copia.json().catch(() => ({} as { error?: string }));
+    await registrarFallo(ctx, res.status, String(cuerpo?.error || `HTTP ${res.status}`));
+    console.warn(`[transcribir] falló ${ctx.platform} (${res.status}) — ${resumenTraza(ctx.traza)}`);
+  }
+  return res;
 }

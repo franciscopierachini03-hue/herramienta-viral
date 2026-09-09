@@ -47,6 +47,20 @@ type Data = {
   servicios: Servicio[];
   tarjetaViral: GastoTarjeta[];
   tarjetaOtros: GastoTarjeta[];
+  fallos?: Fallos;
+};
+
+// Transcripciones que NO salieron. Los cupos de arriba dicen si un proveedor
+// tiene saldo; esto dice si a la gente le está funcionando, que no es lo mismo.
+type Fallos = {
+  disponible: boolean;
+  nota?: string;
+  dias?: number;
+  total?: number;
+  exitos?: number;
+  tasaFallo?: number;
+  porPlataforma?: Record<string, number>;
+  ultimos?: Array<{ cuando: string; plataforma: string; status: number; mensaje: string; traza: string }>;
 };
 
 const ESTADO: Record<Servicio['estado'], { label: string; color: string; bg: string }> = {
@@ -162,6 +176,57 @@ export default function CostosPage() {
             Corre solo 2× al día y te manda un email a {`franciscopierachini03@gmail.com`} si algo se cae o está por agotarse — antes que lo note un usuario.
           </p>
         </div>
+
+        {/* Transcripciones que fallaron — el dato que antes se perdía en los logs */}
+        {data?.fallos && (
+          <div className="rounded-2xl p-4 mb-6" style={{ background: 'linear-gradient(145deg, #130c0c, #0d0a0a)', border: '1px solid #3b1d1d' }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <div className="text-sm font-bold" style={{ color: '#fca5a5' }}>
+                📉 Transcripciones que fallaron
+                {data.fallos.disponible && (
+                  <span className="ml-2 text-xs font-normal" style={{ color: (data.fallos.total || 0) === 0 ? '#86efac' : '#fca5a5' }}>
+                    · {data.fallos.total} en {data.fallos.dias} días
+                    {(data.fallos.exitos || 0) > 0 && ` de ${(data.fallos.total || 0) + (data.fallos.exitos || 0)} intentos (${data.fallos.tasaFallo}%)`}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {!data.fallos.disponible ? (
+              <p className="text-xs" style={{ color: '#fcd34d' }}>
+                ⚠️ {data.fallos.nota} — hasta que corras ese SQL, los fallos se siguen perdiendo.
+              </p>
+            ) : (data.fallos.total || 0) === 0 ? (
+              <p className="text-xs" style={{ color: '#86efac' }}>
+                Ninguna falló esta semana. ✅
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-2 flex-wrap mb-3">
+                  {Object.entries(data.fallos.porPlataforma || {}).sort((a, b) => b[1] - a[1]).map(([p, n]) => (
+                    <span key={p} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: '#1a1010', border: '1px solid #4c1d1d', color: '#fca5a5' }}>
+                      {p}: <b>{n}</b>
+                    </span>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  {(data.fallos.ultimos || []).map((f, i) => (
+                    <div key={i} className="rounded-xl p-2.5" style={{ background: '#0b0808', border: '1px solid #241414' }}>
+                      <div className="text-[11px] mb-1" style={{ color: '#d4d4dc' }}>
+                        <b>{f.plataforma}</b> · HTTP {f.status} · {new Date(f.cuando).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="text-[11px] mb-1" style={{ color: '#9a9aa6' }}>{f.mensaje}</div>
+                      {f.traza && <div className="text-[10px] font-mono break-all" style={{ color: '#6a6a76' }}>{f.traza}</div>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <p className="text-[11px] mt-2" style={{ color: '#555' }}>
+              La línea gris de cada fila dice qué motor se probó y qué contestó. Si un motor aparece siempre con ✗, ese es el que hay que renovar.
+            </p>
+          </div>
+        )}
 
         {/* Totales — ViralADN separado del resto del negocio */}
         {data && (

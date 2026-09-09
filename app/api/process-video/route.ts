@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { transcribirConTiempos, resumenTraza, type Intento, type TranscripcionConTiempos } from '@/lib/transcribir-audio';
 import OpenAI from 'openai';
 
 export const maxDuration = 120;
@@ -219,32 +220,16 @@ export async function POST(req: NextRequest) {
       { status: 413 }
     );
 
-  // ── Groq Whisper Large V3 (18x más barato, 250x más rápido) ──────────────────
-  let transcription: Record<string, unknown>;
+  // ── Transcribir con tiempos por palabra ─────────────────────────────────────
+  // Groq primero (barato y rápido) y OpenAI whisper-1 de respaldo. Antes esto
+  // era solo Groq: el día que Groq retire el modelo o devuelva 429, el editor
+  // entero se queda sin cortar. La traza dice cuál contestó.
+  let transcription: TranscripcionConTiempos;
+  const traza: Intento[] = [];
   try {
-    const groqKey = process.env.GROQ_API_KEY;
-    if (!groqKey) throw new Error('Falta GROQ_API_KEY');
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('model', 'whisper-large-v3');
-    form.append('response_format', 'verbose_json');
-    form.append('timestamp_granularities[]', 'word');
-    form.append('timestamp_granularities[]', 'segment');
-
-    const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${groqKey}` },
-      body: form,
-    });
-
-    if (!groqRes.ok) {
-      const err = await groqRes.text();
-      throw new Error(err);
-    }
-
-    transcription = await groqRes.json();
+    transcription = await transcribirConTiempos(file, traza);
   } catch (e) {
+    console.error('[process-video] transcripción falló —', resumenTraza(traza));
     return Response.json({ error: `Whisper: ${(e as Error).message}` }, { status: 502 });
   }
 

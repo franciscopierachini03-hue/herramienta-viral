@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
+import { createServiceClient } from '@/lib/supabase/server';
 
 // GET /api/admin/costos — panel de gasto de TODAS las APIs (solo admin).
 //
@@ -95,6 +96,55 @@ async function medirRapidApi(host: string, path: string, init?: { method?: strin
     };
   } catch (e) {
     return { body: (e as Error).message.slice(0, 100) };
+  }
+}
+
+// 📉 Transcripciones que no salieron (supabase/transcripciones.sql).
+// Los cupos de arriba dicen si un proveedor TIENE saldo; esto dice si el
+// pipeline de verdad está funcionando para la gente, que no es lo mismo.
+async function fallosTranscripcion() {
+  try {
+    const sb = createServiceClient();
+    const desde = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const { data, error } = await sb.from('transcripciones_fallidas')
+      .select('creado_at, platform, status, mensaje, traza, user_email')
+      .gte('creado_at', desde)
+      .order('creado_at', { ascending: false })
+      .limit(500);
+    if (error) return { disponible: false, nota: 'Falta correr supabase/transcripciones.sql' };
+
+    const filas = data || [];
+    const porPlataforma: Record<string, number> = {};
+    for (const f of filas) porPlataforma[String(f.platform)] = (porPlataforma[String(f.platform)] || 0) + 1;
+
+    // Los éxitos del mismo período, para poder decir "falla 1 de cada N" en vez
+    // de un número suelto que no significa nada.
+    let exitos = 0;
+    try {
+      const { count } = await sb.from('transcription_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('cache_hit', false).gte('created_at', desde);
+      exitos = count || 0;
+    } catch { /* sin dato */ }
+
+    const total = filas.length;
+    return {
+      disponible: true,
+      dias: 7,
+      total,
+      exitos,
+      tasaFallo: total + exitos > 0 ? Math.round((total / (total + exitos)) * 100) : 0,
+      porPlataforma,
+      ultimos: filas.slice(0, 8).map(f => ({
+        cuando: String(f.creado_at),
+        plataforma: String(f.platform),
+        status: f.status,
+        mensaje: String(f.mensaje || ''),
+        traza: String(f.traza || ''),
+      })),
+    };
+  } catch {
+    return { disponible: false, nota: 'Falta correr supabase/transcripciones.sql' };
   }
 }
 
@@ -225,9 +275,12 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
   const totalOtros = tarjetaOtros.reduce((n, g) => n + (g.costoMes || 0), 0);
   const variableOtros = tarjetaOtros.reduce((n, g) => n + (g.ultimo || 0), 0);
   const gastoVariable = servicios.reduce((n, s) => n + (s.gastoMes || 0), 0); // OpenAI (ViralADN)
+  const fallos = await fallosTranscripcion();
+
   return {
     actualizado: new Date().toISOString(),
     deep,
+    fallos,
     // ViralADN = APIs medidas + lo contratado para la plataforma en la tarjeta.
     totalViralAdn: r2(totalApis + totalTarjetaViral),
     totalApis: r2(totalApis),
