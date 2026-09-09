@@ -53,8 +53,8 @@ export function claseEnFecha(fechaCDMX: string) {
 export const AVISO = {
   desde: '2026-09-08',
   hasta: '2026-09-09',
-  titulo: '🔴 Cambió la sala de Zoom — usa el botón de abajo',
-  texto: 'La clase del miércoles a las 10:00 AM (CDMX) es en una sala nueva: ID 852 4800 3047 · código 321801. Si tienes guardado el link anterior, ya no sirve — entra desde el botón.',
+  titulo: '🔴 La clase está EN VIVO — entra ahora',
+  texto: 'Estamos adentro revisando cuentas. Toca el botón de abajo para entrar: sala nueva, ID 852 4800 3047 · código 321801. Si tienes guardado el link anterior, ya no sirve.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
