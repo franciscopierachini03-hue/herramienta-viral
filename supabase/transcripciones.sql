@@ -6,7 +6,7 @@
 --  QUÉ ES: una fila cada vez que alguien pide una transcripción y NO sale.
 --
 --  POR QUÉ HACE FALTA: hasta ahora los éxitos se guardaban en
---  `transcription_log` y los fallos no se guardaban en ningún lado — el motivo
+--  transcription_log y los fallos no se guardaban en ningún lado — el motivo
 --  se escribía en la consola de Vercel, que borra los registros en una hora.
 --  Resultado: sabíamos que "hay problemas con las transcripciones" pero no
 --  cuántos, ni de qué plataforma, ni por qué. Sin este dato no se puede
@@ -16,7 +16,7 @@
 --  persona se calcula contando filas de ese log. Si los fallos entraran ahí, a
 --  quien le falla el sistema le cobraríamos el intento fallido.
 --
---  LA COLUMNA QUE IMPORTA es `traza`: dice qué motor se probó, en qué orden,
+--  LA COLUMNA QUE IMPORTA es traza: dice qué motor se probó, en qué orden,
 --  qué contestó cada uno y cuánto tardó. Por ejemplo:
 --     descarga: ✓ 0.9 MB (206ms) · groq/whisper-large-v3: ✗ HTTP 401 …
 --     · openai/gpt-4o-mini-transcribe: ✓ 1335 caracteres (4289ms)
