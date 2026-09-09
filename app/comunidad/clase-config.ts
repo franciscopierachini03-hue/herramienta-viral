@@ -1,6 +1,6 @@
-// CONFIG DE LA CLASE SEMANAL — única fuente para la página /comunidad y los
-// recordatorios por correo (/api/cron/recordatorio-clase). Editá acá y cambia
-// en los dos lados.
+// CONFIG DE LA CLASE SEMANAL — única fuente para la página /comunidad, el banner
+// de /app y los correos (/api/cron/recordatorio-clase y /api/admin/aviso-clase).
+// Se edita acá y cambia en los cuatro lados.
 
 export const CLASE = {
   diaSemana: 3,            // 0=domingo … 3=MIÉRCOLES
@@ -8,9 +8,9 @@ export const CLASE = {
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/84057164882?pwd=amBiYEBG0M2Znfg8XlmHTuaLzvRKGb.1',
-  zoomId: '840 5716 4882',
-  zoomCodigo: '340537',
+  zoomUrl: 'https://us06web.zoom.us/j/85248003047?pwd=3fsruMbb4cmq16kzZruXytJmj7Hlrj.1',
+  zoomId: '852 4800 3047',
+  zoomCodigo: '321801',
 };
 
 // Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
@@ -25,19 +25,23 @@ export const HORARIOS: Array<[string, string, string]> = [
 // 🕗 CLASE ESPECIAL de UN día (link/hora distintos). Vigente SOLO en su fecha
 // (CDMX): /comunidad y el aviso por correo la toman solos; después, todo
 // vuelve a la clase semanal normal sin tocar nada.
+//
+// AHORA MISMO NO HAY NINGUNA: `fecha` vacío nunca coincide con un día, así que
+// siempre manda la sala de arriba. Para activar una, poné la fecha y los datos
+// de esa sala; para apagarla, volvé a dejar `fecha` en ''.
 export const CLASE_ESPECIAL = {
-  fecha: '2026-09-02',   // miércoles: sala nueva, y el código dejó de ser C123
+  fecha: '',             // '' = apagada · 'YYYY-MM-DD' = solo ese día
   hora: '10:00 AM',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/84057164882?pwd=amBiYEBG0M2Znfg8XlmHTuaLzvRKGb.1',
-  zoomId: '840 5716 4882',
-  zoomCodigo: '340537',
+  zoomUrl: 'https://us06web.zoom.us/j/85248003047?pwd=3fsruMbb4cmq16kzZruXytJmj7Hlrj.1',
+  zoomId: '852 4800 3047',
+  zoomCodigo: '321801',
 };
 
 // La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
 // día, si no la semanal de siempre.
 export function claseEnFecha(fechaCDMX: string) {
-  if (CLASE_ESPECIAL && fechaCDMX === CLASE_ESPECIAL.fecha) {
+  if (CLASE_ESPECIAL.fecha && fechaCDMX === CLASE_ESPECIAL.fecha) {
     return { ...CLASE, horaCDMX: CLASE_ESPECIAL.hora, sala: CLASE_ESPECIAL.sala || CLASE.sala, zoomUrl: CLASE_ESPECIAL.zoomUrl, zoomId: CLASE_ESPECIAL.zoomId, zoomCodigo: CLASE_ESPECIAL.zoomCodigo, esEspecial: true as const };
   }
   return { ...CLASE, esEspecial: false as const };
@@ -47,10 +51,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-09-02',
-  hasta: '2026-09-02',
-  titulo: '🔴 La clase es HOY a las 10:00 — entra ahora',
-  texto: 'Sala nueva: ID 840 5716 4882 · el código cambió, ahora es 340537. Toca el botón de abajo para entrar.',
+  desde: '2026-09-08',
+  hasta: '2026-09-09',
+  titulo: '🔴 Cambió la sala de Zoom — usa el botón de abajo',
+  texto: 'La clase del miércoles a las 10:00 AM (CDMX) es en una sala nueva: ID 852 4800 3047 · código 321801. Si tienes guardado el link anterior, ya no sirve — entra desde el botón.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
