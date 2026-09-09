@@ -30,7 +30,7 @@ function emailMovida(hora: string, fechaTxt: string, C: ClaseInfo): { subject: s
   <p style="margin:0 0 16px;font-size:15px;color:#c8c8d4;line-height:1.55;">
     Cambio de último momento: <b style="color:#fff;">${C.nombre}</b> no será hoy.
     Nos vemos <b style="color:#fcd34d;font-size:17px;">${fechaTxt} a las ${hora} (hora CDMX)</b>.
-    Misma sala, mismo link — solo cambia el día. ¡Agendalo!
+    Misma sala, mismo link — solo cambia el día. ¡Agéndalo!
   </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:0 0 18px;">
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
@@ -48,7 +48,7 @@ function emailMovida(hora: string, fechaTxt: string, C: ClaseInfo): { subject: s
 // 🔴 "YA EMPEZAMOS" — se manda con la clase EN VIVO. Nada de agendar: un solo
 // botón grande para entrar ahora mismo.
 function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
-  const subject = `🔴 Ya empezamos — entrá a la clase ahora`;
+  const subject = `🔴 Ya empezamos — entra a la clase ahora`;
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
 <div style="max-width:520px;margin:0 auto;background:#101018;border:1px solid #23232e;border-radius:18px;padding:28px;">
   <div style="background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:8px;padding:8px 14px;display:inline-block;">
@@ -59,7 +59,7 @@ function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
   </div>
   <h1 style="margin:12px 0 8px;font-size:27px;color:#fff;line-height:1.2;">Ya arrancamos ${C.nombre}</h1>
   <p style="margin:0 0 18px;font-size:16px;color:#c8c8d4;line-height:1.55;">
-    Estamos adentro revisando cuentas. <b style="color:#fff;">Entrá ahora</b> — todavía llegás a la parte buena.
+    Estamos adentro revisando cuentas. <b style="color:#fff;">Entra ahora</b> — todavía llegas a la parte buena.
   </p>
   <a href="${APP}/comunidad" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:18px;padding:17px;border-radius:14px;text-decoration:none;">
     🔴 ENTRAR A LA CLASE
@@ -68,12 +68,12 @@ function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
     Te lleva a <b style="color:#c8c8d4;">viraladn.com/comunidad</b>, donde el link <b style="color:#fff;">siempre</b> está actualizado.
   </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:18px 0 0;">
-    <p style="margin:0 0 8px;font-size:12px;color:#6a6a76;">¿Preferís entrar directo a Zoom?</p>
+    <p style="margin:0 0 8px;font-size:12px;color:#6a6a76;">¿Prefieres entrar directo a Zoom?</p>
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
     <p style="margin:0 0 10px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
     <a href="${C.zoomUrl}" style="font-size:13px;color:#fcd34d;">Abrir Zoom directamente →</a>
   </div>
-  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Guardá <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> en favoritos: si cambiamos de sala, ahí siempre está la buena.</p>
+  <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Guarda <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> en favoritos: si cambiamos de sala, ahí siempre está la buena.</p>
 </div>
 </body></html>`;
   return { subject, html };
@@ -138,7 +138,7 @@ function emailHtml(hora: string, fechaTxt: string, C: ClaseInfo): { subject: str
   <h1 style="margin:18px 0 8px;font-size:25px;color:#fff;">🕗 ¡Ojo! Mañana la clase arranca más temprano</h1>
   <p style="margin:0 0 16px;font-size:15px;color:#c8c8d4;line-height:1.55;">
     <b style="color:#fff;">${fechaTxt}</b> la clase <b style="color:#fff;">${C.nombre}</b> comienza a las
-    <b style="color:#fcd34d;font-size:18px;">${hora} (hora CDMX)</b> — más temprano que de costumbre. ¡Agendalo para no perdértela!
+    <b style="color:#fcd34d;font-size:18px;">${hora} (hora CDMX)</b> — más temprano que de costumbre. ¡Agéndalo para no perdértela!
   </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:0 0 18px;">
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
@@ -255,7 +255,7 @@ export async function GET(req: NextRequest) {
       con_acceso_en_total: universo,
       aviso: resumen,
       sala: C.sala, zoomId: C.zoomId, zoom: C.zoomUrl,
-      siguiente: 'agregá &test=1 para verlo vos, o &enviar=1 para mandarlo a todos',
+      siguiente: 'agrega &test=1 para verlo tú, o &enviar=1 para mandarlo a todos',
     });
   }
 
@@ -266,7 +266,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data: m } = await sb.from('ai_credits').select('period').eq('email', marca).maybeSingle();
       if (m?.period === hoy) {
-        return Response.json({ modo: 'bloqueado', motivo: `Ya se envió hoy (${hoy}). Agregá &force=1 para re-enviar conscientemente.` });
+        return Response.json({ modo: 'bloqueado', motivo: `Ya se envió hoy (${hoy}). Agrega &force=1 para reenviar a propósito.` });
       }
     } catch { /* sin tabla → sin candado */ }
   }
