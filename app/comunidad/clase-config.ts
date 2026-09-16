@@ -8,9 +8,9 @@ export const CLASE = {
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/85248003047?pwd=3fsruMbb4cmq16kzZruXytJmj7Hlrj.1',
-  zoomId: '852 4800 3047',
-  zoomCodigo: '321801',
+  zoomUrl: 'https://us06web.zoom.us/j/83363509546?pwd=yJZ9WqsLxQC4NOPJ3JlVNbeyU62Qet.1',
+  zoomId: '833 6350 9546',
+  zoomCodigo: '849264',
 };
 
 // Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
@@ -33,9 +33,9 @@ export const CLASE_ESPECIAL = {
   fecha: '',             // '' = apagada · 'YYYY-MM-DD' = solo ese día
   hora: '10:00 AM',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/85248003047?pwd=3fsruMbb4cmq16kzZruXytJmj7Hlrj.1',
-  zoomId: '852 4800 3047',
-  zoomCodigo: '321801',
+  zoomUrl: 'https://us06web.zoom.us/j/83363509546?pwd=yJZ9WqsLxQC4NOPJ3JlVNbeyU62Qet.1',
+  zoomId: '833 6350 9546',
+  zoomCodigo: '849264',
 };
 
 // La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
@@ -51,10 +51,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-09-08',
-  hasta: '2026-09-09',
-  titulo: '🔴 La clase está EN VIVO — entra ahora',
-  texto: 'Estamos adentro revisando cuentas. Toca el botón de abajo para entrar: sala nueva, ID 852 4800 3047 · código 321801. Si tienes guardado el link anterior, ya no sirve.',
+  desde: '2026-09-16',
+  hasta: '2026-09-16',
+  titulo: '🔴 Sala nueva para la clase de HOY — 10:00 AM',
+  texto: 'El recordatorio que llegó por correo lleva el link anterior, que ya no sirve. Entra desde el botón de abajo: ID 833 6350 9546 · código 849264.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
