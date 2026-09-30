@@ -65,7 +65,7 @@ function emailHtml(tipo: '24h' | '1h'): { subject: string; html: string } {
     </td>
   </tr></table>
 
-  <p style="margin:0 0 4px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${CLASE.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${CLASE.zoomCodigo}</b></p>
+  <p style="margin:0 0 4px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${CLASE.zoomId}</b>${CLASE.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${CLASE.zoomCodigo}</b>` : ''}</p>
   <p style="margin:0 0 18px;font-size:13px;color:#9a9aa6;">También la tienes siempre en <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> (con el contador en vivo).</p>
 
   <p style="margin:0;font-size:12px;color:#6b6b78;border-top:1px solid #1a1a26;padding-top:14px;">

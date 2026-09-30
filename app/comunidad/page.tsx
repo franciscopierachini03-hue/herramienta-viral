@@ -221,6 +221,7 @@ export default function Comunidad() {
                 {copiado === 'id' ? '✓ Copiado' : 'Copiar'}
               </button>
             </div>
+            {C.zoomCodigo ? (
             <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
               <div>
                 <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>Código de acceso</p>
@@ -232,6 +233,7 @@ export default function Comunidad() {
                 {copiado === 'codigo' ? '✓ Copiado' : 'Copiar'}
               </button>
             </div>
+            ) : null}
           </div>
 
           <p className="text-xs mt-4" style={{ color: '#8b8b96' }}>

@@ -34,7 +34,7 @@ function emailMovida(hora: string, fechaTxt: string, C: ClaseInfo): { subject: s
   </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:0 0 18px;">
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
-    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b>${C.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b>` : ''}</p>
   </div>
   <a href="${C.zoomUrl}" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:16px;padding:14px;border-radius:12px;text-decoration:none;">
     👉 Guardar el link de la clase
@@ -70,7 +70,7 @@ function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:18px 0 0;">
     <p style="margin:0 0 8px;font-size:12px;color:#6a6a76;">¿Prefieres entrar directo a Zoom?</p>
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
-    <p style="margin:0 0 10px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+    <p style="margin:0 0 10px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b>${C.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b>` : ''}</p>
     <a href="${C.zoomUrl}" style="font-size:13px;color:#fcd34d;">Abrir Zoom directamente →</a>
   </div>
   <p style="margin:16px 0 0;font-size:12px;color:#6a6a76;">Guarda <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> en favoritos: si cambiamos de sala, ahí siempre está la buena.</p>
@@ -117,7 +117,7 @@ function emailViernes(C: ClaseInfo, dia: string, evento: string): { subject: str
   </a>
 
   <p style="margin:14px 0 0;font-size:12px;color:#6a6a76;text-align:center;">
-    ${C.sala} · ID <span style="font-family:monospace;color:#9a9aa6;">${C.zoomId}</span> · Código <span style="font-family:monospace;color:#9a9aa6;">${C.zoomCodigo}</span>
+    ${C.sala} · ID <span style="font-family:monospace;color:#9a9aa6;">${C.zoomId}</span>${C.zoomCodigo ? ` · Código <span style="font-family:monospace;color:#9a9aa6;">${C.zoomCodigo}</span>` : ''}
   </p>
 
   <p style="margin:22px 0 0;padding-top:18px;border-top:1px solid #23232e;font-size:14px;line-height:1.7;color:#8b8b96;">
@@ -142,7 +142,7 @@ function emailHtml(hora: string, fechaTxt: string, C: ClaseInfo): { subject: str
   </p>
   <div style="background:#0b0b10;border:1px solid #23232e;border-radius:14px;padding:16px;margin:0 0 18px;">
     <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">📍 Sala: <b style="color:#fff;">${C.sala}</b></p>
-    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b> · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b></p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${C.zoomId}</b>${C.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${C.zoomCodigo}</b>` : ''}</p>
   </div>
   <a href="${C.zoomUrl}" style="display:block;text-align:center;background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff;font-weight:800;font-size:16px;padding:14px;border-radius:12px;text-decoration:none;">
     👉 Entrar a la clase (${hora})
