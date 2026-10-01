@@ -57,7 +57,6 @@ const GASTOS_TARJETA: GastoTarjeta[] = [
   { key: 'heygen', icono: '🎭', nombre: 'HeyGen — avatares de video', grupo: 'otros', costoMes: 29.00 },
   { key: 'captions', icono: '💬', nombre: 'Captions — edición y subtítulos', grupo: 'otros', costoMes: 24.99 },
   { key: 'higgsfield', icono: '🎥', nombre: 'Higgsfield — video IA', grupo: 'otros', costoMes: 30.51 },
-  { key: 'nokia', icono: '📞', nombre: 'Nokia of America — línea/servicio', grupo: 'otros', costoMes: 9.90 },
   {
     key: 'fbads', icono: '📣', nombre: 'Facebook Ads — pauta', grupo: 'otros', costoMes: null, ultimo: 25.00,
     nota: 'Variable según campañas. Último cargo: $25.00 (3 jul).',
@@ -191,10 +190,13 @@ async function armar(deep: boolean): Promise<Record<string, unknown>> {
       '/post?link=' + encodeURIComponent('https://www.instagram.com/p/DaVAJzbjGuu/'),
     );
     servicios.push({
-      key: 'looter2', icono: '📸', nombre: 'Instagram — looter2 (transcribir + carruseles)', costoMes: 10,
+      key: 'looter2', icono: '📸', nombre: 'Instagram — looter2 (transcribir + carruseles)', costoMes: 9.90,
       limite: m.limite, restante: m.restante,
       usado: m.limite != null && m.restante != null ? m.limite - m.restante : undefined,
-      unidad: 'requests', nota: 'La medición gasta 1 request (caché de 15 min).',
+      unidad: 'requests',
+      // En el banco este cobro aparece como NOKIA OF AMERICA CORPO: Nokia compró
+      // RapidAPI. Estuvo dado de alta como un gasto suelto de $9.90 y se contaba dos veces.
+      nota: 'En el estado de cuenta sale como NOKIA OF AMERICA CORPO (RapidAPI). La medición gasta 1 request (caché de 15 min).',
       estado: m.limite ? estadoPorUso(m.limite - (m.restante ?? 0), m.limite) : 'sin-dato',
     });
   }
