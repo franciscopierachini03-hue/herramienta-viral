@@ -8,11 +8,9 @@ export const CLASE = {
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/89207461550?pwd=qNafKOuDJNctAlAwR9vNDDRL3HnhsT.1',
-  zoomId: '892 0746 1550',
-  // Sin código: el link ya lleva la contraseña. Cuando Francisco lo pase, va acá
-  // y vuelve a aparecer solo en la página y en los correos.
-  zoomCodigo: '',
+  zoomUrl: 'https://us06web.zoom.us/j/84547587920?pwd=L4pWVX3oIDCVYRZF0IHDk5wM7SYP2U.1',
+  zoomId: '845 4758 7920',
+  zoomCodigo: '171018',
 };
 
 // Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
@@ -35,11 +33,9 @@ export const CLASE_ESPECIAL = {
   fecha: '',             // '' = apagada · 'YYYY-MM-DD' = solo ese día
   hora: '10:00 AM',
   sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/89207461550?pwd=qNafKOuDJNctAlAwR9vNDDRL3HnhsT.1',
-  zoomId: '892 0746 1550',
-  // Sin código: el link ya lleva la contraseña. Cuando Francisco lo pase, va acá
-  // y vuelve a aparecer solo en la página y en los correos.
-  zoomCodigo: '',
+  zoomUrl: 'https://us06web.zoom.us/j/84547587920?pwd=L4pWVX3oIDCVYRZF0IHDk5wM7SYP2U.1',
+  zoomId: '845 4758 7920',
+  zoomCodigo: '171018',
 };
 
 // La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
@@ -55,10 +51,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-09-30',
-  hasta: '2026-09-30',
+  desde: '2026-10-07',
+  hasta: '2026-10-07',
   titulo: '🔴 Sala nueva para la clase de HOY — 10:00 AM',
-  texto: 'El recordatorio que llegó por correo lleva el link anterior, que ya no sirve. Entra con el botón de abajo: sala 892 0746 1550.',
+  texto: 'El recordatorio que llegó por correo lleva el link anterior, que ya no sirve. Entra con el botón de abajo: sala 845 4758 7920 · código 171018.',
 };
 
 export function avisoVigente(hoyCDMX: string) {
