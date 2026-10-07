@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generarJSON, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import { getAccess } from '@/lib/access';
 import { getNicho } from '@/lib/nicho-store';
 import { rateLimit } from '@/lib/ratelimit';
@@ -97,23 +98,13 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join('\n\n');
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.CALCULADORA_MODEL || 'gpt-4o',
-        temperature: 0.3,          // evaluar pide consistencia, no creatividad
-        max_tokens: 1400,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }],
-      }),
+    const { datos: out } = await generarJSON<Record<string, any>>({
+      etiqueta: 'calculadora',
+      modelo: process.env.CALCULADORA_MODEL || 'gpt-4o',
+      temperatura: 0.3,          // evaluar pide consistencia, no creatividad
+      maxTokens: 1400,
+      mensajes: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }],
     });
-    if (!r.ok) {
-      console.error('[calculadora] openai', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      return Response.json({ error: 'No pudimos evaluarlo. Prueba de nuevo.' }, { status: 502 });
-    }
-    const d = await r.json();
-    const out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
     const crit = out.criterios || {};
 
     // El puntaje sale del código, no del modelo.
@@ -156,6 +147,10 @@ export async function POST(req: NextRequest) {
       reescritura: String(out.reescritura || ''),
     });
   } catch (e) {
+    if (e instanceof SinIA) {
+      console.error('[calculadora] ningún motor respondió —', e.detalle);
+      return Response.json({ error: MENSAJE_SIN_IA }, { status: 503 });
+    }
     console.error('[calculadora]', (e as Error).message.slice(0, 150));
     return Response.json({ error: 'Error al evaluar. Prueba de nuevo.' }, { status: 502 });
   }

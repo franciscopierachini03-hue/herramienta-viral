@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generar, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import OpenAI from 'openai';
 
 const IDIOMAS: Record<string, string> = {
@@ -18,12 +19,14 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return Response.json({ error: 'Falta configurar OPENAI_API_KEY.' }, { status: 422 });
 
   try {
-    const openai = new OpenAI({ apiKey });
     const targetLang = IDIOMAS[idioma];
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
+    const { texto: traduccionIA } = await generar({
+      etiqueta: 'traducir',
+      modelo: 'gpt-4o-mini',
+      temperatura: 0.3,
+      maxTokens: 2000,
+      mensajes: [
         {
           role: 'system',
           content: `You are a professional translator specialized in social media content scripts.
@@ -33,18 +36,13 @@ Translate the following script into ${targetLang}.
 - Make it natural and conversational, not robotic
 - Do NOT add any explanation or commentary — only return the translated text`,
         },
-        {
-          role: 'user',
-          content: texto,
-        },
+        { role: 'user', content: texto },
       ],
-      temperature: 0.3,
-      max_tokens: 2000,
     });
 
-    const traduccion = completion.choices[0]?.message?.content?.trim() || '';
-    return Response.json({ traduccion });
+    return Response.json({ traduccion: traduccionIA.trim() });
   } catch (e) {
+    if (e instanceof SinIA) return Response.json({ error: MENSAJE_SIN_IA }, { status: 503 });
     return Response.json({ error: `Error al traducir: ${(e as Error).message}` }, { status: 502 });
   }
 }

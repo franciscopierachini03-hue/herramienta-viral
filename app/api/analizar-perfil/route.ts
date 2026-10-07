@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generarJSON, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import OpenAI from 'openai';
 import { getAccess } from '@/lib/access';
 
@@ -115,11 +116,13 @@ export async function POST(req: NextRequest) {
   let lastErr: unknown = null;
   for (const model of lista) {
     try {
-      const completion = await getOpenAI().chat.completions.create({
-        model,
-        response_format: { type: 'json_object' },
-        ...(model.startsWith('gpt-5') ? { reasoning_effort: 'low' as const } : { temperature: 0.7 }),
-        messages: [
+      // generarJSON prueba OpenAI con este modelo y, si no hay saldo o no
+      // contesta, sigue con Groq (qwen, que también lee capturas).
+      const { datos: raw } = await generarJSON<Record<string, unknown>>({
+        etiqueta: 'analizar-perfil',
+        modelo: model,
+        temperatura: 0.7,
+        mensajes: [
           { role: 'system', content: SYSTEM },
           {
             role: 'user',
@@ -131,7 +134,6 @@ export async function POST(req: NextRequest) {
         ],
       });
       _modeloOk = model;
-      const raw = JSON.parse(completion.choices[0]?.message?.content || '{}') as Record<string, unknown>;
       const det = (raw.detectado ?? {}) as Record<string, unknown>;
       const bioA = (raw.bioAnalisis ?? {}) as Record<string, unknown>;
       const mejorasIn = Array.isArray(raw.mejoras) ? raw.mejoras : [];

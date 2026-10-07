@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generarJSON, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import { getAccess } from '@/lib/access';
 import { getNicho } from '@/lib/nicho-store';
 import { rateLimit } from '@/lib/ratelimit';
@@ -204,23 +205,14 @@ Responde en JSON con esta forma:
     : `${pedido(f, e, tema, cliente, estilo)}\n\nEL GANCHO YA ESTÁ ELEGIDO, usalo tal cual y construí todo alrededor:\n"${String(body.gancho || '').slice(0, 300)}"\n\nDevuelve el guion completo en JSON.`;
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.FORMATOS_MODEL || 'gpt-4o',
-        temperature: esGanchos ? 1 : 0.85,
-        max_tokens: esGanchos ? 700 : 1800,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      }),
+    const primera = await generarJSON<Record<string, any>>({
+      etiqueta: 'formatos',
+      modelo: process.env.FORMATOS_MODEL || 'gpt-4o',
+      temperatura: esGanchos ? 1 : 0.85,
+      maxTokens: esGanchos ? 700 : 1800,
+      mensajes: [{ role: 'system', content: system }, { role: 'user', content: user }],
     });
-    if (!r.ok) {
-      console.error('[formatos] openai', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      return Response.json({ error: 'No pudimos escribirlo. Prueba de nuevo.' }, { status: 502 });
-    }
-    const d = await r.json();
-    let out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
+    let out = primera.datos;
 
     // ── Se corrige solo ────────────────────────────────────────────────────
     // La mitad de FORMA se mide contando, no opinando: podemos verificar el
@@ -233,27 +225,20 @@ Responde en JSON con esta forma:
         const fallos = ch.filter(c => !c.cumple)
           .map(c => `· ${c.nombre}: ${c.detalle} → ${c.arreglo}`).join('\n');
         try {
-          const fix = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-            body: JSON.stringify({
-              model: process.env.FORMATOS_MODEL || 'gpt-4o',
-              temperature: 0.7, max_tokens: 1800,
-              response_format: { type: 'json_object' },
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: user },
-                { role: 'assistant', content: JSON.stringify(out) },
-                { role: 'user', content: `Ese guion NO pasa el control de calidad. Fallos medidos:\n${fallos}\n\nDevuélvelo corregido, con la MISMA idea y el mismo formato — solo arregla lo listado. Mismo JSON.` },
-              ],
-            }),
+          const { datos: corregido } = await generarJSON<Record<string, any>>({
+            etiqueta: 'formatos/corrección',
+            modelo: process.env.FORMATOS_MODEL || 'gpt-4o',
+            temperatura: 0.7, maxTokens: 1800,
+            mensajes: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+              { role: 'assistant', content: JSON.stringify(out) },
+              { role: 'user', content: `Ese guion NO pasa el control de calidad. Fallos medidos:\n${fallos}\n\nDevuélvelo corregido, con la MISMA idea y el mismo formato — solo arregla lo listado. Mismo JSON.` },
+            ],
           });
-          if (fix.ok) {
-            const corregido = JSON.parse((await fix.json())?.choices?.[0]?.message?.content || '{}');
-            const chNuevo = medirForma(textoHablado(corregido));
-            // Nos quedamos con el corregido solo si de verdad mejoró.
-            if (corregido.gancho && puntuarForma(chNuevo) > puntuarForma(ch)) { out = corregido; ch = chNuevo; }
-          }
+          const chNuevo = medirForma(textoHablado(corregido));
+          // Nos quedamos con el corregido solo si de verdad mejoró.
+          if (corregido.gancho && puntuarForma(chNuevo) > puntuarForma(ch)) { out = corregido; ch = chNuevo; }
         } catch { /* si la corrección falla, va el original */ }
       }
       const forma = puntuarForma(ch);
@@ -267,6 +252,10 @@ Responde en JSON con esta forma:
 
     return Response.json({ ...out, formato: f.key, salida: f.salida, estructura: e.key });
   } catch (err) {
+    if (err instanceof SinIA) {
+      console.error('[formatos] ningún motor respondió —', err.detalle);
+      return Response.json({ error: MENSAJE_SIN_IA }, { status: 503 });
+    }
     console.error('[formatos]', (err as Error).message.slice(0, 150));
     return Response.json({ error: 'Error al generar. Prueba de nuevo.' }, { status: 502 });
   }

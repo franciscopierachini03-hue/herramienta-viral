@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generarJSON, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import { getAccess } from '@/lib/access';
 import { getNicho } from '@/lib/nicho-store';
 import { getFormato, FORMATOS } from '@/lib/historias-formatos';
@@ -101,25 +102,19 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join('\n\n');
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.HISTORIAS_MODEL || 'gpt-4o',
-        temperature: 0.8,
-        max_tokens: 1200,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userText }],
-      }),
+    const { datos: out } = await generarJSON<Record<string, unknown>>({
+      etiqueta: 'historias',
+      modelo: process.env.HISTORIAS_MODEL || 'gpt-4o',
+      temperatura: 0.8,
+      maxTokens: 1200,
+      mensajes: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userText }],
     });
-    if (!r.ok) {
-      console.error('[historias] openai', r.status, (await r.text().catch(() => '')).slice(0, 200));
-      return Response.json({ error: 'No pudimos armar la historia. Prueba de nuevo.' }, { status: 502 });
-    }
-    const d = await r.json();
-    const out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
     return Response.json({ ...out, formato: formato.key, cuando: formato.cuando });
   } catch (e) {
+    if (e instanceof SinIA) {
+      console.error('[historias] ningún motor respondió —', e.detalle);
+      return Response.json({ error: MENSAJE_SIN_IA }, { status: 503 });
+    }
     console.error('[historias]', (e as Error).message.slice(0, 150));
     return Response.json({ error: 'Error al armar. Prueba de nuevo.' }, { status: 502 });
   }

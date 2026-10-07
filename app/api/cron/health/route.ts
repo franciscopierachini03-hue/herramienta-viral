@@ -92,18 +92,40 @@ async function checkTikTok(): Promise<Check> {
   }
 }
 
-async function checkGroq(): Promise<Check> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return { servicio: 'Groq Whisper', estado: 'roto', detalle: 'Falta GROQ_API_KEY' };
+// ⚠️ Pedirle al proveedor que GENERE algo, no solo que liste modelos.
+// El 7-oct-2026 la cuenta de OpenAI se quedó sin saldo: /v1/models seguía
+// contestando 200 y el vigilante decía "todo OK" mientras doce apartados
+// estaban muertos. Una llamada de 1 token cuesta centésimas y no miente.
+async function generaAlgo(nombre: string, url: string, key: string | undefined, modelo: string, falta: string): Promise<Check> {
+  if (!key) return { servicio: nombre, estado: 'roto', detalle: falta };
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${key}` } });
-    return res.ok
-      ? { servicio: 'Groq Whisper', estado: 'ok', detalle: 'OK · key activa' }
-      : { servicio: 'Groq Whisper', estado: 'roto', detalle: `HTTP ${res.status}` };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: 'ok' }], max_tokens: 1 }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (res.ok) return { servicio: nombre, estado: 'ok', detalle: `OK · ${modelo} genera` };
+    const t = (await res.text().catch(() => '')).slice(0, 200);
+    if (/insufficient_quota|no credits remaining/i.test(t)) {
+      return { servicio: nombre, estado: 'roto', detalle: 'SIN SALDO — recargar para que vuelvan guiones, historias, formatos y la calculadora' };
+    }
+    if (/model_not_found|does not exist|decommissioned/i.test(t)) {
+      return { servicio: nombre, estado: 'roto', detalle: `El modelo ${modelo} ya no existe — cambiar GROQ_MODEL` };
+    }
+    return { servicio: nombre, estado: 'roto', detalle: `HTTP ${res.status} · ${t.slice(0, 90)}` };
   } catch (e) {
-    return { servicio: 'Groq Whisper', estado: 'roto', detalle: (e as Error).message.slice(0, 80) };
+    return { servicio: nombre, estado: 'roto', detalle: (e as Error).message.slice(0, 80) };
   }
 }
+
+const checkOpenAI = () => generaAlgo('OpenAI · guiones e ideas',
+  'https://api.openai.com/v1/chat/completions', process.env.OPENAI_API_KEY,
+  process.env.HEALTH_MODEL_OPENAI || 'gpt-4o-mini', 'Falta OPENAI_API_KEY');
+
+const checkGroq = () => generaAlgo('Groq · respaldo de todo',
+  'https://api.groq.com/openai/v1/chat/completions', process.env.GROQ_API_KEY,
+  process.env.GROQ_MODEL || 'openai/gpt-oss-120b', 'Falta GROQ_API_KEY');
 
 async function checkSerp(): Promise<Check> {
   const key = process.env.SERPAPI_KEY;
@@ -167,7 +189,7 @@ export async function GET(req: NextRequest) {
   if (!autorizado) return Response.json({ error: 'No autorizado' }, { status: 401 });
 
   const checks = await Promise.all([
-    checkInstagram(), checkYouTube(), checkTikTok(), checkGroq(), checkSerp(),
+    checkInstagram(), checkYouTube(), checkTikTok(), checkGroq(), checkOpenAI(), checkSerp(),
   ]);
 
   const hayProblema = checks.some(c => c.estado !== 'ok');

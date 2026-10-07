@@ -14,6 +14,26 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
+// El guion se escribe en vivo, así que no puede pasar por lib/ia (que devuelve
+// el texto completo). Pero Groq habla el mismo idioma de API que OpenAI: si
+// OpenAI no contesta —el 7-oct-2026 se quedó sin saldo y este apartado murió—
+// el mismo pedido se repite contra Groq y la persona igual ve el guion
+// apareciendo letra por letra.
+async function abrirStream(params: OpenAI.Chat.ChatCompletionCreateParamsStreaming) {
+  try {
+    return await getOpenAI().chat.completions.create(params);
+  } catch (e) {
+    const detalle = (e as Error).message.slice(0, 160);
+    const sinSaldo = /insufficient_quota|no credits|billing|429/i.test(detalle);
+    console.error(`[guiones] OpenAI no respondió${sinSaldo ? ' (SIN SALDO)' : ''}: ${detalle}`);
+    if (!process.env.GROQ_API_KEY) throw e;
+    const groq = new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: 'https://api.groq.com/openai/v1' });
+    const modelo = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+    console.log(`[guiones] escribiendo con el respaldo de Groq (${modelo})`);
+    return await groq.chat.completions.create({ ...params, model: modelo });
+  }
+}
+
 const SYSTEM_PROMPT = `Eres un experto en guiones virales para redes sociales (TikTok, Instagram Reels, YouTube Shorts).
 Tu trabajo es escribir guiones que suenen exactamente como la persona que te lo pide — capturando su forma de hablar, sus muletillas, su energía y su tono.
 
@@ -90,7 +110,7 @@ ${estilo.trim()}
 Escribe el guión viral completo con HOOK, BODY y CTA que suene exactamente como esta persona hablando sobre este tema.
 `.trim();
 
-  const stream = await getOpenAI().chat.completions.create({
+  const stream = await abrirStream({
     model: 'gpt-4o',
     stream: true,
     temperature: 0.85,

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generar, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import OpenAI from 'openai';
 import { systemPrompt, CONTACTO_EMAIL } from '@/lib/ayuda-faq';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
@@ -39,14 +40,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const openai = new OpenAI({ apiKey });
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [{ role: 'system', content: systemPrompt() }, ...clean],
-      temperature: 0.3,
-      max_tokens: 400,
+    const { texto } = await generar({
+      etiqueta: 'ayuda',
+      modelo: MODEL,
+      temperatura: 0.3,
+      maxTokens: 400,
+      mensajes: [{ role: 'system', content: systemPrompt() }, ...clean],
     });
-    const reply = completion.choices[0]?.message?.content?.trim()
+    const reply = texto.trim()
       || `No estoy seguro de eso. Mejor escribinos por el formulario de abajo y te respondemos a tu correo.`;
     return Response.json({ reply });
   } catch (e) {

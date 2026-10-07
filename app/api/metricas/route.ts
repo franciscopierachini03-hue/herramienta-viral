@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { generarJSON, SinIA, MENSAJE_SIN_IA } from '@/lib/ia';
 import { getAccess } from '@/lib/access';
 import { getNicho } from '@/lib/nicho-store';
 import { rateLimit } from '@/lib/ratelimit';
@@ -102,32 +103,25 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join('\n\n');
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.METRICAS_MODEL || 'gpt-4o',
-        temperature: 0.4,
-        max_tokens: 1400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: [
-            { type: 'text', text: userText },
-            ...imagenes.map(url => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
-          ] },
-        ],
-      }),
+    const { datos: out } = await generarJSON<Record<string, unknown>>({
+      etiqueta: 'metricas',
+      modelo: process.env.METRICAS_MODEL || 'gpt-4o',
+      temperatura: 0.4,
+      maxTokens: 1400,
+      mensajes: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: [
+          { type: 'text', text: userText },
+          ...imagenes.map(url => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
+        ] },
+      ],
     });
-    if (!r.ok) {
-      const t = await r.text().catch(() => '');
-      console.error('[metricas] openai', r.status, t.slice(0, 200));
-      return Response.json({ error: 'No pudimos analizar la captura. Prueba de nuevo.' }, { status: 502 });
-    }
-    const d = await r.json();
-    const out = JSON.parse(d?.choices?.[0]?.message?.content || '{}');
     return Response.json({ ...out, conClienteIdeal: !!clienteIdeal });
   } catch (e) {
+    if (e instanceof SinIA) {
+      console.error('[metricas] ningún motor respondió —', e.detalle);
+      return Response.json({ error: MENSAJE_SIN_IA }, { status: 503 });
+    }
     console.error('[metricas]', (e as Error).message.slice(0, 150));
     return Response.json({ error: 'Error al analizar. Prueba de nuevo.' }, { status: 502 });
   }

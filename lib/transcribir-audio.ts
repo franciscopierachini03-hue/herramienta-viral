@@ -28,6 +28,16 @@ export const MAX_BYTES = 24 * 1024 * 1024;
 
 const dormir = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// Tope por intento. El 26-sep un reel de 0,2 MB tardó 196 s en fallar: Groq
+// devolvía 502 pero se tomaba 60 s en cada uno de los 3 intentos, y para cuando
+// le tocó a OpenAI la función de Vercel ya estaba condenada (corta a los 60 s).
+// Con tope, un motor que no contesta cede su turno rápido.
+const TOPE_MS = Number(process.env.TRANSCRIBIR_TIMEOUT_MS || 20000);
+
+// Cuando el proveedor dice "no te queda saldo", reintentar no sirve de nada:
+// se pasa al siguiente motor de inmediato.
+const SIN_SALDO = /insufficient_quota|no credits remaining|billing|quota/i;
+
 type Motor = { nombre: string; url: string; modelo: string; llave: () => string | undefined };
 
 const MOTORES: Motor[] = [
@@ -42,7 +52,7 @@ async function probarMotor(m: Motor, audio: ArrayBuffer, traza: Intento[]): Prom
   const key = m.llave();
   if (!key) { traza.push({ motor: m.nombre, ok: false, detalle: 'sin llave configurada', ms: 0 }); return null; }
 
-  for (let intento = 0; intento < 3; intento++) {
+  for (let intento = 0; intento < 2; intento++) {
     const t0 = Date.now();
     try {
       const form = new FormData();
@@ -50,7 +60,10 @@ async function probarMotor(m: Motor, audio: ArrayBuffer, traza: Intento[]): Prom
       form.append('model', m.modelo);
       form.append('response_format', 'text');   // sin forzar idioma: lo detecta solo
 
-      const res = await fetch(m.url, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });
+      const res = await fetch(m.url, {
+        method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form,
+        signal: AbortSignal.timeout(TOPE_MS),
+      });
       const cuerpo = (await res.text()).trim();
       const ms = Date.now() - t0;
 
@@ -61,10 +74,15 @@ async function probarMotor(m: Motor, audio: ArrayBuffer, traza: Intento[]): Prom
         return cuerpo;
       }
 
-      // 429 / 5xx → esperar y reintentar el MISMO motor.
+      // Sin saldo: no se reintenta, se cede el turno al siguiente motor.
+      if (res.status === 429 && SIN_SALDO.test(cuerpo)) {
+        traza.push({ motor: m.nombre, ok: false, detalle: 'SIN SALDO', ms });
+        return null;
+      }
+      // 429 / 5xx → esperar y reintentar el MISMO motor, una sola vez.
       if (res.status === 429 || res.status >= 500) {
-        traza.push({ motor: m.nombre, ok: false, detalle: `HTTP ${res.status} (intento ${intento + 1}/3)`, ms });
-        if (intento < 2) { await dormir(600 * 2 ** intento); continue; }
+        traza.push({ motor: m.nombre, ok: false, detalle: `HTTP ${res.status} (intento ${intento + 1}/2)`, ms });
+        if (intento < 1) { await dormir(600); continue; }
         return null;
       }
 
@@ -72,8 +90,12 @@ async function probarMotor(m: Motor, audio: ArrayBuffer, traza: Intento[]): Prom
       traza.push({ motor: m.nombre, ok: false, detalle: `HTTP ${res.status} · ${cuerpo.slice(0, 120)}`, ms });
       return null;
     } catch (e) {
-      traza.push({ motor: m.nombre, ok: false, detalle: (e as Error).message.slice(0, 120), ms: Date.now() - t0 });
-      if (intento < 2) { await dormir(600 * 2 ** intento); continue; }
+      const err = e as Error;
+      const porTiempo = err.name === 'TimeoutError' || /timeout|abort/i.test(err.message);
+      traza.push({ motor: m.nombre, ok: false, ms: Date.now() - t0,
+        detalle: porTiempo ? `no contestó en ${TOPE_MS / 1000} s` : err.message.slice(0, 120) });
+      if (porTiempo) return null;            // si ya se colgó una vez, no insistimos
+      if (intento < 1) { await dormir(600); continue; }
       return null;
     }
   }
