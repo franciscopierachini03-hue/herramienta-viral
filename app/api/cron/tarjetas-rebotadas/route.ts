@@ -82,7 +82,7 @@ function correo(nombre: string, monto: number): { subject: string; html: string 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a0d0d;border:1px solid #ef444455;border-radius:14px;margin-bottom:20px;">
     <tr><td style="padding:16px;">
       <p style="margin:0;font-size:14px;line-height:1.6;color:#f0d0d0;">
-        Mientras tanto <b style="color:#fff;">pausamos tu lugar en las clases en vivo de los miércoles</b>.
+        Mientras tanto <b style="color:#fff;">pausamos tu lugar en las clases en vivo de los domingos</b>.
         Tus herramientas siguen funcionando — apenas se acredite el pago, tu lugar vuelve solo.
       </p>
     </td></tr>

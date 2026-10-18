@@ -11,6 +11,14 @@
 
 import type { Entitlement } from '@/lib/products';
 
+// 🛠️ TOPCUT en mantenimiento. El motor de render (Hetzner) se perdió el
+// 24 de agosto de 2026. Esta es LA bandera: la leen el hub, la barra de arriba
+// y el cartel de /editor, así no se contradicen entre ellos.
+// Para reabrirlo: NEXT_PUBLIC_TOPCUT_MANTENIMIENTO=0 en Vercel.
+// Cerrado por defecto a propósito: si alguien despliega sin la variable, queda
+// cerrado, que es el lado seguro.
+export const TOPCUT_EN_MANTENIMIENTO = process.env.NEXT_PUBLIC_TOPCUT_MANTENIMIENTO !== '0';
+
 export type Tool = {
   key: string;
   name: string;
@@ -24,6 +32,7 @@ export type Tool = {
   price: string;             // texto del precio en el CTA bloqueado
   includedNote?: string;     // ej. "Incluido con ViralADN"
   adminOnly?: boolean;       // true = solo el admin la ve en el hub y puede entrar
+  mantenimiento?: boolean;   // true = se puede entrar, pero avisa que está caída
   grad: string; border: string; glow: string; iconGlow: string;
   unlockBorder: string; unlockColor: string;
 };
@@ -44,13 +53,14 @@ export const TOOLS: Tool[] = [
     key: 'topcut', name: 'TOPCUT', href: '/editor', icon: '✂️',
     desc: 'Sube tu video y la IA lo edita solo: recorte, subtítulos, B-roll y música.',
     needs: 'topcut', producto: 'topcut', price: '$67/mes',
+    mantenimiento: TOPCUT_EN_MANTENIMIENTO,
     grad: 'linear-gradient(135deg, #0e7490, #2563eb)',
     border: '#22d3ee44', glow: '#22d3ee14', iconGlow: '#22d3ee33',
     unlockBorder: '#22d3ee55', unlockColor: '#67e8f9',
   },
   {
     key: 'comunidad', name: 'Comunidad', href: '/comunidad', icon: '🎓',
-    desc: 'La clase en vivo de todos los miércoles con Francisco: qué está funcionando y qué ajustar en tu cuenta.',
+    desc: 'La clase en vivo de todos los domingos con Francisco: qué está funcionando y qué ajustar en tu cuenta.',
     needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
     includedNote: 'Incluida con tu plan',
     grad: 'linear-gradient(135deg, #f59e0b, #ef4444)',

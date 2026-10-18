@@ -24,7 +24,7 @@ ViralADN ✕ TOPCUT es un conjunto de herramientas con IA para crear contenido q
 - 🧬 ViralADN ($47/mes): descifra el ADN del contenido viral. Busca los videos que están explotando en tu tema, analiza perfiles y te da ideas. Incluye Guiones y Teleprompter (viven dentro de ViralADN).
 - ✂️ TOPCUT ($67/mes): subís un video largo y la IA lo edita solo — recorte, subtítulos, B-roll y música.
 - 🎁 Combo: los dos productos juntos (ViralADN + TOPCUT).
-- 🎓 Comunidad: incluida con cualquier plan pago — clase en vivo todos los miércoles a las 10:00 AM (hora Ciudad de México) con Francisco.
+- 🎓 Comunidad: incluida con cualquier plan pago — clase en vivo todos los domingos a las 10:00 AM (hora Ciudad de México) con Francisco. (Antes era los miércoles; cambió el 18 de octubre de 2026.)
 
 # Cómo entrar / registrarse
 - El acceso es con tu correo y contraseña. Al registrarte te mandamos un código de 6 dígitos al email para verificar que es tuyo (vence en 15 minutos; revisá spam/promociones).
@@ -47,7 +47,7 @@ ViralADN ✕ TOPCUT es un conjunto de herramientas con IA para crear contenido q
 # Cómo se usa cada herramienta
 - ViralADN: entrás a la herramienta, buscas tu tema y ves los videos/reels que más están rindiendo, con datos para inspirarte. Desde ahí generás guiones y los leés en el Teleprompter.
 - TOPCUT: subís tu video, eliges el estilo y la IA lo edita (subtítulos, cortes, ritmo, música). Cuando termina, lo descargás.
-- Comunidad: entrás a /comunidad y ves el contador a la próxima clase del miércoles y el enlace para entrar en vivo, además de las clases grabadas.
+- Comunidad: entrás a /comunidad y ves el contador a la próxima clase del domingo y el enlace para entrar en vivo, además de las clases grabadas.
 
 # Soporte humano
 - Si tu duda es sobre TU cuenta (un cobro, un acceso que no anda, una baja) o algo que no está acá, usá el formulario de contacto: llega a ${CONTACTO_EMAIL} y te respondemos a tu correo.

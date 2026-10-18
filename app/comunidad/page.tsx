@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import ProductNav from '../_components/ProductNav';
 
 // 🎓 Comunidad — la clase semanal EN VIVO (el bono de todos los planes).
-// Todos los miércoles 10:00 AM Ciudad de México, en la Sala Z1 de Zoom.
+// Todos los domingos 10:00 AM Ciudad de México (era miércoles hasta oct-2026).
+// El día sale de clase-config: no se escribe a mano acá.
 // Config editable acá abajo (CLASE). Gate por plan en layout.tsx.
 
-import { CLASE, HORARIOS, claseEnFecha, avisoVigente } from './clase-config';
+import { CLASE, HORARIOS, claseEnFecha, avisoVigente, DIA_PLURAL } from './clase-config';
 
 type Archivo = { nombre: string; url: string };
 type Clase = { id: string; fecha: string; titulo: string; resumen: string | null; video_url: string | null; archivos: Archivo[] };
@@ -30,7 +31,7 @@ function toEmbed(url: string): string {
   return u;
 }
 
-// 'YYYY-MM-DD' → 'miércoles 9 de julio' (parse manual, sin depender de la zona).
+// 'YYYY-MM-DD' → 'domingo 9 de julio' (parse manual, sin depender de la zona).
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 function fmtFecha(f: string): string {
@@ -40,8 +41,8 @@ function fmtFecha(f: string): string {
   return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()]}`;
 }
 
-// Próximo miércoles 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
-// horario de verano desde 2022) → miércoles 16:00 UTC. Calcular en UTC hace que
+// Próxima clase 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
+// horario de verano desde 2022) → 16:00 UTC ese día. Calcular en UTC hace que
 // el timer sea correcto para cualquier persona, esté en la zona que esté.
 const CLASS_UTC_HOUR = 16; // 10:00 CDMX
 const DURACION_MS = 90 * 60 * 1000; // la clase dura ~90 min (ventana EN VIVO)
@@ -87,10 +88,10 @@ export default function Comunidad() {
       objetivo.setDate(cdmx.getDate() + faltan);
       setEsHoy(faltan === 0);
       setProxima(objetivo.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
-    } catch { setProxima('todos los miércoles'); }
+    } catch { setProxima(`todos ${DIA_PLURAL}`); }
   }, []);
 
-  // ⏳ Timer semanal: cuenta regresiva al próximo miércoles 10:00 AM CDMX.
+  // ⏳ Timer semanal: cuenta regresiva a la próxima clase, 10:00 AM CDMX.
   // Se resetea solo: al terminar la ventana EN VIVO apunta a la semana siguiente.
   useEffect(() => {
     const tick = () => {
@@ -149,7 +150,7 @@ export default function Comunidad() {
           )}
           <p className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: '#fcd34d' }}>🎓 Clase semanal en vivo</p>
           <h1 className="text-2xl md:text-3xl font-extrabold mb-1">{CLASE.nombre}</h1>
-          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>{C.esEspecial ? <b style={{ color: '#fcd34d' }}>🕗 HOY clase especial · {C.horaCDMX} · Ciudad de México</b> : <>Todos los miércoles · {CLASE.horaCDMX} · Ciudad de México</>}</p>
+          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>{C.esEspecial ? <b style={{ color: '#fcd34d' }}>🕗 HOY clase especial · {C.horaCDMX} · Ciudad de México</b> : <>Todos {DIA_PLURAL} · {CLASE.horaCDMX} · Ciudad de México</>}</p>
           <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
             Nos sentamos con tu cuenta a revisar qué está funcionando, qué ajustar y qué publicar esta semana.
             {proxima && <> Próxima clase: <b style={{ color: '#fcd34d', textTransform: 'capitalize' }}>{proxima}</b>.</>}

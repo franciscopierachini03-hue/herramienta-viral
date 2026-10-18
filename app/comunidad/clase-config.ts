@@ -3,15 +3,33 @@
 // Se edita acá y cambia en los cuatro lados.
 
 export const CLASE = {
-  diaSemana: 3,            // 0=domingo … 3=MIÉRCOLES
+  // 0=DOMINGO · 1=lunes · 2=martes · 3=miércoles · 4=jueves · 5=viernes · 6=sábado
+  // Cambiado de miércoles a DOMINGO el 18-oct-2026, por decisión de Francisco.
+  // Cambiar este número mueve la clase en TODA la plataforma: la página, el
+  // contador, los dos recordatorios por correo, el hub y el centro de ayuda.
+  diaSemana: 0,
   horaCDMX: '10:00 AM',
-  finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el miércoles cuenta como "HOY"
+  finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el día de clase cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
-  sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/84547587920?pwd=L4pWVX3oIDCVYRZF0IHDk5wM7SYP2U.1',
-  zoomId: '845 4758 7920',
-  zoomCodigo: '171018',
+  sala: 'Sesión de viralidad',
+  zoomUrl: 'https://us06web.zoom.us/j/84896541773?pwd=UB3ba5XpdOZFyii8ctrbKZPehgP7un.1',
+  zoomId: '848 9654 1773',
+  zoomCodigo: '889645',
 };
+
+// ── El nombre del día, derivado ─────────────────────────────────────────────
+// Antes el día estaba escrito a mano en nueve archivos y cambiarlo era cazar la
+// palabra "miércoles" por todo el repo. Ahora sale de `diaSemana` y basta con
+// mover ese número.
+const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+export const DIA_NOMBRE = DIAS_ES[CLASE.diaSemana];                    // 'domingo'
+// lunes/martes/miércoles/jueves/viernes ya terminan en s: no llevan otra.
+export const DIA_PLURAL = DIA_NOMBRE.endsWith('s') ? `los ${DIA_NOMBRE}` : `los ${DIA_NOMBRE}s`;
+
+// El día de antes — el recordatorio de 24 horas sale ese día.
+export const DIA_PREVIO = (CLASE.diaSemana + 6) % 7;                   // sábado
+export const DIA_PREVIO_NOMBRE = DIAS_ES[DIA_PREVIO];
 
 // Mismo horario en las zonas de la comunidad (10:00 AM CDMX).
 export const HORARIOS: Array<[string, string, string]> = [
@@ -32,10 +50,10 @@ export const HORARIOS: Array<[string, string, string]> = [
 export const CLASE_ESPECIAL = {
   fecha: '',             // '' = apagada · 'YYYY-MM-DD' = solo ese día
   hora: '10:00 AM',
-  sala: 'Mañanas de Viralidad',
-  zoomUrl: 'https://us06web.zoom.us/j/84547587920?pwd=L4pWVX3oIDCVYRZF0IHDk5wM7SYP2U.1',
-  zoomId: '845 4758 7920',
-  zoomCodigo: '171018',
+  sala: 'Sesión de viralidad',
+  zoomUrl: 'https://us06web.zoom.us/j/84896541773?pwd=UB3ba5XpdOZFyii8ctrbKZPehgP7un.1',
+  zoomId: '848 9654 1773',
+  zoomCodigo: '889645',
 };
 
 // La clase que corresponde a una fecha CDMX (YYYY-MM-DD): la especial si es su
@@ -51,10 +69,10 @@ export function claseEnFecha(fechaCDMX: string) {
 // /comunidad y /app mientras HOY (CDMX) esté entre `desde` y `hasta`.
 // Para apagarlo: dejá `texto` vacío.
 export const AVISO = {
-  desde: '2026-10-07',
-  hasta: '2026-10-07',
-  titulo: '🔴 Sala nueva para la clase de HOY — 10:00 AM',
-  texto: 'El recordatorio que llegó por correo lleva el link anterior, que ya no sirve. Entra con el botón de abajo: sala 845 4758 7920 · código 171018.',
+  desde: '2026-10-18',
+  hasta: '2026-11-08',
+  titulo: '📅 La clase se cambió a los DOMINGOS 10:00 AM',
+  texto: 'Ya no es los miércoles. De ahora en adelante nos vemos todos los domingos a las 10:00 AM (Ciudad de México), en la misma sala de siempre. Entra con el botón de abajo.',
 };
 
 export function avisoVigente(hoyCDMX: string) {

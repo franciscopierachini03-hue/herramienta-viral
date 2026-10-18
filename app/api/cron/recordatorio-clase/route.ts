@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAccess } from '@/lib/access';
-import { CLASE, HORARIOS } from '@/app/comunidad/clase-config';
+import { CLASE, HORARIOS, DIA_NOMBRE, DIA_PREVIO, DIA_PREVIO_NOMBRE } from '@/app/comunidad/clase-config';
 
-// Recordatorios por correo de la CLASE SEMANAL (miércoles 10:00 AM CDMX).
+// Recordatorios por correo de la CLASE SEMANAL (10:00 AM CDMX).
+// El día sale de clase-config (hoy DOMINGO; era miércoles hasta el 18-oct-2026).
 //
-//   · 24h antes → martes   16:00 UTC (10 AM CDMX)  [cron semanal en vercel.json]
-//   · 1h antes  → miércoles ~14:45 UTC (8:45 AM)   [lo dispara /api/cron/daily]
+//   · 24h antes → el día anterior 16:00 UTC (10 AM CDMX) [cron en vercel.json]
+//   · 1h antes  → el día de la clase ~14:45 UTC (8:45 AM) [lo dispara /api/cron/daily]
 //
-// El TIPO se infiere del día UTC (martes=24h, miércoles=1h) — así un tercero no
+// El TIPO se infiere del día UTC (víspera=24h, día de clase=1h) — así un tercero no
 // puede disparar otra cosa que lo que ese día tocaba. Además:
 //   · dedup: 1 envío por tipo por día (marca en ai_credits si la tabla existe)
 //   · ventana horaria 13-19 UTC (fuera de eso, no manda)
@@ -34,11 +35,11 @@ function emailHtml(tipo: '24h' | '1h'): { subject: string; html: string } {
   const es1h = tipo === '1h';
   const subject = es1h
     ? '🔴 En 1 hora: tu clase en vivo (10:00 AM CDMX)'
-    : '🎓 Mañana: tu clase en vivo — miércoles 10:00 AM (CDMX)';
+    : `🎓 Mañana: tu clase en vivo — ${DIA_NOMBRE} 10:00 AM (CDMX)`;
   const titulo = es1h ? 'La clase arranca en 1 hora' : 'Mañana es la clase';
   const intro = es1h
     ? 'Hoy nos vemos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b>. Deja lista tu cuenta de Instagram/TikTok: la revisamos en la clase.'
-    : 'Mañana miércoles nos sentamos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b> a revisar qué está funcionando y qué publicar esta semana.';
+    : `Mañana ${DIA_NOMBRE} nos sentamos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b> a revisar qué está funcionando y qué publicar esta semana.`;
   const zonas = HORARIOS.map(([b, h, p]) =>
     `<p style="margin:0 0 3px;font-size:13px;color:#9a9aa6;">${b} <b style="color:#fff;">${h}</b> ${p}</p>`).join('');
 
@@ -131,13 +132,13 @@ export async function GET(req: NextRequest) {
   const force = sp.get('force');
   if (force && !admin) return Response.json({ error: 'force es solo para el admin logueado.' }, { status: 403 });
 
-  // Tipo por día UTC: martes=24h antes · miércoles=1h antes.
+  // Tipo por día UTC: la víspera manda el de 24h, el día de la clase el de 1h.
   const ahora = new Date();
   const dia = ahora.getUTCDay();
-  const inferido = dia === 2 ? '24h' : dia === 3 ? '1h' : '';
+  const inferido = dia === DIA_PREVIO ? '24h' : dia === CLASE.diaSemana ? '1h' : '';
   const tipo = (force === '24h' || force === '1h') ? force : inferido;
 
-  if (!tipo) return Response.json({ ok: true, skip: 'hoy no toca recordatorio (solo martes y miércoles)' });
+  if (!tipo) return Response.json({ ok: true, skip: `hoy no toca recordatorio (solo ${DIA_PREVIO_NOMBRE} y ${DIA_NOMBRE})` });
 
   const dry = sp.get('dry') === '1';
   const test = sp.get('test') === '1';
