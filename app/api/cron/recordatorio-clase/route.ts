@@ -13,7 +13,8 @@ import { CLASE, HORARIOS, DIA_NOMBRE, DIA_PREVIO, DIA_PREVIO_NOMBRE } from '@/ap
 // puede disparar otra cosa que lo que ese día tocaba. Además:
 //   · dedup: 1 envío por tipo por día (marca en ai_credits si la tabla existe)
 //   · ventana horaria 13-19 UTC (fuera de eso, no manda)
-//   · ?force=24h|1h (SOLO admin logueado): salta día/ventana/dedup — envío manual
+//   · ?force=24h|1h|vivo (SOLO admin logueado): salta día/ventana/dedup — manual
+//     · vivo = "ya empezamos, entra ahora" (nunca lo manda un cron)
 //   · ?test=1: manda SOLO al dueño (para ver el correo sin molestar a nadie)
 //   · ?dry=1: devuelve cuántos lo recibirían, sin enviar
 // Destinatarios: profiles con subscription_status active/trialing (los que
@@ -31,13 +32,23 @@ function esCron(req: NextRequest): boolean {
   return (req.headers.get('user-agent') || '').includes('vercel-cron');
 }
 
-function emailHtml(tipo: '24h' | '1h'): { subject: string; html: string } {
+// 'vivo' NO lo manda ningún cron: es el aviso de "ya empezamos", que se dispara
+// a mano desde ?force=vivo cuando la sala ya está abierta y Francisco quiere
+// llamar a los que no entraron. Por eso no aparece en la inferencia por día.
+type Tipo = '24h' | '1h' | 'vivo';
+
+function emailHtml(tipo: Tipo): { subject: string; html: string } {
   const es1h = tipo === '1h';
-  const subject = es1h
+  const esVivo = tipo === 'vivo';
+  const subject = esVivo
+    ? '🔴 Estamos EN VIVO — entra ahora'
+    : es1h
     ? '🔴 En 1 hora: tu clase en vivo (10:00 AM CDMX)'
     : `🎓 Mañana: tu clase en vivo — ${DIA_NOMBRE} 10:00 AM (CDMX)`;
-  const titulo = es1h ? 'La clase arranca en 1 hora' : 'Mañana es la clase';
-  const intro = es1h
+  const titulo = esVivo ? 'Ya estamos en vivo' : es1h ? 'La clase arranca en 1 hora' : 'Mañana es la clase';
+  const intro = esVivo
+    ? 'La clase <b style="color:#fff;">ya empezó</b>. Entra con el botón de abajo y ponte cómodo: todavía estás a tiempo.'
+    : es1h
     ? 'Hoy nos vemos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b>. Deja lista tu cuenta de Instagram/TikTok: la revisamos en la clase.'
     : `Mañana ${DIA_NOMBRE} nos sentamos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b> a revisar qué está funcionando y qué publicar esta semana.`;
   const zonas = HORARIOS.map(([b, h, p]) =>
@@ -53,15 +64,15 @@ function emailHtml(tipo: '24h' | '1h'): { subject: string; html: string } {
   <h1 style="margin:0 0 10px;font-size:26px;color:#fff;">${es1h ? '🔴 ' : ''}${titulo}</h1>
   <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#b4b4c0;">${intro}</p>
 
-  <div style="background:#0b0b14;border:1px solid #23232f;border-radius:14px;padding:16px 18px;margin:0 0 18px;">
+  ${esVivo ? '' : `<div style="background:#0b0b14;border:1px solid #23232f;border-radius:14px;padding:16px 18px;margin:0 0 18px;">
     <p style="margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:1px;color:#f59e0b;">🕙 HORARIOS</p>
     ${zonas}
-  </div>
+  </div>`}
 
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 14px;"><tr>
     <td align="center" bgcolor="#f59e0b" style="border-radius:12px;">
       <a href="${CLASE.zoomUrl}" target="_blank" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:800;color:#1a1206;text-decoration:none;border-radius:12px;">
-        🚀 Entrar a la ${CLASE.sala} (Zoom) →
+        ${esVivo ? '🔴 Entrar AHORA a la clase (Zoom)' : `🚀 Entrar a la ${CLASE.sala} (Zoom)`} →
       </a>
     </td>
   </tr></table>
@@ -136,7 +147,7 @@ export async function GET(req: NextRequest) {
   const ahora = new Date();
   const dia = ahora.getUTCDay();
   const inferido = dia === DIA_PREVIO ? '24h' : dia === CLASE.diaSemana ? '1h' : '';
-  const tipo = (force === '24h' || force === '1h') ? force : inferido;
+  const tipo = (force === '24h' || force === '1h' || force === 'vivo') ? force : inferido;
 
   if (!tipo) return Response.json({ ok: true, skip: `hoy no toca recordatorio (solo ${DIA_PREVIO_NOMBRE} y ${DIA_NOMBRE})` });
 
@@ -149,7 +160,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: true, skip: `fuera de ventana (hora UTC ${h})` });
   }
 
-  const { subject, html } = emailHtml(tipo as '24h' | '1h');
+  const { subject, html } = emailHtml(tipo as Tipo);
 
   if (test) {
     const r = await enviar([OWNER], `[PRUEBA] ${subject}`, html);
