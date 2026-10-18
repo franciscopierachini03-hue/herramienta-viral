@@ -982,6 +982,8 @@ export default function Home() {
           <div className="rounded-2xl p-4 mb-5" style={{ background: 'linear-gradient(145deg, #2a1206, #1a0d0d)', border: '2px solid #f59e0b', boxShadow: '0 0 30px #f59e0b33' }}>
             <p className="text-base font-extrabold mb-1" style={{ color: '#fcd34d' }}>{a.titulo}</p>
             <p className="text-sm" style={{ color: '#e8d8b4' }}>{a.texto}</p>
+            {/* El botón para entrar no va acá: lo pone <ClaseEnVivo/> desde
+                ProductNav, arriba, y aparece en todas las pantallas. */}
           </div>
         ) : null;
       })()}

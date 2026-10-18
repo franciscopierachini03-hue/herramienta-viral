@@ -9,6 +9,7 @@ export const CLASE = {
   // contador, los dos recordatorios por correo, el hub y el centro de ayuda.
   diaSemana: 0,
   horaCDMX: '10:00 AM',
+  horaInicio: { h: 10, m: 0 },     // a qué hora abre la sala (CDMX), en números
   finVentanaHoy: { h: 11, m: 30 }, // hasta esta hora (CDMX) el día de clase cuenta como "HOY"
   nombre: 'Mañanas de Viralidad',
   sala: 'Sesión de viralidad',

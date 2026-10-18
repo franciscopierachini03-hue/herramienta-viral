@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { TOPCUT_EN_MANTENIMIENTO } from '@/lib/tools';
+import ClaseEnVivo from './ClaseEnVivo';
 
 // Header común a TODAS las herramientas (ViralADN, TOPCUT, Guiones, y lo que venga).
 //
@@ -90,6 +91,9 @@ export default function ProductNav({ active }: { active: Active }) {
           </span>
         </div>
       </div>
+      {/* 🔴 El día de la clase, el botón para entrar viaja con la persona:
+          aparece en todas las pantallas, no solo en /comunidad. */}
+      <ClaseEnVivo />
     </div>
   );
 }
