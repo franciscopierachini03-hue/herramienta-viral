@@ -110,14 +110,27 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<{
         <div className="flex flex-wrap justify-center gap-4">
           {cards.map(c => (
             c.unlocked ? (
+              // Una herramienta en mantenimiento SÍ se puede abrir: adentro está el
+              // cartel que explica qué pasa. Lo que no se hace es decirle "Entrar"
+              // como si nada y que suba un video que nadie va a procesar.
               <Link key={c.key} href={c.href}
-                className="group rounded-3xl p-7 flex flex-col transition-all duration-200 hover:-translate-y-1 w-full sm:w-80"
-                style={{ background: 'linear-gradient(145deg, #14141f, #0d0d16)', border: `1px solid ${c.border}`, boxShadow: `0 0 30px ${c.glow}` }}>
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4 transition-transform duration-200 group-hover:scale-110" style={{ background: c.grad, boxShadow: `0 0 24px ${c.iconGlow}` }}>{c.icon}</div>
+                className="group rounded-3xl p-7 flex flex-col transition-all duration-200 hover:-translate-y-1 w-full sm:w-80 relative"
+                style={{ background: 'linear-gradient(145deg, #14141f, #0d0d16)', border: `1px solid ${c.mantenimiento ? '#8a6a1a' : c.border}`, boxShadow: `0 0 30px ${c.mantenimiento ? '#f59e0b14' : c.glow}` }}>
+                {c.mantenimiento && (
+                  <div className="absolute top-4 right-4 text-xs px-2 py-1 rounded-full font-bold"
+                    style={{ background: '#1a1206', border: '1px solid #8a6a1a', color: '#fcd34d' }}>🛠️ En mantenimiento</div>
+                )}
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-4 transition-transform duration-200 group-hover:scale-110"
+                  style={{ background: c.grad, boxShadow: `0 0 24px ${c.iconGlow}`, filter: c.mantenimiento ? 'grayscale(0.7)' : undefined, opacity: c.mantenimiento ? 0.7 : 1 }}>{c.icon}</div>
                 <h2 className="text-xl font-bold mb-1">{c.name}</h2>
-                <p className="text-sm mb-6 flex-1" style={{ color: '#b4b4c0' }}>{c.desc}</p>
-                <span className="w-full py-3 rounded-2xl text-sm font-bold text-center transition-transform duration-200 group-hover:scale-[1.02]" style={{ background: c.grad, color: '#fff' }}>
-                  Entrar <span className="inline-block transition-transform duration-200 group-hover:translate-x-1">→</span>
+                <p className="text-sm mb-6 flex-1" style={{ color: '#b4b4c0' }}>
+                  {c.mantenimiento ? 'Estamos reconstruyendo el motor de edición. No subas videos todavía: no se van a procesar.' : c.desc}
+                </p>
+                <span className="w-full py-3 rounded-2xl text-sm font-bold text-center transition-transform duration-200 group-hover:scale-[1.02]"
+                  style={c.mantenimiento
+                    ? { background: '#14141f', border: '1px solid #8a6a1a', color: '#fcd34d' }
+                    : { background: c.grad, color: '#fff' }}>
+                  {c.mantenimiento ? 'Ver el aviso' : <>Entrar <span className="inline-block transition-transform duration-200 group-hover:translate-x-1">→</span></>}
                 </span>
               </Link>
             ) : (

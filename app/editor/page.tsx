@@ -52,6 +52,8 @@ import SessionGuard from '../_components/SessionGuard';
 import ScenePanel from './ScenePanel';
 import { saveLocalVideo } from '@/lib/topcut-history';
 import { getUserKey } from '@/lib/user-key';
+import Mantenimiento from './Mantenimiento';
+import { TOPCUT_EN_MANTENIMIENTO } from '@/lib/tools';
 
 const API = process.env.NEXT_PUBLIC_VIDEO_API || 'https://api.viraladn.com';
 
@@ -148,7 +150,20 @@ function brollLabel(p: Plan): string | undefined {
 
 function r3(n: number) { return Math.round(n * 1000) / 1000; }
 
+// ── 🛠️ LA PUERTA ────────────────────────────────────────────────────────────
+// El motor de render (Hetzner, api.viraladn.com) se perdió el 24 de agosto de
+// 2026. Mientras no vuelva, quien entra a /editor ve el cartel y no un editor
+// que sube el video y se queda esperando para siempre.
+//
+// Para reabrir el editor: NEXT_PUBLIC_TOPCUT_MANTENIMIENTO=0 en Vercel.
+// Está en mantenimiento por defecto a propósito: si alguien despliega sin esa
+// variable, la puerta queda cerrada, que es el lado seguro.
 export default function Topcut() {
+  if (TOPCUT_EN_MANTENIMIENTO) return <Mantenimiento />;
+  return <Editor />;
+}
+
+function Editor() {
   const [step, setStep] = useState<Step>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('job') ? 'loading' : 'upload',
   );
