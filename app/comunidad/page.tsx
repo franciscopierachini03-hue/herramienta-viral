@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import ProductNav from '../_components/ProductNav';
 
-// 🎓 Comunidad — la clase semanal EN VIVO (el bono de todos los planes).
-// Todos los domingos 10:00 AM Ciudad de México (era miércoles hasta oct-2026).
-// El día sale de clase-config: no se escribe a mano acá.
-// Config editable acá abajo (CLASE). Gate por plan en layout.tsx.
+// 🎓 Comunidad — las clases EN VIVO (el bono de todos los planes).
+// Desde el 19-oct-2026 son dos por semana: domingos 10 AM (viralidad, con
+// Francisco) y lunes 9 AM (ofertas y monetización, con Rogger). La lista y los
+// horarios salen de clase-config: acá no se escribe ninguno a mano.
+// Gate por plan en layout.tsx.
 
-import { CLASE, HORARIOS, claseEnFecha, avisoVigente, DIA_PLURAL } from './clase-config';
+import { CLASES, claseEnFecha, avisoVigente, estadoClase, proximoInicio, horaTexto, horarios, diaPlural, type Clase as ClaseCfg, type EstadoClase } from './clase-config';
 
 type Archivo = { nombre: string; url: string };
 type Clase = { id: string; fecha: string; titulo: string; resumen: string | null; video_url: string | null; archivos: Archivo[] };
@@ -41,29 +42,13 @@ function fmtFecha(f: string): string {
   return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} de ${MESES[d.getUTCMonth()]}`;
 }
 
-// Próxima clase 10:00 AM CDMX como instante UTC. CDMX es UTC-6 FIJO (sin
-// horario de verano desde 2022) → 16:00 UTC ese día. Calcular en UTC hace que
-// el timer sea correcto para cualquier persona, esté en la zona que esté.
-const CLASS_UTC_HOUR = 16; // 10:00 CDMX
-const DURACION_MS = 90 * 60 * 1000; // la clase dura ~90 min (ventana EN VIVO)
-
-function proximaClaseUTC(ahora: Date): Date {
-  const t = new Date(ahora);
-  const add = (CLASE.diaSemana - ahora.getUTCDay() + 7) % 7;
-  t.setUTCDate(ahora.getUTCDate() + add);
-  t.setUTCHours(CLASS_UTC_HOUR, 0, 0, 0);
-  if (t.getTime() <= ahora.getTime()) t.setUTCDate(t.getUTCDate() + 7);
-  return t;
-}
-
 type Restante = { d: number; h: number; m: number; s: number };
 
 export default function Comunidad() {
-  const [proxima, setProxima] = useState('');
-  const [esHoy, setEsHoy] = useState(false);
-  const [restante, setRestante] = useState<Restante | null>(null);
-  const [enVivo, setEnVivo] = useState(false);
-  const [copiado, setCopiado] = useState<'id' | 'codigo' | null>(null);
+  // Una entrada por clase: en qué estado está y cuánto falta.
+  type Info = { estado: EstadoClase; restante: Restante; proxima: string };
+  const [info, setInfo] = useState<Record<string, Info>>({});
+  const [copiado, setCopiado] = useState<string | null>(null);
   const [clases, setClases] = useState<Clase[] | null>(null);
   const [esAdmin, setEsAdmin] = useState(false);
   const [videoAbierto, setVideoAbierto] = useState<string | null>(null);
@@ -76,46 +61,39 @@ export default function Comunidad() {
       .catch(() => setClases([]));
   }, []);
 
-  useEffect(() => {
-    // "Próxima clase" calculada en hora CDMX (client-only: sin hydration mismatch).
-    try {
-      const cdmx = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
-      let faltan = (CLASE.diaSemana - cdmx.getDay() + 7) % 7;
-      const pasoLaClase = cdmx.getHours() > CLASE.finVentanaHoy.h
-        || (cdmx.getHours() === CLASE.finVentanaHoy.h && cdmx.getMinutes() > CLASE.finVentanaHoy.m);
-      if (faltan === 0 && pasoLaClase) faltan = 7;
-      const objetivo = new Date(cdmx);
-      objetivo.setDate(cdmx.getDate() + faltan);
-      setEsHoy(faltan === 0);
-      setProxima(objetivo.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
-    } catch { setProxima(`todos ${DIA_PLURAL}`); }
-  }, []);
-
-  // ⏳ Timer semanal: cuenta regresiva a la próxima clase, 10:00 AM CDMX.
-  // Se resetea solo: al terminar la ventana EN VIVO apunta a la semana siguiente.
+  // ⏳ Un contador por clase. Client-only para no romper la hidratación, y se
+  // resetea solo: al terminar la ventana EN VIVO apunta a la semana siguiente.
   useEffect(() => {
     const tick = () => {
       const ahora = new Date();
-      const prox = proximaClaseUTC(ahora);
-      const falta = prox.getTime() - ahora.getTime();
-      // Si la próxima quedó a casi 7 días es porque la de HOY arrancó hace
-      // menos de 90 min → estamos EN VIVO.
-      const vivo = falta > 7 * 86_400_000 - DURACION_MS;
-      setEnVivo(vivo);
-      const ms = Math.max(0, falta);
-      setRestante({
-        d: Math.floor(ms / 86_400_000),
-        h: Math.floor(ms / 3_600_000) % 24,
-        m: Math.floor(ms / 60_000) % 60,
-        s: Math.floor(ms / 1_000) % 60,
-      });
+      const nuevo: Record<string, Info> = {};
+      for (const c of CLASES) {
+        const ms = Math.max(0, proximoInicio(c, ahora).getTime() - ahora.getTime());
+        let proxima = '';
+        try {
+          proxima = proximoInicio(c, ahora).toLocaleDateString('es-MX', {
+            timeZone: 'America/Mexico_City', weekday: 'long', day: 'numeric', month: 'long',
+          });
+        } catch { proxima = `todos ${diaPlural(c)}`; }
+        nuevo[c.id] = {
+          estado: estadoClase(c, ahora),
+          proxima,
+          restante: {
+            d: Math.floor(ms / 86_400_000),
+            h: Math.floor(ms / 3_600_000) % 24,
+            m: Math.floor(ms / 60_000) % 60,
+            s: Math.floor(ms / 1_000) % 60,
+          },
+        };
+      }
+      setInfo(nuevo);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
 
-  function copiar(texto: string, cual: 'id' | 'codigo') {
+  function copiar(texto: string, cual: string) {
     navigator.clipboard?.writeText(texto).then(() => {
       setCopiado(cual);
       setTimeout(() => setCopiado(null), 1600);
@@ -142,105 +120,121 @@ export default function Comunidad() {
           </div>
         )}
 
-        {/* La clase semanal */}
-        <div className="rounded-3xl p-7 mb-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #1a1206, #0d0d16)', border: '1px solid #f59e0b55', boxShadow: '0 0 50px #f59e0b22' }}>
-          {esHoy && !enVivo && (
-            <span className="absolute top-5 right-5 text-[11px] font-extrabold tracking-wider px-3 py-1.5 rounded-full animate-pulse"
-              style={{ background: '#ef4444', color: '#fff' }}>🔴 LA CLASE ES HOY</span>
-          )}
-          <p className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: '#fcd34d' }}>🎓 Clase semanal en vivo</p>
-          <h1 className="text-2xl md:text-3xl font-extrabold mb-1">{CLASE.nombre}</h1>
-          <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>{C.esEspecial ? <b style={{ color: '#fcd34d' }}>🕗 HOY clase especial · {C.horaCDMX} · Ciudad de México</b> : <>Todos {DIA_PLURAL} · {CLASE.horaCDMX} · Ciudad de México</>}</p>
-          <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
-            Nos sentamos con tu cuenta a revisar qué está funcionando, qué ajustar y qué publicar esta semana.
-            {proxima && <> Próxima clase: <b style={{ color: '#fcd34d', textTransform: 'capitalize' }}>{proxima}</b>.</>}
-          </p>
+        {/* Una tarjeta por clase. Agregar una tercera = agregar una entrada
+            en CLASES (clase-config). Acá no se escribe ningún día ni hora. */}
+        {CLASES.map(clase => {
+          const C = claseEnFecha(hoyCDMX, clase);
+          const i = info[clase.id];
+          const vivo = i?.estado === 'vivo';
+          const hoy = i?.estado === 'hoy';
+          return (
+            <div key={clase.id} className="rounded-3xl p-7 mb-6 relative overflow-hidden"
+              style={{
+                background: vivo ? 'linear-gradient(145deg, #2a0a0e, #0d0d16)' : 'linear-gradient(145deg, #15161f, #0d0d16)',
+                border: `1px solid ${vivo ? '#ef4444' : `${clase.acento}55`}`,
+                boxShadow: `0 0 50px ${vivo ? '#ef444433' : `${clase.acento}22`}`,
+              }}>
 
-          {/* ⏳ Cuenta regresiva — se resetea sola cada semana */}
-          {restante && (enVivo ? (
-            <div className="rounded-2xl px-5 py-4 mb-5 flex items-center justify-between gap-3 flex-wrap"
-              style={{ background: '#2a0a0e', border: '1px solid #ef4444aa', boxShadow: '0 0 30px #ef444433' }}>
-              <span className="text-base font-extrabold animate-pulse" style={{ color: '#fca5a5' }}>
-                🔴 LA CLASE ESTÁ EN VIVO AHORA
-              </span>
-              <a href={C.zoomUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-extrabold px-4 py-2 rounded-xl"
-                style={{ background: '#ef4444', color: '#fff' }}>
-                Entrar ya →
-              </a>
-            </div>
-          ) : (
-            <div className="mb-5">
-              <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#8b8b96' }}>⏳ Faltan para la próxima clase</p>
-              <div className="flex gap-2 flex-wrap">
-                {([['Días', restante.d], ['Horas', restante.h], ['Min', restante.m], ['Seg', restante.s]] as const).map(([label, val]) => (
-                  <div key={label} className="rounded-2xl px-4 py-3 text-center min-w-[72px]"
-                    style={{ background: '#0a0a12', border: '1px solid #f59e0b44' }}>
-                    <div className="text-2xl md:text-3xl font-extrabold tabular-nums" style={{ color: '#fcd34d' }}>
-                      {String(val).padStart(2, '0')}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>{label}</div>
+              {hoy && (
+                <span className="absolute top-5 right-5 text-[11px] font-extrabold tracking-wider px-3 py-1.5 rounded-full animate-pulse"
+                  style={{ background: '#ef4444', color: '#fff' }}>🔴 ES HOY</span>
+              )}
+
+              <p className="text-xs font-extrabold tracking-widest uppercase mb-2" style={{ color: clase.acento }}>🎓 Clase en vivo</p>
+              <h2 className="text-2xl md:text-3xl font-extrabold mb-1">{clase.nombre}</h2>
+              <p className="text-sm md:text-base font-bold mb-1" style={{ color: '#9a9aa6' }}>
+                {C.esEspecial
+                  ? <b style={{ color: '#fcd34d' }}>🕗 HOY clase especial · {C.horaCDMX} · Ciudad de México</b>
+                  : <>Todos {diaPlural(clase)} · {horaTexto(clase)} · Ciudad de México · con <b style={{ color: '#d4d4dc' }}>{clase.con}</b></>}
+              </p>
+              <p className="text-sm mb-5" style={{ color: '#b4b4c0' }}>
+                {clase.tema}
+                {i?.proxima && !vivo && <> Próxima: <b style={{ color: clase.acento, textTransform: 'capitalize' }}>{i.proxima}</b>.</>}
+              </p>
+
+              {/* ⏳ Contador — o el aviso de EN VIVO */}
+              {vivo ? (
+                <div className="rounded-2xl px-5 py-4 mb-5 flex items-center justify-between gap-3 flex-wrap"
+                  style={{ background: '#2a0a0e', border: '1px solid #ef4444aa', boxShadow: '0 0 30px #ef444433' }}>
+                  <span className="text-base font-extrabold animate-pulse" style={{ color: '#fca5a5' }}>
+                    🔴 ESTÁ EN VIVO AHORA
+                  </span>
+                  <a href={C.zoomUrl} rel="noopener noreferrer"
+                    className="text-xs font-extrabold px-4 py-2 rounded-xl"
+                    style={{ background: '#ef4444', color: '#fff' }}>
+                    Entrar ya →
+                  </a>
+                </div>
+              ) : i?.restante ? (
+                <div className="mb-5">
+                  <p className="text-[11px] font-extrabold tracking-widest uppercase mb-2" style={{ color: '#8b8b96' }}>⏳ Faltan</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {([['Días', i.restante.d], ['Horas', i.restante.h], ['Min', i.restante.m], ['Seg', i.restante.s]] as const).map(([label, val]) => (
+                      <div key={label} className="rounded-2xl px-4 py-3 text-center min-w-[72px]"
+                        style={{ background: '#0a0a12', border: `1px solid ${clase.acento}44` }}>
+                        <div className="text-2xl md:text-3xl font-extrabold tabular-nums" style={{ color: clase.acento }}>
+                          {String(val).padStart(2, '0')}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>{label}</div>
+                      </div>
+                    ))}
                   </div>
+                </div>
+              ) : null}
+
+              {/* El botón de entrar, siempre visible. Sin target="_blank": el
+                  navegador interno de Instagram se los come y queda muerto. */}
+              <a href={C.zoomUrl} rel="noopener noreferrer"
+                className="block w-full py-4 rounded-2xl text-base font-extrabold text-center transition-transform hover:-translate-y-0.5 mb-4"
+                style={{
+                  background: vivo ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : `linear-gradient(135deg, ${clase.acento}, #ef4444)`,
+                  color: '#fff',
+                  boxShadow: `0 0 30px ${vivo ? '#ef444455' : `${clase.acento}44`}`,
+                }}>
+                {vivo ? '🔴 Entrar AHORA (Zoom) →' : `🚀 Entrar a la ${C.sala} (Zoom) →`}
+              </a>
+
+              <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>ID de la reunión</p>
+                    <p className="text-sm font-bold font-mono">{C.zoomId}</p>
+                  </div>
+                  <button onClick={() => copiar(C.zoomId.replace(/\s/g, ''), `${clase.id}-id`)}
+                    className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
+                    style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === `${clase.id}-id` ? '#86efac' : '#c9c9d4' }}>
+                    {copiado === `${clase.id}-id` ? '✓ Copiado' : 'Copiar'}
+                  </button>
+                </div>
+                {C.zoomCodigo ? (
+                  <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>Código de acceso</p>
+                      <p className="text-sm font-bold font-mono">{C.zoomCodigo}</p>
+                    </div>
+                    <button onClick={() => copiar(C.zoomCodigo, `${clase.id}-cod`)}
+                      className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
+                      style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === `${clase.id}-cod` ? '#86efac' : '#c9c9d4' }}>
+                      {copiado === `${clase.id}-cod` ? '✓ Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl px-4 py-3 flex items-center" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
+                    <p className="text-xs" style={{ color: '#8b8b96' }}>El enlace ya lleva la contraseña incluida.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {horarios(clase).map(([bandera, hora, lugar]) => (
+                  <span key={lugar} className="text-xs px-3 py-1.5 rounded-full" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#c9c9d4' }}>
+                    {bandera} <b>{hora}</b> <span style={{ color: '#8b8b96' }}>{lugar}</span>
+                  </span>
                 ))}
               </div>
             </div>
-          ))}
-
-          <div className="flex flex-wrap gap-2">
-            {HORARIOS.map(([bandera, hora, lugar]) => (
-              <span key={lugar} className="text-xs px-3 py-1.5 rounded-full" style={{ background: '#0a0a12', border: '1px solid #2a2a36', color: '#c9c9d4' }}>
-                {bandera} <b>{hora}</b> <span style={{ color: '#8b8b96' }}>{lugar}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Sala Z1 */}
-        <div className="rounded-3xl p-7 mb-6" style={card}>
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <h2 className="text-lg font-extrabold">📱 {CLASE.sala}</h2>
-            <span className="text-xs px-3 py-1.5 rounded-full" style={{ background: '#0d1f12', border: '1px solid #22c55e55', color: '#86efac' }}>
-              La misma sala, todas las semanas
-            </span>
-          </div>
-
-          <a href={C.zoomUrl} target="_blank" rel="noopener noreferrer"
-            className="block w-full py-4 rounded-2xl text-base font-extrabold text-center transition-transform hover:-translate-y-0.5 mb-4"
-            style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: '#fff', boxShadow: '0 0 30px #f59e0b44' }}>
-            🚀 Entrar a la clase (Zoom) →
-          </a>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
-              <div>
-                <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>ID de la reunión</p>
-                <p className="text-sm font-bold font-mono">{C.zoomId}</p>
-              </div>
-              <button onClick={() => copiar(C.zoomId.replace(/\s/g, ''), 'id')}
-                className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
-                style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === 'id' ? '#86efac' : '#c9c9d4' }}>
-                {copiado === 'id' ? '✓ Copiado' : 'Copiar'}
-              </button>
-            </div>
-            {C.zoomCodigo ? (
-            <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0a0a12', border: '1px solid #2a2a36' }}>
-              <div>
-                <p className="text-[11px] uppercase tracking-wider" style={{ color: '#8b8b96' }}>Código de acceso</p>
-                <p className="text-sm font-bold font-mono">{C.zoomCodigo}</p>
-              </div>
-              <button onClick={() => copiar(C.zoomCodigo, 'codigo')}
-                className="text-xs font-bold px-3 py-2 rounded-xl shrink-0"
-                style={{ background: '#14141f', border: '1px solid #2e2e3e', color: copiado === 'codigo' ? '#86efac' : '#c9c9d4' }}>
-                {copiado === 'codigo' ? '✓ Copiado' : 'Copiar'}
-              </button>
-            </div>
-            ) : null}
-          </div>
-
-          <p className="text-xs mt-4" style={{ color: '#8b8b96' }}>
-            💡 Llega 5 minutos antes con tu cuenta de Instagram/TikTok a mano — la revisamos en vivo.
-          </p>
-        </div>
+          );
+        })}
 
         {/* 📼 Grabaciones — la biblioteca de clases pasadas */}
         <div className="flex items-center justify-between gap-2 mb-3 mt-2">

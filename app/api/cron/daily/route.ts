@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
-import { CLASE, DIA_NOMBRE } from '@/app/comunidad/clase-config';
+import { CLASES } from '@/app/comunidad/clase-config';
 
 // Cron DIARIO consolidado (Hobby permite máx 2 crons — este junta tareas):
 //   1. SIEMPRE: chequeo de salud de las APIs (/api/cron/health) con alertas.
-//   2. EL DÍA DE LA CLASE: recordatorio "1 hora antes" (el día sale de
-//      clase-config — hoy domingo).
+//   2. LOS DÍAS DE CLASE: recordatorio "1 hora antes" (los días salen de
+//      clase-config — hoy domingo y lunes).
 // Programado 14:45 UTC (8:45 AM CDMX): el recordatorio sale 15-75 min antes de
 // la clase de las 10:00 (los crons de Hobby pueden demorar hasta ~1h).
 
@@ -34,13 +34,13 @@ export async function GET(req: NextRequest) {
 
   // 2) El día de la clase → recordatorio (1h antes). El día sale de
   //    clase-config: si la clase se mueve, esto se mueve solo.
-  if (new Date().getUTCDay() === CLASE.diaSemana) {
+  if (CLASES.some(c => c.diaSemana === new Date().getUTCDay())) {
     try {
       const r = await fetch(`${base}/api/cron/recordatorio-clase`, interno);
       resultado.recordatorio = await r.json().catch(() => `HTTP ${r.status}`);
     } catch (e) { resultado.recordatorio = `error: ${(e as Error).message.slice(0, 80)}`; }
   } else {
-    resultado.recordatorio = `hoy no toca (solo ${DIA_NOMBRE})`;
+    resultado.recordatorio = 'hoy no hay clase';
   }
 
   // 3) 🛡️ Protección admin: cancela cualquier cobro a correos de ADMIN_EMAILS

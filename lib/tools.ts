@@ -60,7 +60,7 @@ export const TOOLS: Tool[] = [
   },
   {
     key: 'comunidad', name: 'Comunidad', href: '/comunidad', icon: '🎓',
-    desc: 'La clase en vivo de todos los domingos con Francisco: qué está funcionando y qué ajustar en tu cuenta.',
+    desc: 'Dos clases en vivo por semana: domingos 10 AM de viralidad con Francisco, lunes 9 AM de ofertas y monetización con Rogger.',
     needs: 'viraladn', unlockOn: 'any', producto: 'combo', price: 'con tu plan',
     includedNote: 'Incluida con tu plan',
     grad: 'linear-gradient(135deg, #f59e0b, #ef4444)',

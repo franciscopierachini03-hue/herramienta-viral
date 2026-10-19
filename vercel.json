@@ -1,6 +1,6 @@
 {
   "crons": [
     { "path": "/api/cron/daily", "schedule": "45 14 * * *" },
-    { "path": "/api/cron/recordatorio-clase", "schedule": "0 16 * * 6" }
+    { "path": "/api/cron/recordatorio-clase", "schedule": "0 16 * * 0,6" }
   ]
 }

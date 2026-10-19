@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAccess } from '@/lib/access';
-import { CLASE, HORARIOS, DIA_NOMBRE, DIA_PREVIO, DIA_PREVIO_NOMBRE } from '@/app/comunidad/clase-config';
+import { CLASES, horarios, horaTexto, diaNombre, diaPrevio, type Clase } from '@/app/comunidad/clase-config';
 
-// Recordatorios por correo de la CLASE SEMANAL (10:00 AM CDMX).
-// El día sale de clase-config (hoy DOMINGO; era miércoles hasta el 18-oct-2026).
+// Recordatorios por correo de las CLASES EN VIVO.
+// Las clases salen de clase-config (domingo 10 AM con Francisco · lunes 9 AM
+// con Rogger). Si se agrega una tercera allá, esto la cubre solo.
 //
-//   · 24h antes → el día anterior 16:00 UTC (10 AM CDMX) [cron en vercel.json]
-//   · 1h antes  → el día de la clase ~14:45 UTC (8:45 AM) [lo dispara /api/cron/daily]
+//   · 24h antes → la víspera, 16:00 UTC          [cron semanal en vercel.json]
+//   · 1h antes  → el día de la clase, ~14:45 UTC [lo dispara /api/cron/daily]
 //
 // El TIPO se infiere del día UTC (víspera=24h, día de clase=1h) — así un tercero no
 // puede disparar otra cosa que lo que ese día tocaba. Además:
@@ -37,21 +38,22 @@ function esCron(req: NextRequest): boolean {
 // llamar a los que no entraron. Por eso no aparece en la inferencia por día.
 type Tipo = '24h' | '1h' | 'vivo';
 
-function emailHtml(tipo: Tipo): { subject: string; html: string } {
+function emailHtml(tipo: Tipo, clase: Clase): { subject: string; html: string } {
   const es1h = tipo === '1h';
   const esVivo = tipo === 'vivo';
+  const hora = horaTexto(clase);
   const subject = esVivo
-    ? '🔴 Estamos EN VIVO — entra ahora'
+    ? `🔴 Estamos EN VIVO: ${clase.nombre}`
     : es1h
-    ? '🔴 En 1 hora: tu clase en vivo (10:00 AM CDMX)'
-    : `🎓 Mañana: tu clase en vivo — ${DIA_NOMBRE} 10:00 AM (CDMX)`;
-  const titulo = esVivo ? 'Ya estamos en vivo' : es1h ? 'La clase arranca en 1 hora' : 'Mañana es la clase';
+    ? `🔴 En 1 hora: ${clase.nombre} (${hora} CDMX)`
+    : `🎓 Mañana ${diaNombre(clase)}: ${clase.nombre} (${hora} CDMX)`;
+  const titulo = esVivo ? 'Ya estamos en vivo' : es1h ? 'Arranca en 1 hora' : 'Mañana es la clase';
   const intro = esVivo
-    ? 'La clase <b style="color:#fff;">ya empezó</b>. Entra con el botón de abajo y ponte cómodo: todavía estás a tiempo.'
+    ? `<b style="color:#fff;">${clase.nombre}</b> con ${clase.con} ya empezó. Entra con el botón de abajo: todavía estás a tiempo.`
     : es1h
-    ? 'Hoy nos vemos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b>. Deja lista tu cuenta de Instagram/TikTok: la revisamos en la clase.'
-    : `Mañana ${DIA_NOMBRE} nos sentamos <b style="color:#fff;">en vivo a las 10:00 AM (Ciudad de México)</b> a revisar qué está funcionando y qué publicar esta semana.`;
-  const zonas = HORARIOS.map(([b, h, p]) =>
+    ? `Hoy nos vemos <b style="color:#fff;">en vivo a las ${hora} (Ciudad de México)</b> con ${clase.con}. ${clase.tema}`
+    : `Mañana ${diaNombre(clase)} <b style="color:#fff;">a las ${hora} (Ciudad de México)</b>, con ${clase.con}. ${clase.tema}`;
+  const zonas = horarios(clase).map(([b, h, p]) =>
     `<p style="margin:0 0 3px;font-size:13px;color:#9a9aa6;">${b} <b style="color:#fff;">${h}</b> ${p}</p>`).join('');
 
   const html = `<!doctype html>
@@ -71,13 +73,13 @@ function emailHtml(tipo: Tipo): { subject: string; html: string } {
 
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 14px;"><tr>
     <td align="center" bgcolor="#f59e0b" style="border-radius:12px;">
-      <a href="${CLASE.zoomUrl}" target="_blank" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:800;color:#1a1206;text-decoration:none;border-radius:12px;">
-        ${esVivo ? '🔴 Entrar AHORA a la clase (Zoom)' : `🚀 Entrar a la ${CLASE.sala} (Zoom)`} →
+      <a href="${clase.zoomUrl}" target="_blank" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:800;color:#1a1206;text-decoration:none;border-radius:12px;">
+        ${esVivo ? '🔴 Entrar AHORA a la clase (Zoom)' : `🚀 Entrar a la ${clase.sala} (Zoom)`} →
       </a>
     </td>
   </tr></table>
 
-  <p style="margin:0 0 4px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${CLASE.zoomId}</b>${CLASE.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${CLASE.zoomCodigo}</b>` : ''}</p>
+  <p style="margin:0 0 4px;font-size:13px;color:#9a9aa6;">ID: <b style="color:#fff;font-family:monospace;">${clase.zoomId}</b>${clase.zoomCodigo ? ` · Código: <b style="color:#fff;font-family:monospace;">${clase.zoomCodigo}</b>` : ''}</p>
   <p style="margin:0 0 18px;font-size:13px;color:#9a9aa6;">También la tienes siempre en <a href="${APP}/comunidad" style="color:#fcd34d;">viraladn.com/comunidad</a> (con el contador en vivo).</p>
 
   <p style="margin:0;font-size:12px;color:#6b6b78;border-top:1px solid #1a1a26;padding-top:14px;">
@@ -143,13 +145,30 @@ export async function GET(req: NextRequest) {
   const force = sp.get('force');
   if (force && !admin) return Response.json({ error: 'force es solo para el admin logueado.' }, { status: 403 });
 
-  // Tipo por día UTC: la víspera manda el de 24h, el día de la clase el de 1h.
+  // ¿Qué toca hoy? Con dos clases puede tocar más de una cosa el mismo día:
+  // el domingo sale el "en 1 hora" de viralidad Y el "mañana" de ofertas.
   const ahora = new Date();
   const dia = ahora.getUTCDay();
-  const inferido = dia === DIA_PREVIO ? '24h' : dia === CLASE.diaSemana ? '1h' : '';
-  const tipo = (force === '24h' || force === '1h' || force === 'vivo') ? force : inferido;
+  const pedida = sp.get('clase');     // opcional: 'viralidad' | 'ofertas'
 
-  if (!tipo) return Response.json({ ok: true, skip: `hoy no toca recordatorio (solo ${DIA_PREVIO_NOMBRE} y ${DIA_NOMBRE})` });
+  let pendientes: Array<{ clase: Clase; tipo: Tipo }> = [];
+  if (force === '24h' || force === '1h' || force === 'vivo') {
+    // A mano: la clase que se pida, o la que caiga hoy, o la primera.
+    const c = CLASES.find(x => x.id === pedida)
+      || CLASES.find(x => x.diaSemana === dia)
+      || CLASES[0];
+    pendientes = [{ clase: c, tipo: force }];
+  } else {
+    for (const c of CLASES) {
+      if (dia === c.diaSemana) pendientes.push({ clase: c, tipo: '1h' });
+      else if (dia === diaPrevio(c)) pendientes.push({ clase: c, tipo: '24h' });
+    }
+    if (pedida) pendientes = pendientes.filter(x => x.clase.id === pedida);
+  }
+
+  if (!pendientes.length) {
+    return Response.json({ ok: true, skip: 'hoy no toca ningún recordatorio' });
+  }
 
   const dry = sp.get('dry') === '1';
   const test = sp.get('test') === '1';
@@ -160,21 +179,36 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: true, skip: `fuera de ventana (hora UTC ${h})` });
   }
 
-  const { subject, html } = emailHtml(tipo as Tipo);
-
   if (test) {
-    const r = await enviar([OWNER], `[PRUEBA] ${subject}`, html);
-    return Response.json({ ok: true, test: true, tipo, ...r, a: OWNER });
+    const salida = [];
+    for (const { clase, tipo } of pendientes) {
+      const { subject, html } = emailHtml(tipo, clase);
+      const r = await enviar([OWNER], `[PRUEBA] ${subject}`, html);
+      salida.push({ clase: clase.id, tipo, ...r });
+    }
+    return Response.json({ ok: true, test: true, a: OWNER, envios: salida });
   }
 
   const lista = await destinatarios();
-  if (dry) return Response.json({ ok: true, dry: true, tipo, destinatarios: lista.length });
-
-  if (!force && await yaEnviadoHoy(tipo)) {
-    return Response.json({ ok: true, skip: `el recordatorio ${tipo} de hoy ya se envió` });
+  if (dry) {
+    return Response.json({
+      ok: true, dry: true, destinatarios: lista.length,
+      envios: pendientes.map(({ clase, tipo }) => ({ clase: clase.id, tipo, asunto: emailHtml(tipo, clase).subject })),
+    });
   }
 
-  const r = await enviar(lista, subject, html);
-  console.log(`[recordatorio-clase] ${tipo}: ${r.enviados} enviados, ${r.fallidos} fallidos`);
-  return Response.json({ ok: true, tipo, ...r });
+  const salida = [];
+  for (const { clase, tipo } of pendientes) {
+    // El candado es por clase Y por tipo: que el de ofertas no bloquee al de
+    // viralidad cuando los dos caen el mismo día.
+    if (!force && await yaEnviadoHoy(`${clase.id}-${tipo}`)) {
+      salida.push({ clase: clase.id, tipo, skip: 'ya se envió hoy' });
+      continue;
+    }
+    const { subject, html } = emailHtml(tipo, clase);
+    const r = await enviar(lista, subject, html);
+    console.log(`[recordatorio-clase] ${clase.id} ${tipo}: ${r.enviados} enviados, ${r.fallidos} fallidos`);
+    salida.push({ clase: clase.id, tipo, ...r });
+  }
+  return Response.json({ ok: true, envios: salida });
 }

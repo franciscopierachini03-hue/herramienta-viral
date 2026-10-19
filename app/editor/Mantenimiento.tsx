@@ -51,7 +51,7 @@ export default function Mantenimiento() {
             </p>
             <p className="text-sm leading-relaxed" style={{ color: '#9fb3bb' }}>
               el buscador de virales, las transcripciones, los guiones, la calculadora,
-              analizar perfiles y la clase de los domingos.
+              analizar perfiles y las clases en vivo.
             </p>
           </div>
 

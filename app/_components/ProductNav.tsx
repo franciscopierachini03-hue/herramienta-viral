@@ -26,7 +26,7 @@ const TITLES: Record<Active, { title: string; sub: string }> = {
   studio:  { title: 'Avatares IA', sub: 'Crea tu avatar y conviértelo en video' },
   carruseles: { title: 'Carruseles', sub: 'De una idea a un carrusel listo para publicar' },
   teleprompter: { title: 'Teleprompter', sub: 'Leé tu guion a cámara, la letra baja sola' },
-  comunidad: { title: 'Comunidad', sub: 'Tu clase semanal en vivo' },
+  comunidad: { title: 'Comunidad', sub: 'Tus clases en vivo de cada semana' },
 };
 
 export default function ProductNav({ active }: { active: Active }) {

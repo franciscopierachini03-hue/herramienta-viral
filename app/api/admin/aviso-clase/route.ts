@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
 import { createServiceClient } from '@/lib/supabase/server';
-import { claseEnFecha, DIA_NOMBRE } from '@/app/comunidad/clase-config';
+import { claseEnFecha, CLASES, diaNombre } from '@/app/comunidad/clase-config';
 
 // GET /api/admin/aviso-clase — aviso puntual a TODOS los miembros activos:
 // "la clase de mañana arranca a las 8:00 AM" (cambio de horario puntual).
@@ -82,7 +82,7 @@ function emailEnVivo(C: ClaseInfo): { subject: string; html: string } {
 // 📅 "LA CLASE SE MUEVE AL VIERNES" — no es que se cae: se corre para que
 // puedan estar en algo más grande el mismo día.
 function emailViernes(C: ClaseInfo, dia: string, evento: string): { subject: string; html: string } {
-  const subject = `📅 La clase del ${DIA_NOMBRE} se mueve al ${dia}`;
+  const subject = `📅 La clase del ${diaNombre(CLASES[0])} se mueve al ${dia}`;
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#0b0b10;padding:28px 14px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
 <div style="max-width:520px;margin:0 auto;background:#101018;border:1px solid #23232e;border-radius:18px;padding:28px;">
   <div style="background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:8px;padding:8px 14px;display:inline-block;">
@@ -90,7 +90,7 @@ function emailViernes(C: ClaseInfo, dia: string, evento: string): { subject: str
   </div>
 
   <h1 style="margin:20px 0 10px;font-size:27px;line-height:1.2;color:#fff;">
-    La clase del ${DIA_NOMBRE} se mueve al <span style="color:#fcd34d;">${dia}</span>
+    La clase del ${diaNombre(CLASES[0])} se mueve al <span style="color:#fcd34d;">${dia}</span>
   </h1>
 
   <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#c8c8d4;">
