@@ -52,7 +52,13 @@ type Fila = {
   montoUltimoPago: number; moneda: string;
   finPeriodo: string; diasRestantes: number;
   estado: string; cancelaAlFinal: boolean; plan: string;
+  esAnual: boolean;
+  // Lo que corresponde devolver si se cobra solo el tiempo NO usado.
+  // Anual: monto × días restantes / 365. Mensual: monto × días restantes / 30.
+  devolucionProporcional: number;
 };
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 async function subsDeCuenta(c: Cuenta): Promise<Sub[]> {
   const out: Sub[] = [];
@@ -101,6 +107,9 @@ export async function GET(req: NextRequest) {
         const cust = typeof s.customer === 'object' && s.customer ? s.customer : null;
         const inv = typeof s.latest_invoice === 'object' && s.latest_invoice ? s.latest_invoice : null;
         const precio = s.items?.data?.[0]?.price;
+        const monto = (inv?.amount_paid ?? precio?.unit_amount ?? 0) / 100;
+        const esAnual = precio?.recurring?.interval === 'year' || /year|anual/i.test(String(precio?.nickname || ''));
+        const base = esAnual ? 365 : 30;
         filas.push({
           cuenta: c.label,
           email: String(cust?.email || '').toLowerCase(),
@@ -108,13 +117,15 @@ export async function GET(req: NextRequest) {
           subscriptionId: s.id,
           // Este es el id que se usa para devolver el dinero en Stripe.
           chargeId: String(inv?.charge || ''),
-          montoUltimoPago: (inv?.amount_paid ?? precio?.unit_amount ?? 0) / 100,
+          montoUltimoPago: monto,
           moneda: 'USD',
           finPeriodo: fin ? new Date(fin * 1000).toISOString().slice(0, 10) : '',
           diasRestantes: restantes,
           estado: s.status,
           cancelaAlFinal: !!s.cancel_at_period_end,
           plan: String(precio?.nickname || ''),
+          esAnual,
+          devolucionProporcional: r2(monto * Math.min(Math.max(restantes, 0), base) / base),
         });
       }
     }
@@ -127,16 +138,27 @@ export async function GET(req: NextRequest) {
     const sinCargo = aDevolver.filter(f => !f.chargeId).map(f => f.email);
 
     if (sp.get('formato') === 'xlsx') {
+      // Solo quien pagó algo: a los de $0 (pruebas, cupones al 100%, tarjeta
+      // rebotada) no hay nada que devolverles y solo ensucian la lista.
+      const conPago = aDevolver.filter(f => f.montoUltimoPago > 0);
+      const tCompleto = r2(conPago.reduce((a, f) => a + f.montoUltimoPago, 0));
+      const tProp = r2(conPago.reduce((a, f) => a + f.devolucionProporcional, 0));
       const buf = await hacerXlsx({
-        hoja: 'A quien reembolsar',
-        encabezados: ['Correo', 'Nombre', 'Cuenta', 'Monto último pago USD', 'Días que le quedan', 'Fin del período', 'Estado', 'Charge (para el reembolso)', 'Suscripción', 'Plan'],
-        filas: aDevolver.map(f => [f.email, f.nombre, f.cuenta, f.montoUltimoPago, f.diasRestantes, f.finPeriodo, f.estado, f.chargeId, f.subscriptionId, f.plan]),
-        anchos: [32, 24, 20, 20, 18, 16, 12, 30, 30, 16],
+        hoja: 'A quien devolver',
+        encabezados: ['Correo', 'Nombre', 'Tipo de plan', 'Pagó (USD)', 'Días que le quedan',
+          'Devolver COMPLETO (USD)', 'Devolver PROPORCIONAL (USD)', 'Pagado hasta', 'Charge para devolver en Stripe', 'Suscripción'],
+        filas: [
+          ...conPago.map(f => [f.email, f.nombre, f.esAnual ? 'Anual' : 'Mensual', f.montoUltimoPago, f.diasRestantes,
+            f.montoUltimoPago, f.devolucionProporcional, f.finPeriodo, f.chargeId, f.subscriptionId]),
+          [],
+          [`TOTAL · ${conPago.length} personas`, '', '', '', '', tCompleto, tProp, '', '', ''],
+        ],
+        anchos: [32, 24, 12, 11, 17, 22, 26, 13, 32, 30],
       });
       return new Response(new Uint8Array(buf), {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': 'attachment; filename="viraladn-a-quien-reembolsar.xlsx"',
+          'Content-Disposition': 'attachment; filename="viraladn-a-quien-devolver.xlsx"',
         },
       });
     }
@@ -147,6 +169,8 @@ export async function GET(req: NextRequest) {
       suscripciones_vivas: filas.length,
       a_reembolsar: aDevolver.length,
       total_a_devolver_usd: total,
+      total_proporcional_usd: r2(aDevolver.reduce((a, f) => a + f.devolucionProporcional, 0)),
+      sin_nada_que_devolver: aDevolver.filter(f => f.montoUltimoPago === 0).length,
       // ⚠️ Esta lista NO reembolsa nada: el reembolso se hace en Stripe.
       correos: aDevolver.map(f => f.email),
       sin_charge_identificado: sinCargo,
