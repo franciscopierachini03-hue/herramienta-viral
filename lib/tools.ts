@@ -19,6 +19,11 @@ import type { Entitlement } from '@/lib/products';
 // cerrado, que es el lado seguro.
 export const TOPCUT_EN_MANTENIMIENTO = process.env.NEXT_PUBLIC_TOPCUT_MANTENIMIENTO !== '0';
 
+// ⏸️ ViralADN en pausa (decisión de Francisco, 23-oct-2026). Misma mecánica:
+// la leen las cinco pantallas de ViralADN y la tarjeta del hub.
+// Para reabrirlo: NEXT_PUBLIC_VIRALADN_PAUSA=0 en Vercel.
+export const VIRALADN_EN_PAUSA = process.env.NEXT_PUBLIC_VIRALADN_PAUSA !== '0';
+
 export type Tool = {
   key: string;
   name: string;
@@ -47,7 +52,9 @@ export const TOOLS: Tool[] = [
   {
     key: 'viraladn', name: 'ViralADN', href: '/app', icon: '🧬',
     desc: 'Descifra el ADN del contenido viral. Busca los videos que explotan y analiza perfiles.',
-    needs: 'viraladn', producto: 'viraladn', price: '$47/mes', ...VIOLET,
+    needs: 'viraladn', producto: 'viraladn', price: '$47/mes',
+    mantenimiento: VIRALADN_EN_PAUSA,   // reusa el marcado de "apagada" del hub
+    ...VIOLET,
   },
   {
     key: 'topcut', name: 'TOPCUT', href: '/editor', icon: '✂️',

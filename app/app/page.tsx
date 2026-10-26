@@ -6,6 +6,8 @@ import { avisoVigente } from '../comunidad/clase-config';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
 import IdeasChat from './IdeasChat';
+import PausaViralADN from '@/app/_components/PausaViralADN';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 const VIRAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube Shorts', color: '#FF0000' },
@@ -505,7 +507,16 @@ function autoName(url: string, transcript: string): string {
   }
 }
 
+// ── ⏸️ LA PUERTA ────────────────────────────────────────────────────────────
+// ViralADN está en pausa desde el 23 de octubre de 2026. Quien entre ve el
+// cartel en lugar de la herramienta. Se reabre con NEXT_PUBLIC_VIRALADN_PAUSA=0
+// en Vercel, sin tocar código.
 export default function Home() {
+  if (VIRALADN_EN_PAUSA) return <PausaViralADN />;
+  return <HomeAbierto />;
+}
+
+function HomeAbierto() {
   const [tab, setTab] = useState('transcribir');
 
   // Transcribir

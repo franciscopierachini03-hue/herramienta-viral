@@ -10,6 +10,8 @@ import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
 import { CRITERIOS, REFERENCIA } from '@/lib/calculadora-viral';
+import PausaViralADN from '@/app/_components/PausaViralADN';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 type Crit = { key: string; pregunta: string; peso: number; cumple: boolean; porque: string; arreglo: string };
 type Forma = { key: string; nombre: string; peso: number; cumple: boolean; detalle: string; arreglo: string };
@@ -24,7 +26,16 @@ type Res = {
 
 const card = { background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #23232e' } as const;
 
+// ── ⏸️ LA PUERTA ────────────────────────────────────────────────────────────
+// ViralADN está en pausa desde el 23 de octubre de 2026. Quien entre ve el
+// cartel en lugar de la herramienta. Se reabre con NEXT_PUBLIC_VIRALADN_PAUSA=0
+// en Vercel, sin tocar código.
 export default function Calculadora() {
+  if (VIRALADN_EN_PAUSA) return <PausaViralADN />;
+  return <CalculadoraAbierto />;
+}
+
+function CalculadoraAbierto() {
   const [guion, setGuion] = useState('');
   const [res, setRes] = useState<Res | null>(null);
   const [cargando, setCargando] = useState(false);

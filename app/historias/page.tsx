@@ -10,6 +10,8 @@ import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
 import { FORMATOS } from '@/lib/historias-formatos';
+import PausaViralADN from '@/app/_components/PausaViralADN';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 type Pregunta = { key: string; label: string; placeholder: string };
 type Historia = {
@@ -20,7 +22,16 @@ type Historia = {
   cuando?: string;
 };
 
+// ── ⏸️ LA PUERTA ────────────────────────────────────────────────────────────
+// ViralADN está en pausa desde el 23 de octubre de 2026. Quien entre ve el
+// cartel en lugar de la herramienta. Se reabre con NEXT_PUBLIC_VIRALADN_PAUSA=0
+// en Vercel, sin tocar código.
 export default function Historias() {
+  if (VIRALADN_EN_PAUSA) return <PausaViralADN />;
+  return <HistoriasAbierto />;
+}
+
+function HistoriasAbierto() {
   const [sel, setSel] = useState<string>('');
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [resp, setResp] = useState<Record<string, string>>({});

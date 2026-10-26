@@ -10,6 +10,8 @@ import Link from 'next/link';
 import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
+import PausaViralADN from '@/app/_components/PausaViralADN';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 const MAX_IMG = 3;
 
@@ -67,7 +69,16 @@ const ETIQUETAS: Record<string, string> = {
   duracion: 'Duración', visitas_perfil: 'Visitas al perfil', seguidores_nuevos: 'Seguidores nuevos',
 };
 
+// ── ⏸️ LA PUERTA ────────────────────────────────────────────────────────────
+// ViralADN está en pausa desde el 23 de octubre de 2026. Quien entre ve el
+// cartel en lugar de la herramienta. Se reabre con NEXT_PUBLIC_VIRALADN_PAUSA=0
+// en Vercel, sin tocar código.
 export default function Metricas() {
+  if (VIRALADN_EN_PAUSA) return <PausaViralADN />;
+  return <MetricasAbierto />;
+}
+
+function MetricasAbierto() {
   const [imgs, setImgs] = useState<string[]>([]);
   const [contexto, setContexto] = useState('');
   const [cargando, setCargando] = useState(false);

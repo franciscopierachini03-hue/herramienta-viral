@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { TOPCUT_EN_MANTENIMIENTO } from '@/lib/tools';
+import { TOPCUT_EN_MANTENIMIENTO, VIRALADN_EN_PAUSA } from '@/lib/tools';
 import ClaseEnVivo from './ClaseEnVivo';
 
 // Header común a TODAS las herramientas (ViralADN, TOPCUT, Guiones, y lo que venga).
@@ -34,6 +34,8 @@ export default function ProductNav({ active }: { active: Active }) {
   // TOPCUT está en mantenimiento mientras el motor de render no vuelva.
   // Se apaga con NEXT_PUBLIC_TOPCUT_MANTENIMIENTO=0, igual que el cartel.
   const enMantenimiento = active === 'topcut' && TOPCUT_EN_MANTENIMIENTO;
+  const enPausa = active === 'viral' && VIRALADN_EN_PAUSA;
+  const apagado = enMantenimiento || enPausa;
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -83,11 +85,11 @@ export default function ProductNav({ active }: { active: Active }) {
             "en vivo" — decirlo verde al lado del cartel de mantenimiento confunde. */}
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full animate-pulse"
-            style={enMantenimiento
+            style={apagado
               ? { background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }
               : { background: '#22c55e', boxShadow: '0 0 8px #22c55e' }}></span>
-          <span className="text-xs" style={{ color: enMantenimiento ? '#fcd34d' : '#8b8b96' }}>
-            {enMantenimiento ? 'En mantenimiento' : 'En vivo'}
+          <span className="text-xs" style={{ color: apagado ? '#fcd34d' : '#8b8b96' }}>
+            {enPausa ? 'En pausa' : enMantenimiento ? 'En mantenimiento' : 'En vivo'}
           </span>
         </div>
       </div>

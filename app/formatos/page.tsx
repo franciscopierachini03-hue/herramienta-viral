@@ -13,6 +13,8 @@ import ProductNav from '../_components/ProductNav';
 import SessionGuard from '../_components/SessionGuard';
 import ProductGate from '../_components/ProductGate';
 import { FORMATOS, ESTRUCTURAS } from '@/lib/formatos-video';
+import PausaViralADN from '@/app/_components/PausaViralADN';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 type Bloque = {
   etiqueta?: string | null; hablado?: string | null; enPantalla?: string | null;
@@ -28,7 +30,16 @@ type Gancho = { texto: string; porQueFunciona?: string };
 const card = { background: 'linear-gradient(145deg, #141414, #0d0d0d)', border: '1px solid #23232e' } as const;
 const input = { background: '#0a0a12', border: '1px solid #2a2a36', color: '#fff' } as const;
 
+// ── ⏸️ LA PUERTA ────────────────────────────────────────────────────────────
+// ViralADN está en pausa desde el 23 de octubre de 2026. Quien entre ve el
+// cartel en lugar de la herramienta. Se reabre con NEXT_PUBLIC_VIRALADN_PAUSA=0
+// en Vercel, sin tocar código.
 export default function Formatos() {
+  if (VIRALADN_EN_PAUSA) return <PausaViralADN />;
+  return <FormatosAbierto />;
+}
+
+function FormatosAbierto() {
   const [formato, setFormato] = useState('');
   const [estructura, setEstructura] = useState('');
   const [tema, setTema] = useState('');
