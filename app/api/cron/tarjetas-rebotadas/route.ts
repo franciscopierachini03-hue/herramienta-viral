@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getAccess } from '@/lib/access';
 import { createServiceClient } from '@/lib/supabase/server';
+import { VIRALADN_EN_PAUSA } from '@/lib/tools';
 
 // 💳 TARJETAS REBOTADAS — regla de la casa (14-ago-2026, Francisco):
 // "hay que enviarle el correo y quitarle los accesos a las clases, eso siempre
@@ -9,6 +10,11 @@ import { createServiceClient } from '@/lib/supabase/server';
 // El corte de clases es automático y vive en el gate (/comunidad mira
 // access.rebotada). Este cron se encarga de la otra mitad: AVISARLE a la
 // persona, con el link para actualizar la tarjeta, hasta 3 veces (día 1, 3 y 7).
+//
+// ⏸️ Mientras ViralADN está en pausa (VIRALADN_EN_PAUSA) NO se manda nada:
+// el cobro está congelado, así que pedirle a alguien que actualice la tarjeta
+// no tiene sentido (Francisco, 31-oct-2026: "ya debemos pausar estos").
+// Vuelve solo cuando se reabre ViralADN.
 //
 // Corre a diario desde /api/cron/daily.
 //   ?dry=1  → solo lista a quién le escribiría, sin enviar
@@ -76,13 +82,13 @@ function correo(nombre: string, monto: number): { subject: string; html: string 
 
   <p style="margin:0 0 18px;font-size:16px;line-height:1.6;color:#c8c8d4;">
     No es nada raro: suele pasar por una tarjeta vencida, un tope de compra o el banco bloqueando un cobro del exterior.
-    <b style="color:#fff;">Se arregla en un minuto</b> y seguís donde estabas.
+    <b style="color:#fff;">Se arregla en un minuto</b> y sigues donde estabas.
   </p>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a0d0d;border:1px solid #ef444455;border-radius:14px;margin-bottom:20px;">
     <tr><td style="padding:16px;">
       <p style="margin:0;font-size:14px;line-height:1.6;color:#f0d0d0;">
-        Mientras tanto <b style="color:#fff;">pausamos tu lugar en las clases en vivo de los domingos</b>.
+        Mientras tanto <b style="color:#fff;">pausamos tu lugar en las clases en vivo</b>.
         Tus herramientas siguen funcionando — apenas se acredite el pago, tu lugar vuelve solo.
       </p>
     </td></tr>
@@ -96,11 +102,11 @@ function correo(nombre: string, monto: number): { subject: string; html: string 
     </td></tr></table>
 
   <p style="margin:0 0 18px;font-size:13px;color:#8b8b96;text-align:center;">
-    Entrás a tu cuenta y tocas “Gestionar mi suscripción”. ${monto ? `Son $${monto.toFixed(0)} del mes.` : ''}
+    Entra a tu cuenta y toca “Gestionar mi suscripción”. ${monto ? `Son $${monto.toFixed(0)} del mes.` : ''}
   </p>
 
   <p style="margin:0;font-size:14px;line-height:1.7;color:#8b8b96;">
-    Si preferís cancelar, también puedes hacerlo desde ahí y no te cobramos más — pero avísame por acá si hubo algo que no te gustó, me sirve para mejorar.<br><br>
+    Si prefieres cancelar, también puedes hacerlo desde ahí y no te cobramos más — pero avísame por acá si hubo algo que no te gustó, me sirve para mejorar.<br><br>
     <b style="color:#c8c8d4;">Francisco</b>
   </p>
 </td></tr></table>
@@ -129,6 +135,12 @@ export async function GET(req: NextRequest) {
       detalle: todas.map(t => ({ email: t.email, monto: t.monto, cuenta: t.cuenta })),
       nota: 'Sin ?dry=1 se les manda el correo (máx 1 por día por persona).',
     });
+  }
+
+  if (VIRALADN_EN_PAUSA) {
+    console.log(`[tarjetas-rebotadas] ViralADN en pausa — ${todas.length} rebotadas, 0 avisadas`);
+    return Response.json({ pausado: true, rebotadas: todas.length, enviados: 0,
+      nota: 'ViralADN está en pausa: no se avisa a nadie hasta reabrirlo.' });
   }
 
   // Candado: 1 correo por persona por día (marca en ai_credits).
